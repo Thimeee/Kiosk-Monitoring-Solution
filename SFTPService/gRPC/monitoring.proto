@@ -1,0 +1,43 @@
+﻿syntax = "proto3";
+
+option csharp_namespace = "Monitoring.Grpc";
+
+service BranchMonitor {
+  rpc SendStatus(BranchStatusRequest) returns (BranchStatusReply);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatReply);
+  rpc StreamCommands(BranchCommandRequest) returns (stream BranchCommand);
+}
+
+// Messages for SendStatus
+message BranchStatusRequest {
+  string branchId = 1;
+  string statusMessage = 2;
+  int32 activeUsers = 3;
+}
+
+message BranchStatusReply {
+  bool success = 1;
+  string message = 2;
+}
+
+// Messages for StreamCommands
+message BranchCommandRequest {
+  string branchId = 1;
+}
+
+message BranchCommand {
+  string commandType = 1;
+  string commandData = 2;
+}
+
+// Messages for Heartbeat
+message HeartbeatRequest {
+  string branchId = 1;
+  int32 activeUsers = 2;
+  int64 timestamp = 3; // UTC ticks
+}
+
+message HeartbeatReply {
+  bool success = 1;
+  string message = 2;
+}

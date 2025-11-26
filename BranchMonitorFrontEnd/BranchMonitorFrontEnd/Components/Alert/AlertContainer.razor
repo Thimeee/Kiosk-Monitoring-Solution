@@ -1,0 +1,99 @@
+﻿@using System.Timers
+@using BranchMonitorFrontEnd.Service.Alert
+@inject AlertService AlertService
+@implements IDisposable
+
+<div class="alert-stack-container">
+    @foreach (var alert in _alerts)
+    {
+        <AnimatedAlert @key="alert.Id"
+                       Title="@alert.Title"
+                       Message="@alert.Message"
+                       AlertType="@alert.AlertType"
+                       ShowCloseButton="true"
+                       AutoCloseDelay="@alert.Duration"
+                       OnClose="@(() => RemoveAlert(alert.Id))"
+                       @ref="alert.ComponentRef" />
+    }
+</div>
+
+@code {
+    private List<AlertModel> _alerts = new();
+    private int _alertIdCounter = 0;
+    private const int MaxAlerts = 5; // Maximum number of alerts to show at once
+
+    protected override void OnInitialized()
+    {
+        AlertService.OnAlert += ShowAlert;
+    }
+
+    private void ShowAlert(string title, string message, AlertType alertType)
+    {
+        // Remove oldest alert if we've reached the maximum
+        if (_alerts.Count >= MaxAlerts)
+        {
+            var oldestAlert = _alerts.First();
+            RemoveAlert(oldestAlert.Id);
+        }
+
+        var alert = new AlertModel
+        {
+            Id = ++_alertIdCounter,
+            Title = title,
+            Message = message,
+            AlertType = alertType,
+            Duration = GetDurationByType(alertType)
+        };
+
+        _alerts.Add(alert);
+        StateHasChanged();
+
+        // Show the alert after it's rendered with a slight delay
+        Task.Delay(100).ContinueWith(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                alert.ComponentRef?.Show();
+            });
+        });
+    }
+
+    private int GetDurationByType(AlertType type)
+    {
+        // Different durations based on alert type
+        return type switch
+        {
+            AlertType.Error => 8000,    // Errors stay longer
+            AlertType.Warning => 6000,  // Warnings stay medium
+            AlertType.Success => 4000,  // Success messages shorter
+            AlertType.Info => 5000,     // Info medium
+            _ => 5000
+        };
+    }
+
+    private void RemoveAlert(int alertId)
+    {
+        var alert = _alerts.FirstOrDefault(a => a.Id == alertId);
+        if (alert != null)
+        {
+            _alerts.Remove(alert);
+            StateHasChanged();
+        }
+    }
+
+    public void Dispose()
+    {
+        AlertService.OnAlert -= ShowAlert;
+    }
+
+    private class AlertModel
+    {
+        public int Id { get; set; }
+        public string Title { get; set; } = "";
+        public string Message { get; set; } = "";
+        public AlertType AlertType { get; set; }
+        public int Duration { get; set; } = 5000;
+        public AnimatedAlert? ComponentRef { get; set; }
+    }
+}
+

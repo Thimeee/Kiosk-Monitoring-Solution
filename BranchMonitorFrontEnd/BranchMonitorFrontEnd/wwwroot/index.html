@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BranchMonitorFrontEnd</title>
+    <base href="/" />
+    <!--<link rel="stylesheet" href="css/bootstrap/bootstrap.min.css" />-->
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link href="BranchMonitorFrontEnd.styles.css" rel="stylesheet" />
+
+
+    <link href="blazorboostrap/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="blazorboostrap/css/bootstrap-icons.min.css" rel="stylesheet" />
+    <link href="_content/Blazor.Bootstrap/blazor.bootstrap.css" rel="stylesheet" />
+    <style>
+        #app {
+            height: 100vh;
+            width: 100%;
+            background: linear-gradient(135deg, #3e3e3f 0%, #2a2a2b 100%);
+            position: relative;
+            overflow-x: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: #3e3e3f #1a1a1b; /* Thumb | Track */
+        }
+
+        /* Animated Background */
+        .loader-background {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+        }
+
+        .loader-circle {
+            position: absolute;
+            border-radius: 50%;
+            opacity: 0.08;
+            animation: float 20s infinite ease-in-out;
+        }
+
+        .loader-circle-1 {
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, #953e3f 0%, transparent 70%);
+            top: -150px;
+            left: -150px;
+            animation-delay: 0s;
+        }
+
+        .loader-circle-2 {
+            width: 350px;
+            height: 350px;
+            background: radial-gradient(circle, #646264 0%, transparent 70%);
+            bottom: -100px;
+            right: -100px;
+            animation-delay: 5s;
+        }
+
+        .loader-circle-3 {
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, #953e3f 0%, transparent 70%);
+            top: 50%;
+            right: 20%;
+            animation-delay: 10s;
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            33% {
+                transform: translate(40px, -40px) scale(1.1);
+            }
+
+            66% {
+                transform: translate(-30px, 30px) scale(0.9);
+            }
+        }
+
+        /* Main Loader Container */
+        .loader-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 40px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Logo Section */
+        .loader-logo {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo-hexagon {
+            width: 100px;
+            height: 100px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        .logo-hexagon svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 10px 20px rgba(149, 62, 63, 0.5));
+        }
+
+        .loader-brand {
+            text-align: center;
+        }
+
+            .loader-brand h1 {
+                font-size: 32px;
+                font-weight: 800;
+                letter-spacing: 3px;
+                background: linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                margin: 0 0 8px 0;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            }
+
+            .loader-brand p {
+                color: #999;
+                font-size: 14px;
+                letter-spacing: 1.5px;
+                font-weight: 500;
+                margin: 0;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            }
+
+        /* Spinner Section */
+        .loader-spinner-wrapper {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            animation: fadeIn 1s ease-out 0.3s both;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        /* Outer Ring */
+        .spinner-outer {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: 4px solid rgba(149, 62, 63, 0.2);
+            border-top-color: #953e3f;
+            border-radius: 50%;
+            animation: spin 1.5s linear infinite;
+        }
+
+        /* Middle Ring */
+        .spinner-middle {
+            position: absolute;
+            width: 85%;
+            height: 85%;
+            top: 7.5%;
+            left: 7.5%;
+            border: 4px solid rgba(100, 98, 100, 0.2);
+            border-right-color: #646264;
+            border-radius: 50%;
+            animation: spin 2s linear infinite reverse;
+        }
+
+        /* Inner Ring */
+        .spinner-inner {
+            position: absolute;
+            width: 70%;
+            height: 70%;
+            top: 15%;
+            left: 15%;
+            border: 4px solid rgba(149, 62, 63, 0.2);
+            border-bottom-color: #953e3f;
+            border-radius: 50%;
+            animation: spin 2.5s linear infinite;
+        }
+
+        /* Center Dot */
+        .spinner-center {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #953e3f;
+            border-radius: 50%;
+            box-shadow: 0 0 20px rgba(149, 62, 63, 0.6);
+            animation: glow 2s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes glow {
+            0%, 100% {
+                box-shadow: 0 0 20px rgba(149, 62, 63, 0.6);
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+            50% {
+                box-shadow: 0 0 30px rgba(149, 62, 63, 0.8);
+                transform: translate(-50%, -50%) scale(1.2);
+            }
+        }
+
+        /* Loading Text */
+        .loader-text {
+            text-align: center;
+            animation: fadeIn 1s ease-out 0.5s both;
+        }
+
+            .loader-text h2 {
+                color: #ffffff;
+                font-size: 20px;
+                font-weight: 600;
+                margin: 0 0 12px 0;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            }
+
+            .loader-text p {
+                color: #999;
+                font-size: 14px;
+                margin: 0;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            }
+
+        /* Loading Dots Animation */
+        .loading-dots {
+            display: inline-block;
+        }
+
+            .loading-dots span {
+                animation: blink 1.4s infinite;
+                animation-fill-mode: both;
+            }
+
+                .loading-dots span:nth-child(2) {
+                    animation-delay: 0.2s;
+                }
+
+                .loading-dots span:nth-child(3) {
+                    animation-delay: 0.4s;
+                }
+
+        @keyframes blink {
+            0%, 80%, 100% {
+                opacity: 0;
+            }
+
+            40% {
+                opacity: 1;
+            }
+        }
+
+        /* Progress Bar */
+        .loader-progress {
+            width: 250px;
+            height: 4px;
+            background: rgba(100, 98, 100, 0.3);
+            border-radius: 10px;
+            overflow: hidden;
+            animation: fadeIn 1s ease-out 0.7s both;
+        }
+
+        .loader-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #953e3f 0%, #c54e4f 50%, #953e3f 100%);
+            background-size: 200% 100%;
+            border-radius: 10px;
+            animation: progress 2s ease-in-out infinite;
+        }
+
+        @keyframes progress {
+            0% {
+                width: 0%;
+                background-position: 0% 0%;
+            }
+
+            50% {
+                width: 70%;
+                background-position: 100% 0%;
+            }
+
+            100% {
+                width: 100%;
+                background-position: 200% 0%;
+            }
+        }
+
+        
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .loader-brand h1 {
+                font-size: 24px;
+            }
+
+            .logo-hexagon {
+                width: 80px;
+                height: 80px;
+            }
+
+            .loader-spinner-wrapper {
+                width: 100px;
+                height: 100px;
+            }
+
+            .loader-text h2 {
+                font-size: 18px;
+            }
+
+            .loader-progress {
+                width: 200px;
+            }
+        }
+
+
+
+
+        #blazor-error-ui {
+            background: rgba(0, 0, 0, 0.95);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 10000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            animation: fadeIn 0.3s ease-out;
+        }
+
+            #blazor-error-ui.show {
+                display: flex;
+            }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .error-container {
+            background: linear-gradient(135deg, #2a2a2b 0%, #3e3e3f 100%);
+            border: 2px solid rgba(149, 62, 63, 0.5);
+            border-radius: 20px;
+            padding: 50px 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 25px 70px rgba(0, 0, 0, 0.8), 0 0 100px rgba(149, 62, 63, 0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+            animation: slideUp 0.4s ease-out;
+            text-align: center;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .error-icon {
+            width: 80px;
+            height: 80px;
+            background: rgba(149, 62, 63, 0.2);
+            border: 3px solid rgba(149, 62, 63, 0.5);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: errorPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes errorPulse {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(149, 62, 63, 0.7);
+            }
+
+            50% {
+                transform: scale(1.05);
+                box-shadow: 0 0 0 15px rgba(149, 62, 63, 0);
+            }
+        }
+
+        .error-icon svg {
+            width: 45px;
+            height: 45px;
+            color: #953e3f;
+        }
+
+        .error-content h3 {
+            font-size: 26px;
+            font-weight: 700;
+            color: #ffffff;
+            margin: 0 0 12px 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        .error-content p {
+            font-size: 16px;
+            color: #999;
+            margin: 0;
+            line-height: 1.6;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        .error-actions {
+            display: flex;
+            gap: 15px;
+            width: 100%;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn-reload,
+        .btn-dismiss {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            border: 2px solid transparent;
+        }
+
+        .btn-reload {
+            background: linear-gradient(135deg, #953e3f 0%, #b04e4f 100%);
+            color: white;
+            box-shadow: 0 8px 20px rgba(149, 62, 63, 0.4);
+            flex: 1;
+            min-width: 200px;
+            justify-content: center;
+        }
+
+            .btn-reload:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 12px 28px rgba(149, 62, 63, 0.5);
+                background: linear-gradient(135deg, #a54848 0%, #c05656 100%);
+            }
+
+            .btn-reload:active {
+                transform: translateY(-1px);
+            }
+
+        .btn-dismiss {
+            background: rgba(100, 98, 100, 0.2);
+            color: #999;
+            border-color: rgba(100, 98, 100, 0.3);
+            padding: 14px 24px;
+        }
+
+            .btn-dismiss:hover {
+                background: rgba(100, 98, 100, 0.3);
+                color: #ffffff;
+                border-color: rgba(100, 98, 100, 0.5);
+                transform: translateY(-2px);
+            }
+
+            .btn-reload svg,
+            .btn-dismiss svg {
+                width: 20px;
+                height: 20px;
+            }
+
+        @media (max-width: 768px) {
+            .error-container {
+                padding: 40px 30px;
+            }
+
+            .error-content h3 {
+                font-size: 22px;
+            }
+
+            .error-content p {
+                font-size: 14px;
+            }
+
+            .error-actions {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .btn-reload,
+            .btn-dismiss {
+                width: 100%;
+                min-width: auto;
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .error-container {
+                padding: 30px 20px;
+            }
+
+            .error-icon {
+                width: 70px;
+                height: 70px;
+            }
+
+                .error-icon svg {
+                    width: 38px;
+                    height: 38px;
+                }
+        }
+
+
+        /* Scrollbar Styling */
+        /* For WebKit Browsers (Chrome, Edge, Safari) */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1a1a1b;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background-color: #3e3e3f;
+            border-radius: 6px;
+            border: 2px solid #1a1a1b; /* adds spacing around thumb */
+            transition: background-color 0.3s ease;
+        }
+
+            ::-webkit-scrollbar-thumb:hover {
+                background-color: #953e3f; /* your brand red on hover */
+            }
+
+        /* Optional: make horizontal scrollbars consistent */
+        ::-webkit-scrollbar-corner {
+            background: #1a1a1b;
+        }
+
+    </style>
+</head>
+
+<body class="MainBody">
+
+    <!--Preloder-->
+
+    <div id="app">
+        <div class="d-flex justify-content-center align-items-center vh-100">
+            <div class="loader-background">
+                <div class="loader-circle loader-circle-1"></div>
+                <div class="loader-circle loader-circle-2"></div>
+                <div class="loader-circle loader-circle-3"></div>
+            </div>
+
+            <div class="loader-container">
+                <!-- Logo Section -->
+                <div class="loader-logo">
+                    <div class="logo-hexagon">
+                        <svg viewBox="0 0 100 100">
+                            <defs>
+                                <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" style="stop-color:#953e3f;stop-opacity:1" />
+                                    <stop offset="100%" style="stop-color:#c54e4f;stop-opacity:1" />
+                                </linearGradient>
+                            </defs>
+                            <polygon points="50,5 95,27.5 95,72.5 50,95 5,72.5 5,27.5"
+                                     fill="url(#logoGradient)" stroke="#953e3f" stroke-width="2" />
+                            <rect x="30" y="30" width="40" height="28" rx="2" fill="white" opacity="0.9" />
+                            <line x1="36" y1="64" x2="44" y2="64" stroke="white" stroke-width="2" opacity="0.9" />
+                            <line x1="40" y1="58" x2="40" y2="64" stroke="white" stroke-width="2" opacity="0.9" />
+                            <line x1="35" y1="38" x2="50" y2="38" stroke="#3e3e3f" stroke-width="2" />
+                            <line x1="35" y1="45" x2="60" y2="45" stroke="#3e3e3f" stroke-width="2" />
+                        </svg>
+                    </div>
+                    <div class="loader-brand">
+                        <h1>KIOSK MONITOR</h1>
+                    </div>
+                </div>
+
+                <!-- Spinner -->
+                <div class="loader-spinner-wrapper">
+                    <div class="spinner-outer"></div>
+                    <div class="spinner-middle"></div>
+                    <div class="spinner-inner"></div>
+                    <div class="spinner-center"></div>
+                </div>
+
+                <!-- Loading Text -->
+                <div class="loader-text">
+                    <h2>Initializing System<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></h2>
+                    <p>Please wait while we load </p>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="loader-progress">
+                    <div class="loader-progress-bar"></div>
+                </div>
+
+
+            </div>
+        </div>
+    </div>
+    <!--Preloder-->
+    <!-- unhandled Exception Preview-->
+
+    <div id="blazor-error-ui">
+        <div class="d-flex justify-content-center align-items-center vh-100">
+
+            <div class="error-container">
+                <div class="error-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                </div>
+                <div class="error-content">
+                    <h3>System Error Occurred</h3>
+                    <p>An unhandled error has occurred. Please reload the application.</p>
+                </div>
+                <div class="error-actions">
+                    <a href="" class="btn-reload reload">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <polyline points="1 20 1 14 7 14"></polyline>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                        Reload Application
+                    </a>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!--unhandled Exception Preview-->
+    <!--<div id="blazor-error-ui">
+        An unhandled error has occurred.
+        <a href="" class="reload">Reload</a>
+        <a class="dismiss">🗙</a>
+    </div>-->
+
+    <script type="module">
+        import RFB from './libs/novnc/core/rfb.js';
+        window.RFB = RFB;
+    </script>
+
+    <script src="./js/vnc-interop.js"></script>
+    <script src="_framework/blazor.webassembly.js"></script>
+
+    <script src="blazorboostrap/js/bootstrap.bundle.min.js"></script>
+    <script src="blazorboostrap/js/chart.umd.js"></script>
+    <script src="blazorboostrap/js/chartjs-plugin-datalabels.min.js"></script>
+    <script src="blazorboostrap/js/sortable.min.js"></script>
+    <script src="_content/Blazor.Bootstrap/blazor.bootstrap.js"></script>
+
+</body>
+
+</html>

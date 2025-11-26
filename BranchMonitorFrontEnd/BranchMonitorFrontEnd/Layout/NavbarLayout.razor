@@ -1,0 +1,68 @@
+﻿@using BranchMonitorFrontEnd.DTO
+@using Microsoft.AspNetCore.Authorization
+@using BranchMonitorFrontEnd.Pages
+
+@inherits LayoutComponentBase
+@inject AuthCredential _auth
+@attribute [Authorize]
+
+@if (User == null || Branch == null)
+{
+    <Preloder />
+}
+else
+{
+  
+    @switch ((User?.status, Branch?.status))
+    {
+        case (false, _):
+            <Unauthorized LoginUrl="/"
+                          HomeUrl="/"
+                          HomeUrlName="Sign In"
+                          LoginUrlName="Return Home" />
+            break;
+
+        case (true, false):
+            <div class="page">
+                <NavMenu />
+                <main class="pt-5">
+                    @Body
+                </main>
+            </div>
+            break;
+
+        case (true, true):
+            <Unauthorized LoginUrl="/branchDashbord"
+                          HomeUrl="/branchDashbord"
+                          HomeUrlName="Return Branch Dashboard"
+                          LoginUrlName="Return Home" />
+            break;
+
+        default:
+            <SignIn />
+            break;
+    }
+
+}
+
+
+@code {
+    private LoggedInUser User { get; set; }
+    private LogInBranchDeties Branch { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            User = await _auth.getLogginUserDetiles();
+            Branch = await _auth.getLogginBranchDetiles();
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"An error occurred during initialization: {ex.Message}");
+        }
+
+
+    }
+}

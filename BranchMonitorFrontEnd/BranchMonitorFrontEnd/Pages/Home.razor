@@ -1,0 +1,36 @@
+﻿@page "/sss"
+@inject AlertService AlertService
+
+
+<PageTitle>Home</PageTitle>
+
+<h1>Hello, world!</h1>
+
+Welcome to your new app.
+
+<Button accesskey="" 
+	class="btn btn-primary" 
+		onclick="@(() => AlertService.ShowInfo("Info","kdfgjjjh"))">
+	Show Info Alert
+	
+</Button>
+<AlertContainer/>
+
+@code {
+	protected override void OnInitialized()
+	{
+		AlertService.ShowInfo("Info","kdfgjjjh");
+		AlertService = null;
+
+		// AlertService.OnAlert += ShowAlert;
+	}
+	private void ShowAlert(string title, string message, AlertType alertType)
+	{
+		// This method is intentionally left blank.
+		// The actual alert display logic is handled in the AlertContainer component.
+	}
+	public void Dispose()
+	{
+		AlertService.OnAlert -= ShowAlert;
+	}
+}

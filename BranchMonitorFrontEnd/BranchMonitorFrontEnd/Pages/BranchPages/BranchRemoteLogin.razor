@@ -1,0 +1,698 @@
+﻿@page "/remote"
+@using System.Net.Http.Headers
+@using Monitoring.Shared.DTO
+@inject NavigationManager Navigation
+@layout BranchNavbarLayout 
+@implements IDisposable
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AuthCredential _auth
+@inject AlertService AlertService
+@inject AppSettings Settings
+
+
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+
+        <div class="health-analytics-wrapper">
+            <div class="analytics-container">
+                <!-- Left Sidebar with Metrics -->
+                
+
+                <!-- Main Chart Area -->
+                <main class="chart-area">
+                    <div class="chart-header">
+                        <h1>Kiosk ID</h1>
+                        <div class="chart-tabs">
+                            <span class="status-badge offline">NOt Enable Kiosk For Remote</span>
+                        </div>
+                        <div class="system-info-badge" @onclick="ToggleFullscreen">
+                            <span> Full Screen</span>
+                            &nbsp;
+                            <svg width="30px" height="30px" viewBox="0 0 24 24" fill="none" class="system-info-badge-icon">
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M11.9426 1.25H12.0574C14.3658 1.24999 16.1748 1.24998 17.5863 1.43975C19.031 1.63399 20.1711 2.03933 21.0659 2.93414C21.9607 3.82895 22.366 4.96897 22.5603 6.41371C22.75 7.82519 22.75 9.63423 22.75 11.9426V12.0574C22.75 14.3658 22.75 16.1748 22.5603 17.5863C22.366 19.031 21.9607 20.1711 21.0659 21.0659C20.1711 21.9607 19.031 22.366 17.5863 22.5603C16.1748 22.75 14.3658 22.75 12.0574 22.75H11.9426C9.63423 22.75 7.82519 22.75 6.41371 22.5603C4.96897 22.366 3.82895 21.9607 2.93414 21.0659C2.03933 20.1711 1.63399 19.031 1.43975 17.5863C1.24998 16.1748 1.24999 14.3658 1.25 12.0574V11.9426C1.24999 9.63423 1.24998 7.82519 1.43975 6.41371C1.63399 4.96897 2.03933 3.82895 2.93414 2.93414C3.82895 2.03933 4.96897 1.63399 6.41371 1.43975C7.82519 1.24998 9.63423 1.24999 11.9426 1.25ZM6.61358 2.92637C5.33517 3.09825 4.56445 3.42514 3.9948 3.9948C3.42514 4.56445 3.09825 5.33517 2.92637 6.61358C2.75159 7.91356 2.75 9.62178 2.75 12C2.75 14.3782 2.75159 16.0864 2.92637 17.3864C3.09825 18.6648 3.42514 19.4355 3.9948 20.0052C4.56445 20.5749 5.33517 20.9018 6.61358 21.0736C7.91356 21.2484 9.62178 21.25 12 21.25C14.3782 21.25 16.0864 21.2484 17.3864 21.0736C18.6648 20.9018 19.4355 20.5749 20.0052 20.0052C20.5749 19.4355 20.9018 18.6648 21.0736 17.3864C21.2484 16.0864 21.25 14.3782 21.25 12C21.25 9.62178 21.2484 7.91356 21.0736 6.61358C20.9018 5.33517 20.5749 4.56445 20.0052 3.9948C19.4355 3.42514 18.6648 3.09825 17.3864 2.92637C16.0864 2.75159 14.3782 2.75 12 2.75C9.62178 2.75 7.91356 2.75159 6.61358 2.92637ZM10.7474 5.99364C10.7509 6.40784 10.4179 6.74646 10.0038 6.74997C9.14788 6.75723 8.55011 6.7855 8.10037 6.8736C7.67158 6.95759 7.43423 7.08568 7.25996 7.25996C7.08568 7.43423 6.95759 7.67158 6.8736 8.10037C6.7855 8.55011 6.75723 9.14788 6.74997 10.0038C6.74646 10.4179 6.40784 10.7509 5.99364 10.7474C5.57944 10.7439 5.24652 10.4052 5.25003 9.99103C5.25724 9.14035 5.28357 8.41444 5.40157 7.81203C5.52367 7.18869 5.75316 6.64543 6.1993 6.1993C6.64543 5.75316 7.18869 5.52367 7.81203 5.40157C8.41444 5.28357 9.14035 5.25724 9.99103 5.25003C10.4052 5.24652 10.7439 5.57944 10.7474 5.99364ZM13.2502 5.99364C13.2537 5.57944 13.5923 5.24652 14.0065 5.25003C14.8572 5.25724 15.5831 5.28357 16.1855 5.40157C16.8089 5.52367 17.3521 5.75316 17.7983 6.1993C18.2444 6.64543 18.4739 7.18869 18.596 7.81203C18.714 8.41444 18.7403 9.14035 18.7475 9.99103C18.751 10.4052 18.4181 10.7439 18.0039 10.7474C17.5897 10.7509 17.2511 10.4179 17.2476 10.0038C17.2403 9.14788 17.2121 8.55011 17.124 8.10037C17.04 7.67158 16.9119 7.43423 16.7376 7.25996C16.5633 7.08568 16.326 6.95759 15.8972 6.8736C15.4475 6.7855 14.8497 6.75723 13.9938 6.74997C13.5796 6.74646 13.2467 6.40784 13.2502 5.99364ZM5.99364 13.2502C6.40784 13.2467 6.74646 13.5796 6.74997 13.9938C6.75723 14.8497 6.7855 15.4475 6.8736 15.8972C6.95759 16.326 7.08568 16.5633 7.25996 16.7376C7.43423 16.9119 7.67158 17.04 8.10037 17.124C8.55011 17.2121 9.14788 17.2403 10.0038 17.2476C10.4179 17.2511 10.7509 17.5897 10.7474 18.0039C10.7439 18.4181 10.4052 18.751 9.99103 18.7475C9.14035 18.7403 8.41444 18.714 7.81203 18.596C7.18869 18.4739 6.64543 18.2444 6.1993 17.7983C5.75316 17.3521 5.52367 16.8089 5.40157 16.1855C5.28357 15.5831 5.25724 14.8572 5.25003 14.0065C5.24652 13.5923 5.57944 13.2537 5.99364 13.2502ZM18.0039 13.2502C18.4181 13.2537 18.751 13.5923 18.7475 14.0065C18.7403 14.8572 18.714 15.5831 18.596 16.1855C18.4739 16.8089 18.2444 17.3521 17.7983 17.7983C17.3521 18.2444 16.8089 18.4739 16.1855 18.596C15.5831 18.714 14.8572 18.7403 14.0065 18.7475C13.5923 18.751 13.2537 18.4181 13.2502 18.0039C13.2467 17.5897 13.5796 17.2511 13.9938 17.2476C14.8497 17.2403 15.4475 17.2121 15.8972 17.124C16.326 17.04 16.5633 16.9119 16.7376 16.7376C16.9119 16.5633 17.04 16.326 17.124 15.8972C17.2121 15.4475 17.2403 14.8497 17.2476 13.9938C17.2511 13.5796 17.5897 13.2467 18.0039 13.2502Z" fill=" #999" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <div class="vnc-container-main">
+                        <div class="vnc-container overflow-hidden" id="vnc-screen-full" >
+
+                            <div id="vnc-screen" class="d-none">
+                             
+                                </div>
+
+                            <div id="vnc-screen-connecting" class="d-none " >
+                                <div class="d-flex flex-column justify-content-center align-items-center " style="@(fullscreen ? "height: 100vh; width: 100%;" : "") ">
+
+                             <Loder Height="100px" width="100px"/>
+                                    <sapn class="position-absolute  fs-1 text-white-50 " style="margin-top:250px">Conncting</sapn>
+
+                                </div>
+                            </div>
+
+
+                            <div id="vnc-screen-element" class="d-block "  >
+
+                                <div class="d-flex flex-column justify-content-center  " style="@(fullscreen ? "height: 100vh; width: 100%;" : "")">
+                                <div class="d-flex justify-content-center align-items-center" style=" height: 380px">
+                                    <svg width="300px" height="300px" viewBox="0 0 1024 1024" class="icon" version="1.1">
+                                        <path d="M240.6 384.6v45.1h-85.4c-6.3 0-11.4 7.7-11.4 17.1v5.8c0 9.5 5.1 17.1 11.4 17.1h208.1c6.3 0 11.4-7.7 11.4-17.1v-5.8c0-9.5-5.1-17.1-11.4-17.1h-82.7v-45.1h140.6c32.8 0 59.6-28.8 59.6-64.3v-190c0-35.4-26.7-64.3-59.6-64.3H126.5c-32.8 0-59.6 28.8-59.6 64.3v190.1c0 35.4 26.7 64.3 59.6 64.3h114.1v-0.1z m-133.7-64.2V130.3c0-13.4 8.8-24.3 19.6-24.3h294.7c10.8 0 19.6 10.9 19.6 24.3v190.1c0 13.4-8.8 24.3-19.6 24.3H126.5c-10.8-0.1-19.6-11-19.6-24.3zM906.9 546.2H559.3c-25.8 0-46.7 23.1-46.7 51.7v221.8c0 28.5 20.9 51.7 46.7 51.7h154.1v47.3h-85.9c-6 0-10.9 7.3-10.9 16.3v7.3c0 9 4.9 16.3 10.9 16.3h209.2c6 0 10.9-7.3 10.9-16.3V935c0-9-4.9-16.3-10.9-16.3h-83.2v-47.3H907c25.8 0 46.7-23.1 46.7-51.7V597.9c-0.2-28.5-21.1-51.7-46.8-51.7zM532.3 147.7h331V431c0 11 9 20 20 20s20-9 20-20V107.7h-371c-11 0-20 9-20 20s9 20 20 20zM473.7 889.8h-331V606.5c0-11-9-20-20-20s-20 9-20 20v323.4h371c11 0 20-9 20-20s-8.9-20.1-20-20.1z" fill="#666666" />
+                                        <path d="M396 313H153c-11 0-20-9-20-20V153c0-11 9-20 20-20h243c11 0 20 9 20 20v140c0 11-9 20-20 20z" fill="#953e3f" />
+                                    </svg>
+                                </div>
+
+                                <div class="stats-grid">
+                                    <div class=" d-flex justify-content-center ">
+
+                                        <button class="difbutton connectbut w-25 p-4 fs-3 text-white  " style="background-color:rgba(102, 126, 234, 0.3)" @onclick="Connect" disabled="@Isconnecting">
+                                            <span>Connect</span>
+
+                                        </button>
+
+                                    </div>
+
+                                </div>
+                                </div>
+
+                            </div>
+
+
+                            <div class="quick-actions-toggle" @onclick="ToggleQuickActions">
+                                <svg width="30px" height="30px" viewBox="0 0 24 24" fill="none">
+                                    <rect x="3" y="5" width="18" height="4" rx="1" fill="#999" />
+                                    <rect x="3" y="10" width="18" height="4" rx="1" fill="#999" />
+                                    <rect x="3" y="15" width="18" height="4" rx="1" fill="#999" />
+                                </svg>
+                            </div>
+
+                            <div class="quickactionbar-card d-flex justify-content-center flex-column col-4 @(isQuickActionsVisible ? "active" : "")" id="quickActionsSidebar">
+
+                                @* Layout View Toggle *@
+                                <Tooltip Class="d-inline-block" Title="Windows Button" role="button" >
+                                    <div class="p-2 " title="Layout View" >
+                                        <button class="p-2 system-info-badge d-flex justify-content-center align-items-center ps-3 pe-3"
+                                                title="Layout View"
+                                                disabled="@VcnConnectQueckActionStatus"
+                                            @onclick="sendWindowsKey">
+                                            <svg width="30px" height="30px" viewBox="0 0 24 24" fill="none">
+                                                <path d="M3 5.45L10.5 4.5V11.5H3V5.45ZM10.5 12.5V19.5L3 18.55V12.5H10.5ZM11.5 4.3L21 3V11.5H11.5V4.3ZM21 12.5V21L11.5 19.7V12.5H21Z" fill="#999" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </Tooltip>
+
+
+                                <Tooltip Class="d-inline-block" Title="Send Ctrl+Alt+Del" role="button">
+                                    @* Keyboard Shortcuts *@
+                                    <div class="p-2" >
+                                        <button class="system-info-badge d-flex justify-content-center align-items-center  " disabled="@VcnConnectQueckActionStatus" @onclick="SendCtrlAltDel">
+
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="50px" height="40px" viewBox="0 0 48 44">
+                                                <!-- Background -->
+                                                <rect width="48" height="44" rx="6" fill="#2b2b2b" />
+
+                                                <!-- Delete key (top) -->
+                                                <rect x="14" y="5" width="20" height="12" rx="3" fill="#3c3c3c" />
+                                                <text x="24" y="14" text-anchor="middle" font-family="Arial, sans-serif" font-size="6" fill="#ffffff">Del</text>
+
+                                                <!-- Ctrl key (bottom left) -->
+                                                <rect x="6" y="25" width="16" height="12" rx="3" fill="#3c3c3c" />
+                                                <text x="14" y="34" text-anchor="middle" font-family="Arial, sans-serif" font-size="6" fill="#ffffff">Ctrl</text>
+
+                                                <!-- Alt key (bottom right) -->
+                                                <rect x="26" y="25" width="16" height="12" rx="3" fill="#3c3c3c" />
+                                                <text x="34" y="34" text-anchor="middle" font-family="Arial, sans-serif" font-size="6" fill="#ffffff">Alt</text>
+                                            </svg>
+
+
+                                        </button>
+                                    </div>
+                                </Tooltip>
+                                @* Quality Settings *@
+
+                                <Tooltip Class="d-inline-block" Title="Quality" role="button">
+                                    <div class="p-2" >
+                                        <button class="system-info-badge d-flex justify-content-center align-items-center ps-3 pe-3" disabled="@VcnConnectQueckActionStatus" @onclick="ToggleQualityPanel">
+                                            <svg width="30px" height="30px" viewBox="0 0 24 24" fill="none" class="system-info-badge-icon">
+                                                <rect x="3" y="3" width="18" height="18" rx="2" stroke="#666" stroke-width="1.5" fill="none" />
+                                                <rect x="6" y="14" width="2" height="5" fill="#4CAF50" />
+                                                <rect x="9" y="11" width="2" height="8" fill="#FFC107" />
+                                                <rect x="12" y="8" width="2" height="11" fill="#2196F3" />
+                                                <rect x="15" y="13" width="2" height="6" fill="#F44336" />
+                                            </svg>
+                                        </button>
+
+                                        @* Quality Slider Panel *@
+                                        @if (showQualityPanel)
+                                        {
+                                            <div class="setting-panel">
+                                                <div class="setting-item">
+                                                    <label class="setting-label">Quality: @currentQuality</label>
+                                                    <input type="range" class="setting-slider" min="0" max="9" value="@currentQuality"
+                                                           @oninput="@(e => OnQualityChanged(e.Value.ToString()))" />
+                                                    <small class="setting-hint">Higher = Better Quality</small>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </Tooltip>
+
+                               
+
+                                @* Quality Settings *@
+                             
+
+                                @* Display Settings *@
+
+                                <Tooltip Class="d-inline-block" Title="Display Settings" role="button">
+                                    <div class="p-2" >
+                                        <button class="system-info-badge d-flex justify-content-center align-items-center ps-3 pe-3" disabled="@VcnConnectQueckActionStatus" @onclick="ToggleDisplayPanel">
+                                            <svg width="30px" height="30px" viewBox="0 0 24 24" fill="none" class="system-info-badge-icon">
+                                                <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="#666" stroke-width="1.5" fill="none" />
+                                                <path d="M19.4 15C19.2669 15.3016 19.2272 15.6362 19.286 15.9606C19.3448 16.285 19.4995 16.5843 19.73 16.82L19.79 16.88C19.976 17.0657 20.1235 17.2863 20.2241 17.5291C20.3248 17.7719 20.3766 18.0322 20.3766 18.295C20.3766 18.5578 20.3248 18.8181 20.2241 19.0609C20.1235 19.3037 19.976 19.5243 19.79 19.71C19.6043 19.896 19.3837 20.0435 19.1409 20.1441C18.8981 20.2448 18.6378 20.2966 18.375 20.2966C18.1122 20.2966 17.8519 20.2448 17.6091 20.1441C17.3663 20.0435 17.1457 19.896 16.96 19.71L16.9 19.65C16.6643 19.4195 16.365 19.2648 16.0406 19.206C15.7162 19.1472 15.3816 19.1869 15.08 19.32C14.7842 19.4468 14.532 19.6572 14.3543 19.9255C14.1766 20.1938 14.0813 20.5082 14.08 20.83V21C14.08 21.5304 13.8693 22.0391 13.4942 22.4142C13.1191 22.7893 12.6104 23 12.08 23C11.5496 23 11.0409 22.7893 10.6658 22.4142C10.2907 22.0391 10.08 21.5304 10.08 21V20.91C10.0723 20.579 9.96512 20.258 9.77251 19.9887C9.5799 19.7194 9.31074 19.5143 9 19.4C8.69838 19.2669 8.36381 19.2272 8.03941 19.286C7.71502 19.3448 7.41568 19.4995 7.18 19.73L7.12 19.79C6.93425 19.976 6.71368 20.1235 6.47088 20.2241C6.22808 20.3248 5.96783 20.3766 5.705 20.3766C5.44217 20.3766 5.18192 20.3248 4.93912 20.2241C4.69632 20.1235 4.47575 19.976 4.29 19.79C4.10405 19.6043 3.95653 19.3837 3.85588 19.1409C3.75523 18.8981 3.70343 18.6378 3.70343 18.375C3.70343 18.1122 3.75523 17.8519 3.85588 17.6091C3.95653 17.3663 4.10405 17.1457 4.29 16.96L4.35 16.9C4.58054 16.6643 4.73519 16.365 4.794 16.0406C4.85282 15.7162 4.81312 15.3816 4.68 15.08C4.55324 14.7842 4.34276 14.532 4.07447 14.3543C3.80618 14.1766 3.49179 14.0813 3.17 14.08H3C2.46957 14.08 1.96086 13.8693 1.58579 13.4942C1.21071 13.1191 1 12.6104 1 12.08C1 11.5496 1.21071 11.0409 1.58579 10.6658C1.96086 10.2907 2.46957 10.08 3 10.08H3.09C3.42099 10.0723 3.742 9.96512 4.0113 9.77251C4.28059 9.5799 4.48572 9.31074 4.6 9C4.73312 8.69838 4.77282 8.36381 4.714 8.03941C4.65519 7.71502 4.50054 7.41568 4.27 7.18L4.21 7.12C4.02405 6.93425 3.87653 6.71368 3.77588 6.47088C3.67523 6.22808 3.62343 5.96783 3.62343 5.705C3.62343 5.44217 3.67523 5.18192 3.77588 4.93912C3.87653 4.69632 4.02405 4.47575 4.21 4.29C4.39575 4.10405 4.61632 3.95653 4.85912 3.85588C5.10192 3.75523 5.36217 3.70343 5.625 3.70343C5.88783 3.70343 6.14808 3.75523 6.39088 3.85588C6.63368 3.95653 6.85425 4.10405 7.04 4.29L7.1 4.35C7.33568 4.58054 7.63502 4.73519 7.95941 4.794C8.28381 4.85282 8.61838 4.81312 8.92 4.68H9C9.29577 4.55324 9.54802 4.34276 9.72569 4.07447C9.90337 3.80618 9.99872 3.49179 10 3.17V3C10 2.46957 10.2107 1.96086 10.5858 1.58579C10.9609 1.21071 11.4696 1 12 1C12.5304 1 13.0391 1.21071 13.4142 1.58579C13.7893 1.96086 14 2.46957 14 3V3.09C14.0013 3.41179 14.0966 3.72618 14.2743 3.99447C14.452 4.26276 14.7042 4.47324 15 4.6C15.3016 4.73312 15.6362 4.77282 15.9606 4.714C16.285 4.65519 16.5843 4.50054 16.82 4.27L16.88 4.21C17.0657 4.02405 17.2863 3.87653 17.5291 3.77588C17.7719 3.67523 18.0322 3.62343 18.295 3.62343C18.5578 3.62343 18.8181 3.67523 19.0609 3.77588C19.3037 3.87653 19.5243 4.02405 19.71 4.21C19.896 4.39575 20.0435 4.61632 20.1441 4.85912C20.2448 5.10192 20.2966 5.36217 20.2966 5.625C20.2966 5.88783 20.2448 6.14808 20.1441 6.39088C20.0435 6.63368 19.896 6.85425 19.71 7.04L19.65 7.1C19.4195 7.33568 19.2648 7.63502 19.206 7.95941C19.1472 8.28381 19.1869 8.61838 19.32 8.92V9C19.4468 9.29577 19.6572 9.54802 19.9255 9.72569C20.1938 9.90337 20.5082 9.99872 20.83 10H21C21.5304 10 22.0391 10.2107 22.4142 10.5858C22.7893 10.9609 23 11.4696 23 12C23 12.5304 22.7893 13.0391 22.4142 13.4142C22.0391 13.7893 21.5304 14 21 14H20.91C20.5882 14.0013 20.2738 14.0966 20.0055 14.2743C19.7372 14.452 19.5268 14.7042 19.4 15Z" stroke="#666" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                                            </svg>
+                                        </button>
+
+                                        @* Display Settings Panel *@
+                                        @if (showDisplayPanel)
+                                        {
+                                            <div class="setting-panel">
+                                                <div class="setting-item">
+                                                    <label class="setting-label">Compression: @currentCompression</label>
+                                                    <input type="range" class="setting-slider" min="0" max="9" value="@currentCompression"
+                                                           @oninput="@(e => OnCompressionChanged(e.Value.ToString()))" />
+                                                    <small class="setting-hint">Lower = Faster Speed</small>
+                                                </div>
+
+                                                <div class="setting-toggle">
+                                                    <label class="toggle-container">
+                                                        <input type="checkbox" checked="@scaleViewport"
+                                                               @onchange="@(e => OnScaleViewportChanged((bool)e.Value))" />
+                                                        <span class="toggle-label">Scale Viewport</span>
+                                                    </label>
+                                                </div>
+
+                                                <div class="setting-toggle">
+                                                    <label class="toggle-container">
+                                                        <input type="checkbox" checked="@showDotCursor"
+                                                               @onchange="@(e => OnShowDotCursorChanged((bool)e.Value))" />
+                                                        <span class="toggle-label">Show Dot Cursor</span>
+                                                    </label>
+                                                </div>
+
+                                                <div class="setting-toggle">
+                                                    <label class="toggle-container">
+                                                        <input type="checkbox" checked="@viewOnly"
+                                                               @onchange="@(e => OnViewOnlyChanged((bool)e.Value))" />
+                                                        <span class="toggle-label">View Only Mode</span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </Tooltip>
+
+                               
+
+                               
+
+                                @* Fullscreen Toggle *@
+                                <Tooltip Class="d-inline-block" Title="Toggle Fullscreen" role="button">
+                                    <div class="p-2" >
+                                        <button class="system-info-badge d-flex justify-content-center align-items-center ps-3 pe-3" @onclick="ToggleFullscreen">
+                                            <svg width="30px" height="30px" viewBox="0 0 24 24" fill="none" class="system-info-badge-icon">
+                                                <path fill-rule="evenodd" clip-rule="evenodd" d="M11.9426 1.25H12.0574C14.3658 1.24999 16.1748 1.24998 17.5863 1.43975C19.031 1.63399 20.1711 2.03933 21.0659 2.93414C21.9607 3.82895 22.366 4.96897 22.5603 6.41371C22.75 7.82519 22.75 9.63423 22.75 11.9426V12.0574C22.75 14.3658 22.75 16.1748 22.5603 17.5863C22.366 19.031 21.9607 20.1711 21.0659 21.0659C20.1711 21.9607 19.031 22.366 17.5863 22.5603C16.1748 22.75 14.3658 22.75 12.0574 22.75H11.9426C9.63423 22.75 7.82519 22.75 6.41371 22.5603C4.96897 22.366 3.82895 21.9607 2.93414 21.0659C2.03933 20.1711 1.63399 19.031 1.43975 17.5863C1.24998 16.1748 1.24999 14.3658 1.25 12.0574V11.9426C1.24999 9.63423 1.24998 7.82519 1.43975 6.41371C1.63399 4.96897 2.03933 3.82895 2.93414 2.93414C3.82895 2.03933 4.96897 1.63399 6.41371 1.43975C7.82519 1.24998 9.63423 1.24999 11.9426 1.25ZM6.61358 2.92637C5.33517 3.09825 4.56445 3.42514 3.9948 3.9948C3.42514 4.56445 3.09825 5.33517 2.92637 6.61358C2.75159 7.91356 2.75 9.62178 2.75 12C2.75 14.3782 2.75159 16.0864 2.92637 17.3864C3.09825 18.6648 3.42514 19.4355 3.9948 20.0052C4.56445 20.5749 5.33517 20.9018 6.61358 21.0736C7.91356 21.2484 9.62178 21.25 12 21.25C14.3782 21.25 16.0864 21.2484 17.3864 21.0736C18.6648 20.9018 19.4355 20.5749 20.0052 20.0052C20.5749 19.4355 20.9018 18.6648 21.0736 17.3864C21.2484 16.0864 21.25 14.3782 21.25 12C21.25 9.62178 21.2484 7.91356 21.0736 6.61358C20.9018 5.33517 20.5749 4.56445 20.0052 3.9948C19.4355 3.42514 18.6648 3.09825 17.3864 2.92637C16.0864 2.75159 14.3782 2.75 12 2.75C9.62178 2.75 7.91356 2.75159 6.61358 2.92637ZM10.7474 5.99364C10.7509 6.40784 10.4179 6.74646 10.0038 6.74997C9.14788 6.75723 8.55011 6.7855 8.10037 6.8736C7.67158 6.95759 7.43423 7.08568 7.25996 7.25996C7.08568 7.43423 6.95759 7.67158 6.8736 8.10037C6.7855 8.55011 6.75723 9.14788 6.74997 10.0038C6.74646 10.4179 6.40784 10.7509 5.99364 10.7474C5.57944 10.7439 5.24652 10.4052 5.25003 9.99103C5.25724 9.14035 5.28357 8.41444 5.40157 7.81203C5.52367 7.18869 5.75316 6.64543 6.1993 6.1993C6.64543 5.75316 7.18869 5.52367 7.81203 5.40157C8.41444 5.28357 9.14035 5.25724 9.99103 5.25003C10.4052 5.24652 10.7439 5.57944 10.7474 5.99364ZM13.2502 5.99364C13.2537 5.57944 13.5923 5.24652 14.0065 5.25003C14.8572 5.25724 15.5831 5.28357 16.1855 5.40157C16.8089 5.52367 17.3521 5.75316 17.7983 6.1993C18.2444 6.64543 18.4739 7.18869 18.596 7.81203C18.714 8.41444 18.7403 9.14035 18.7475 9.99103C18.751 10.4052 18.4181 10.7439 18.0039 10.7474C17.5897 10.7509 17.2511 10.4179 17.2476 10.0038C17.2403 9.14788 17.2121 8.55011 17.124 8.10037C17.04 7.67158 16.9119 7.43423 16.7376 7.25996C16.5633 7.08568 16.326 6.95759 15.8972 6.8736C15.4475 6.7855 14.8497 6.75723 13.9938 6.74997C13.5796 6.74646 13.2467 6.40784 13.2502 5.99364ZM5.99364 13.2502C6.40784 13.2467 6.74646 13.5796 6.74997 13.9938C6.75723 14.8497 6.7855 15.4475 6.8736 15.8972C6.95759 16.326 7.08568 16.5633 7.25996 16.7376C7.43423 16.9119 7.67158 17.04 8.10037 17.124C8.55011 17.2121 9.14788 17.2403 10.0038 17.2476C10.4179 17.2511 10.7509 17.5897 10.7474 18.0039C10.7439 18.4181 10.4052 18.751 9.99103 18.7475C9.14035 18.7403 8.41444 18.714 7.81203 18.596C7.18869 18.4739 6.64543 18.2444 6.1993 17.7983C5.75316 17.3521 5.52367 16.8089 5.40157 16.1855C5.28357 15.5831 5.25724 14.8572 5.25003 14.0065C5.24652 13.5923 5.57944 13.2537 5.99364 13.2502ZM18.0039 13.2502C18.4181 13.2537 18.751 13.5923 18.7475 14.0065C18.7403 14.8572 18.714 15.5831 18.596 16.1855C18.4739 16.8089 18.2444 17.3521 17.7983 17.7983C17.3521 18.2444 16.8089 18.4739 16.1855 18.596C15.5831 18.714 14.8572 18.7403 14.0065 18.7475C13.5923 18.751 13.2537 18.4181 13.2502 18.0039C13.2467 17.5897 13.5796 17.2511 13.9938 17.2476C14.8497 17.2403 15.4475 17.2121 15.8972 17.124C16.326 17.04 16.5633 16.9119 16.7376 16.7376C16.9119 16.5633 17.04 16.326 17.124 15.8972C17.2121 15.4475 17.2403 14.8497 17.2476 13.9938C17.2511 13.5796 17.5897 13.2467 18.0039 13.2502Z" fill="#999" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </Tooltip>
+
+
+                                <Tooltip Class="d-inline-block" Title="Disconnect VNC" role="button">
+                                    <div class="p-2" t>
+                                        <button class="system-info-badge d-flex justify-content-center align-items-center ps-3 pe-3" disabled="@VcnConnectQueckActionStatus" @onclick="Disconnect">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="30px" height="30px" viewBox="0 0 24 24" fill="none">
+                                                <path d="M6.34315 6.34315C5.22433 7.46197 4.4624 8.88743 4.15372 10.4393C3.84504 11.9911 4.00346 13.5997 4.60896 15.0615C5.21447 16.5233 6.23985 17.7727 7.55544 18.6518C8.87103 19.5308 10.4178 20 12 20C13.5823 20 15.129 19.5308 16.4446 18.6518C17.7602 17.7727 18.7855 16.5233 19.391 15.0615C19.9965 13.5997 20.155 11.9911 19.8463 10.4393C19.5376 8.88743 18.7757 7.46197 17.6569 6.34315" stroke="#999" stroke-width="2" stroke-linecap="round" />
+                                                <path d="M12 8L12 4" stroke="#999" stroke-width="2" stroke-linecap="round" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </Tooltip>
+
+                                <Tooltip Class="d-inline-block" Title="HideBar" role="button">
+                                    <div class="p-2" @onclick="ToggleQuickActions">
+                                        <button class="system-info-badge d-flex justify-content-center align-items-center ps-3 pe-3">
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="#999999" width="30px" height="30px" viewBox="0 0 32 32">
+                                                <title>Arrow Icon</title>
+                                                <g data-name="Layer 45" id="Layer_45">
+                                                    <path d="M29.57,15.18l-13-9A1,1,0,0,0,16,6H3a1,1,0,0,0-.75,1.66L9.66,16,2.25,24.34A1,1,0,0,0,3,26H16a1,1,0,0,0,.57-.18l13-9a1,1,0,0,0,0-1.64ZM15.69,24H5.23l6.52-7.34a1,1,0,0,0,0-1.32L5.23,8H15.69l11.55,8Z" />
+                                                </g>
+                                            </svg>
+
+                                        </button>
+                                    </div>
+                                </Tooltip>
+                                  
+                            </div>
+                            <AlertContainer />
+
+                        </div>
+
+                    </div>
+                </main>
+            </div>
+        </div>
+
+    </main>
+
+
+
+@code {
+
+    // private bool isQuickActionsVisible = false;
+
+
+    private LoggedInUser? User { get; set; }
+    private LogInBranchDeties? Branch { get; set; }
+
+    // private string? proxyUrl ;
+    // private string? vncHost ;
+    // private int vncPort = 5900;
+    // private string? password ;
+
+    private bool isConnected = false;
+    private string statusMessage = "";
+    private bool isError = false;
+    private bool Isconnecting = false;
+    private bool VcnConnect = false;
+    private bool VcnConnectQueckActionStatus = true;
+    private bool fullscreen = false;
+
+
+    // VNC Controllers 
+    private bool isQuickActionsVisible = false;
+    private bool showQualityPanel = false;
+    private bool showDisplayPanel = false;
+
+    private int currentQuality = 3;
+    private int currentCompression = 2;
+    private bool scaleViewport = true;
+    private bool viewOnly = false;
+    private bool showDotCursor = false;
+
+
+    private BranchRemot? RemoteDetails;
+
+    private DotNetObjectReference<BranchRemoteLogin>? _objRef;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            User = await _auth.getLogginUserDetiles();
+            Branch = await _auth.getLogginBranchDetiles();
+            await getRemoteDetails();
+
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"An error occurred during initialization: {ex.Message}");
+        }
+
+
+    }
+
+    private async Task<string?> GetJwtToken()
+    {
+        try
+        {
+            var getJWT = new getJWTTokens(JS);
+            return await getJWT.GetJWTLoggedInBranchAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"JWT Error: {ex.Message}");
+            return null;
+        }
+    }
+
+
+    private async Task getRemoteDetails()
+    {
+        var token= await GetJwtToken();
+        if(token != null)
+        {
+            var remote = await GetAllBranchesAsync(Settings.MainApiBaseUrl, token);
+            if (remote != null)
+            {
+                RemoteDetails = remote;
+            }
+        }
+    }
+
+    public async Task<BranchRemot?> GetAllBranchesAsync(string baseUrl, string jwtToken)
+    {
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
+
+            var response = await client.GetAsync("api/Remote/getRemoteDetails");
+
+            var result = await response.Content.ReadFromJsonAsync<APIResponseObjectValue<BranchRemot>>();
+
+            if (response.IsSuccessStatusCode)
+            {
+
+                if (result != null && result.StatusCode == 2 && result.Status == true)
+                {
+                    return result.Value;
+                }
+            }
+            else if ( response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                if (result != null && result.StatusCode == 1 && result.Status == false)
+                {
+                    AlertService.ShowError("Login Failed", $"{result.Message}. Please try again.");
+                    return null;
+
+                }
+                else
+                {
+                    if (result != null && result.StatusCode == 0 && result.Status == false)
+                    {
+                        AlertService.ShowError($"Login Error", $"{result.Message}. Please try again.");
+                        Console.WriteLine($"Unexpected response: {response.StatusCode}");
+                        return null;
+                    }
+                }
+            }
+
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception: {ex.Message}");
+            return null;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+
+            await JS.InvokeVoidAsync("initializeVnc");
+            _objRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("fullscreenHelper.addFullscreenListener", _objRef, "vnc-screen-full");
+
+            // await JSRuntime.InvokeVoidAsync("initializeVncViwer");
+        }
+    }
+
+
+
+    private async Task Connect()
+    {
+        try
+        {
+            if(RemoteDetails != null)
+            {
+                var proxyUrl = $"{Settings.VNCApiBaseUrl}vnc-proxy";
+                var vncHost = RemoteDetails.BranchIP;
+                var vncPort = RemoteDetails.RemotePort;
+                var password = RemoteDetails.RemotePassword;
+
+                Isconnecting = true;
+                isError = false;
+                statusMessage = "Connecting to VNC server...";
+
+                // Validate inputs
+                if (string.IsNullOrWhiteSpace(proxyUrl))
+                {
+                    AlertService.ShowError("Connecting Failed", "Proxy URL is required");
+
+                }
+                if (string.IsNullOrWhiteSpace(vncHost))
+                {
+                    AlertService.ShowError("Connecting Failed", "VNC host is required");
+
+                }
+                if (vncPort < 1 || vncPort > 65535)
+                {
+                    AlertService.ShowError("Connecting Failed", "Invalid port number");
+
+                }
+
+                // Build the WebSocket URL with VNC server parameters
+                var url = $"{proxyUrl}?host={vncHost}&port={vncPort}";
+
+                statusMessage = $"Connecting to {vncHost}:{vncPort} via proxy...";
+                StateHasChanged();
+
+                var result = await JS.InvokeAsync<retrunjsObj>("connectVnc", _objRef, url, password, scaleViewport, viewOnly, showDotCursor);
+
+                if (!result.Status)
+                {
+                    if (result.StatusCode == 1)
+                    {
+                        VcnConnectQueckActionStatus = true;
+                        Isconnecting = false;
+                        AlertService.ShowError("Connecting Failed", $"{result.Message}");
+
+                    }
+                }
+
+            }
+            else
+            {
+                AlertService.ShowError("Connecting Failed", "Invalid remote Credential");
+
+            }
+
+        }
+        catch (Exception ex)
+        {
+            isError = true;
+            statusMessage = $"Connection failed: {ex.Message}. Check browser console for details.";
+        }
+        StateHasChanged();
+
+    }
+
+
+    [JSInvokable]
+    public Task NotifyVncStatus(retrunjsObj status)
+    {
+        if(status.Status)
+        {
+            if (status.StatusCode == 2)
+            {
+                Isconnecting = false;
+                VcnConnectQueckActionStatus = false;
+                AlertService.ShowSuccess("Remote Connecting Successful", $"{status.Message}");
+
+            }
+            else if(status.StatusCode == 1)
+            {
+                VcnConnectQueckActionStatus = false;
+                Isconnecting = false;
+                AlertService.ShowInfo("Remote Connecting Infor", $"{status.Message}");
+
+            }
+        }
+        else
+        {
+            if (status.StatusCode == 0)
+            {
+                Isconnecting = false;
+                VcnConnectQueckActionStatus = true;
+                AlertService.ShowError("Remote Connecting Error", $"{status.Message}");
+                // AlertService.ShowSuccess("Conncting Error", $"{status.Ex}");
+
+            }
+
+        }
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+    public void Dispose()
+    {
+        _objRef?.Dispose();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (VcnConnectQueckActionStatus == false)
+        {
+            await Disconnect();
+
+        }
+    }
+
+
+    private async Task Disconnect()
+    {
+        try
+        {
+
+            await JS.InvokeVoidAsync("disconnectVnc");
+            statusMessage = "Disconnected from VNC server";
+
+
+        }
+        catch (Exception ex)
+        {
+            isError = true;
+            statusMessage = $"Disconnect failed: {ex.Message}";
+        }
+    }
+    
+
+    // private void ToggleQuickActions()
+    // {
+    //     isQuickActionsVisible = !isQuickActionsVisible;
+    // }
+
+
+    private async Task ToggleFullscreen()
+    {
+        try
+        {
+
+             await JS.InvokeVoidAsync("fullscreenHelper.toggleFullscreen", "vnc-screen-full");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Fullscreen error: {ex.Message}");
+        }
+
+    }
+
+    [JSInvokable]
+    public Task OnFullscreenChanged(bool isFullscreen)
+    {
+        if (isFullscreen)
+        {
+			fullscreen = true;  
+        }
+        else
+        {
+            fullscreen = false;
+
+        }
+        StateHasChanged();
+        return Task.CompletedTask;
+
+    }
+
+    private async Task ExitFullscreen()
+    {
+        try
+        {
+            if (fullscreen)
+            {
+                fullscreen = await JS.InvokeAsync<bool>("toggleFullscreen", "vnc-screen-full");
+            }
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Fullscreen error: {ex.Message}");
+        }
+
+    }
+
+    
+    private void ToggleQuickActions()
+    {
+        isQuickActionsVisible = !isQuickActionsVisible;
+        showQualityPanel = false;
+        showDisplayPanel = false;
+    }
+
+    private void ToggleQualityPanel()
+    {
+        showQualityPanel = !showQualityPanel;
+        if (showQualityPanel) showDisplayPanel = false;
+    }
+
+    private void ToggleDisplayPanel()
+    {
+        showDisplayPanel = !showDisplayPanel;
+        if (showDisplayPanel) showQualityPanel = false;
+    }
+
+    private async Task OnQualityChanged(string value)
+    {
+        currentQuality = int.Parse(value);
+        await JS.InvokeVoidAsync("setVncQuality", currentQuality);
+    }
+
+    private async Task OnCompressionChanged(string value)
+    {
+        currentCompression = int.Parse(value);
+        await JS.InvokeVoidAsync("setVncCompression", currentCompression);
+    }
+
+    private async Task OnScaleViewportChanged(bool value)
+    {
+        scaleViewport = value;
+        await JS.InvokeVoidAsync("setVncScaleViewport", scaleViewport);
+    }
+
+    private async Task OnViewOnlyChanged(bool value)
+    {
+        viewOnly = value;
+        await JS.InvokeVoidAsync("setVncViewOnly", viewOnly);
+    }
+
+    private async Task OnShowDotCursorChanged(bool value)
+    {
+        showDotCursor = value;
+        await JS.InvokeVoidAsync("setVncShowDotCursor", showDotCursor);
+    }
+
+    private async Task SendCtrlAltDel()
+    {
+        await JS.InvokeVoidAsync("sendCtrlAltDel");
+    }
+
+    private async Task sendWindowsKey()
+    {
+        await JS.InvokeVoidAsync("sendWindowsKey");
+    }
+    
+    private void ToggleLayoutView()
+    {
+        // Your layout toggle logic
+    }
+
+    private void OpenFileManager()
+    {
+        // Your file manager logic
+    }
+
+
+    private bool RememberMe;
+
+
+    public class retrunjsObj()
+    {
+        public string? Value { get; set; }
+        public bool Status { get; set; }
+        public int StatusCode { get; set; }
+        public string? Ex { get; set; }
+        public string? Message { get; set; }
+        
+    }
+
+
+
+
+}

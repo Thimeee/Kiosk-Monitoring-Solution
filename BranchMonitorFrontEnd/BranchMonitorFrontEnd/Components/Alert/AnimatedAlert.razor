@@ -1,0 +1,122 @@
+﻿@using BranchMonitorFrontEnd.Service.Alert
+@using System.Timers
+
+<div class="alert-wrapper @(IsVisible ? "alert-visible" : "alert-hidden")">
+    <div class="alert-card alert-@AlertType.ToString().ToLower()">
+        <!-- Animated Border -->
+        <div class="alert-border-glow"></div>
+
+        <!-- Alert Content -->
+        <div class="alert-main">
+            <div class="alert-icon-wrapper">
+                <div class="alert-icon-circle">
+                    @switch (AlertType)
+                    {
+                        case AlertType.Success:
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="alert-icon">
+                                <path d="M20 6L9 17l-5-5" />
+                            </svg>
+                            break;
+                        case AlertType.Error:
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="alert-icon">
+                                <circle cx="12" cy="12" r="10" />
+                                <line x1="15" y1="9" x2="9" y2="15" />
+                                <line x1="9" y1="9" x2="15" y2="15" />
+                            </svg>
+                            break;
+                        case AlertType.Warning:
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="alert-icon">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                <line x1="12" y1="9" x2="12" y2="13" />
+                                <line x1="12" y1="17" x2="12.01" y2="17" />
+                            </svg>
+                            break;
+                        case AlertType.Info:
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="alert-icon">
+                                <circle cx="12" cy="12" r="10" />
+                                <line x1="12" y1="16" x2="12" y2="12" />
+                                <line x1="12" y1="8" x2="12.01" y2="8" />
+                            </svg>
+                            break;
+                    }
+                </div>
+            </div>
+
+            <div class="alert-content-wrapper">
+                <div class="alert-header">
+                    <h4 class="alert-title">@Title</h4>
+                    <span class="alert-timestamp">@DateTime.Now.ToString("HH:mm:ss")</span>
+                </div>
+                <p class="alert-message">@Message</p>
+            </div>
+
+            @if (ShowCloseButton)
+            {
+                <button type="button" class="alert-close-btn" @onclick="Close" aria-label="Close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            }
+        </div>
+
+        <!-- Progress Bar -->
+        @if (AutoCloseDelay > 0)
+        {
+            <div class="alert-progress-container">
+                <div class="alert-progress-bar" style="animation-duration: @(AutoCloseDelay)ms;"></div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string Message { get; set; } = "";
+    [Parameter] public AlertType AlertType { get; set; } = AlertType.Info;
+    [Parameter] public bool ShowCloseButton { get; set; } = true;
+    [Parameter] public int AutoCloseDelay { get; set; } = 5000;
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool IsVisible { get; set; } = false;
+    private Timer? _autoCloseTimer;
+
+    public void Show()
+    {
+        IsVisible = true;
+        StateHasChanged();
+
+        if (AutoCloseDelay > 0)
+        {
+            _autoCloseTimer?.Dispose();
+            _autoCloseTimer = new Timer(AutoCloseDelay);
+            _autoCloseTimer.Elapsed += async (s, e) => await AutoClose();
+            _autoCloseTimer.AutoReset = false;
+            _autoCloseTimer.Start();
+        }
+    }
+
+    public async Task Close()
+    {
+        IsVisible = false;
+        _autoCloseTimer?.Dispose();
+        StateHasChanged();
+
+        if (OnClose.HasDelegate)
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+
+    private async Task AutoClose()
+    {
+        await InvokeAsync(async () => await Close());
+    }
+
+    public void Dispose()
+    {
+        _autoCloseTimer?.Dispose();
+    }
+}
+

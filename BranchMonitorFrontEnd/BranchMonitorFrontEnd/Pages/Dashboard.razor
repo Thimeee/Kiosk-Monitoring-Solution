@@ -1,0 +1,162 @@
+﻿@page "/dashboard"
+@using BranchMonitorFrontEnd.Service.Auth
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+ @attribute [Authorize(Roles = "Admin,Manager")] 
+@layout NavbarLayout
+@inject AuthenticationStateProvider _authStateProvider
+@inject AuthCredential _auth
+
+@* @inject AuthenticationService AuthService *@
+@inject NavigationManager Navigation
+@* @layout LogInLayout *@
+
+
+        <div class="dashboard-wrapper">
+            <!-- Top Navigation Bar -->
+            <!-- Main Dashboard Content -->
+            <main class="dashboard-content">
+                <!-- Stats Overview -->
+                <section class="stats-overview">
+                    <div class="stat-box stat-online">
+                        <div class="stat-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                        </div>
+                        <div class="stat-content">
+                            <h3>98</h3>
+                            <p>Online Kiosks</p>
+                            <span class="stat-change positive">+2 since last hour</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-box stat-offline">
+                        <div class="stat-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                            </svg>
+                        </div>
+                        <div class="stat-content">
+                            <h3>2</h3>
+                            <p>Offline Kiosks</p>
+                            <span class="stat-change negative">Requires attention</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-box stat-warning">
+                        <div class="stat-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                <line x1="12" y1="9" x2="12" y2="13"></line>
+                                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                            </svg>
+                        </div>
+                        <div class="stat-content">
+                            <h3>5</h3>
+                            <p>Warnings</p>
+                            <span class="stat-change warning">Low paper alerts</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-box stat-transactions">
+                        <div class="stat-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="1" x2="12" y2="23"></line>
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                            </svg>
+                        </div>
+                        <div class="stat-content">
+                            <h3>1,234</h3>
+                            <p>Transactions Today</p>
+                            
+                                <span>loding...</span>
+                           
+                                <span class="stat-change positive"></span>
+
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Kiosks Grid -->
+                <!-- Recent Alerts -->
+                <section class="alerts-section">
+                    <div class="section-header">
+                        <h2>Recent Alerts</h2>
+                        <button class="btn-secondary">View All</button>
+                    </div>
+                    <div class="alerts-list">
+                        <div class="alert-item alert-error">
+                            <div class="alert-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                                </svg>
+                            </div>
+                            <div class="alert-content">
+                                <strong>Kiosk #011 - Connection Lost</strong>
+                                <p>Branch 5, Main Hall - Lost connection at 14:23</p>
+                                <span class="alert-time">2 hours ago</span>
+                            </div>
+                        </div>
+
+                        <div class="alert-item alert-warning">
+                            <div class="alert-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                </svg>
+                            </div>
+                            <div class="alert-content">
+                                <strong>Kiosk #012 - Low Paper Warning</strong>
+                                <p>Branch 8, Side Entrance - Paper level below 20%</p>
+                                <span class="alert-time">3 hours ago</span>
+                            </div>
+                        </div>
+
+                        <div class="alert-item alert-info">
+                            <div class="alert-icon">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                                </svg>
+                            </div>
+                            <div class="alert-content">
+                                <strong>System Update Available</strong>
+                                <p>Security patch v2.4.1 ready for deployment</p>
+                                <span class="alert-time">5 hours ago</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+
+
+@code {
+
+    [CascadingParameter] 
+    private Task<AuthenticationState> AuthenticationStateTask { get; set; }
+
+    // private LoggedInUser User { get; set; }
+
+    // protected override async Task OnInitializedAsync()
+    // {
+    //     try
+    //     {
+    //         User = await _auth.getLogginUserDetiles();
+    
+    //     }catch (Exception ex)
+    //     {
+    //         Console.WriteLine($"An error occurred during initialization: {ex.Message}");
+    //     }   
+
+       
+    // }
+
+}

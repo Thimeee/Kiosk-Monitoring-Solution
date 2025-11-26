@@ -1,0 +1,115 @@
+﻿@inject NavigationManager Navigation
+
+<div class="error-page-wrapper">
+    <div class="error-background">
+        <div class="grid-pattern"></div>
+        <div class="floating-circle circle-1"></div>
+        <div class="floating-circle circle-2"></div>
+        <div class="floating-circle circle-3"></div>
+    </div>
+
+    <div class="error-content d-flex justify-content-center align-items-center  " style="height:90vh; ">
+        <div class="row " style="width:100%; ">
+
+            <div class="error-animation col-4 d-flex justify-content-center align-items-center ">
+                <!-- Animated 404 Illustration -->
+                <div class="error-code-display">
+                    <div class="digit-container">
+                        <span class="digit">4</span>
+                        <div class="digit-shadow"></div>
+                    </div>
+                    <div class="digit-container glitch-container">
+                        <span class="digit glitch" data-text="0">0</span>
+                        <div class="digit-shadow"></div>
+                        <!-- Glitch Monitor Icon -->
+                        <svg class="monitor-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                            <line x1="8" y1="21" x2="16" y2="21"></line>
+                            <line x1="12" y1="17" x2="12" y2="21"></line>
+                            <path class="screen-error" d="M8 8l8 8M16 8l-8 8"></path>
+                        </svg>
+                    </div>
+                    <div class="digit-container">
+                        <span class="digit">4</span>
+                        <div class="digit-shadow"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="error-details col-8 ">
+                <h1 class="error-title">Page Not Found</h1>
+                <p class="error-message">
+                    The page you're looking for doesn't exist or has been moved.
+                    The kiosk monitoring system couldn't locate this resource.
+                </p>
+
+                <div class="error-stats">
+                    <div class="stat-item">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                            <line x1="12" y1="9" x2="12" y2="13"></line>
+                            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                        </svg>
+                        <span>Status: 404</span>
+                    </div>
+                    <div class="stat-item">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        <span>Error Code: NOT_FOUND</span>
+                    </div>
+                    <div class="stat-item">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                            <circle cx="12" cy="10" r="3"></circle>
+                        </svg>
+                        <span>Location: Unknown</span>
+                    </div>
+                </div>
+
+                <div class="error-actions">
+                    <button class="btn-primary" @onclick="GoHome">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                        </svg>
+                        Back to Dashboard
+                    </button>
+                    <button class="btn-secondary" @onclick="GoBack">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="19" y1="12" x2="5" y2="12"></line>
+                            <polyline points="12 19 5 12 12 5"></polyline>
+                        </svg>
+                        Go Back
+                    </button>
+                </div>
+
+                <div class="help-section">
+                    <p class="help-text">Need assistance? Contact system administrator</p>
+                    <div class="quick-links">
+                        <a href="/dashboard" class="quick-link">Dashboard</a>
+                        <a href="/branches" class="quick-link">Branches</a>
+                        <a href="/health-analytics" class="quick-link">Analytics</a>
+                        <a href="/login" class="quick-link">Login</a>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+       
+    </div>
+</div>
+
+@code {
+    private void GoHome()
+    {
+        Navigation.NavigateTo("/dashboard");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/");
+    }
+}
+

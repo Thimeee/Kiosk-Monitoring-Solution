@@ -1,0 +1,402 @@
+﻿@page "/branches"
+@using System.Net.Http.Headers
+@using System.Text.Json
+@using BranchMonitorFrontEnd.DTO
+@using BranchMonitorFrontEnd.Helper
+@using Monitoring.Shared.DTO
+@inject NavigationManager Navigation
+@layout NavbarLayout
+@inject IJSRuntime JS
+@inject HttpClient Http
+@inject AlertService AlertService
+@inject AppSettings Settings
+
+
+
+
+<div class="kiosks-wrapper">
+    <main class="kiosks-content">
+            <section class="kiosks-section mt-4">
+
+            @if (allKiosks == null || !allKiosks.Any())
+        {
+           <Loder Height="80px" width="80px"/>        
+           
+        }
+        else
+        {
+                <div class="section-header">
+                    <h2>All Kiosks Status</h2>
+                    <div class="section-actions">
+                        <input type="text" placeholder="Search kiosks..." class="search-input" />
+                        <select class="filter-select">
+                            <option>All Status</option>
+                            <option>Online</option>
+                            <option>Offline</option>
+                            <option>Warning</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="kiosks-grid">
+                    @foreach (var kiosk in GetPagedKiosks())
+                    {
+                        <div class="kiosk-card @kiosk.Status">
+                            <div class="kiosk-header">
+                                <div class="kiosk-id">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                        <line x1="8" y1="21" x2="16" y2="21"></line>
+                                        <line x1="12" y1="17" x2="12" y2="21"></line>
+                                    </svg>
+                                    <span>Kiosk #@kiosk.Number.ToString("D3")</span>
+                                </div>
+                                <span class="status-badge @kiosk.Status">@kiosk.StatusText</span>
+                            </div>
+                            <div class="kiosk-info">
+                                <div class="info-row">
+                                    <span class="info-label">Branch:</span>
+                                    <span class="info-value">@kiosk.Branch</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Location:</span>
+                                    <span class="info-value">@kiosk.Location</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Uptime:</span>
+                                    <span class="info-value">@kiosk.Uptime</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Last Update:</span>
+                                    <span class="info-value">@kiosk.LastUpdate</span>
+                                </div>
+                            </div>
+                            <div class="kiosk-actions">
+                                <button class="btn-action" title="View " @onclick="() => LoginInBranch(kiosk.branchDto)" style="">
+                                    LogIn &nbsp;&nbsp;
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                        <polyline points="14 2 14 8 20 8"></polyline>
+                                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                                        <polyline points="10 9 9 9 8 9"></polyline>
+                                    </svg>
+                                </button>
+
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <PaginationCom ActivePageNumber="@currentPageNumber" TotalPages="@totalPages" PageChanged="OnPageChangedAsync" />
+
+                <div class="page-info-text">
+                    <text>Showing @startItem - @endItem of @totalKiosks kiosks (Page @currentPageNumber of @totalPages)</text>
+                </div>
+        }
+        </section>
+
+        
+    </main>
+</div>
+
+@* Alert  *@
+<AlertContainer />
+
+@code {
+    // Pagination settings
+    private int currentPageNumber = 1;
+    private int pageSize = 8; // 10 kiosks per page
+    private int totalKiosks ; // Total kiosks
+    private int totalPages => (int)Math.Ceiling((double)totalKiosks / pageSize);
+
+    // Calculate display range
+    private int startItem => (currentPageNumber - 1) * pageSize + 1;
+    private int endItem => Math.Min(currentPageNumber * pageSize, totalKiosks);
+
+    // All kiosks data
+    private List<KioskData> allKiosks = new();
+
+    private string? JWTToken;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await OnStartupAsync();
+    }
+
+
+    private async Task OnStartupAsync()
+    {
+        try
+        {
+            getJWTTokens getJWT = new getJWTTokens(JS);
+            if(getJWT != null)
+            {
+                var token = await getJWT.GetJWTLoggedInUserAsync();
+                if (token != null)
+                {
+                    JWTToken = token;
+                }
+                if (JWTToken != null)
+                {
+                    if (Settings.MainApiBaseUrl != null)
+                    {
+                        var branchList = await GetAllBranchesAsync($"{Settings.MainApiBaseUrl}", JWTToken);
+
+                    if (branchList != null)
+                    {
+                        allKiosks = GenerateKiosks(branchList);
+                        StateHasChanged();
+					}                        
+                    }
+
+                   
+                }
+
+            }
+          
+        }catch(Exception ex)
+        {
+            Console.WriteLine($"Exception: {ex.Message}");
+        }
+
+
+
+    }
+
+
+    private List<KioskData> GenerateKiosks(List<Branch> totlebranch)
+    {
+        var kiosks = new List<KioskData>();
+        var random = new Random();
+        var locations = new[] { "Main Hall", "Side Entrance", "Back Office", "Lobby", "Service Area" };
+
+        foreach (var branch in totlebranch){
+
+            string status;
+            string statusText;
+            string uptime;
+            string lastUpdate;
+
+            if(branch.BranchActiveStatus == 1)
+            {
+                status = "online";
+                statusText = "Online";
+
+
+            }else if(branch.BranchActiveStatus == 0)
+            {
+                status = "offline";
+                statusText = "Offline";
+
+
+            }
+            else
+            {
+                status = "warning";
+                statusText = "Warning";
+
+            }
+
+            uptime = "foj";
+            lastUpdate = "sfdgk";
+
+            kiosks.Add(new KioskData
+            {
+                Number = 1,
+                Status = status,
+                StatusText = statusText,
+                Branch = branch.BranchName,
+                Location = branch.Location,
+                Uptime = uptime,
+                LastUpdate = lastUpdate,
+                branchDto = branch
+            });
+
+        }
+
+
+
+        return kiosks;
+    }
+
+    public async Task<List<Branch>?> GetAllBranchesAsync(string baseUrl, string jwtToken)
+    {
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
+
+            var response = await client.GetAsync("api/Branch/getAllBranch");
+
+            var result = await response.Content.ReadFromJsonAsync<APIResponseCoustomizeList<Branch,int>>();
+
+            if (response.IsSuccessStatusCode)
+            {
+
+                if (result != null && result.StatusCode == 2 && result.Status == true)
+                {
+                    totalKiosks = result.Value;
+                    return result.ValueList;
+                }
+            }
+            else if ( response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                if (result != null && result.StatusCode == 1 && result.Status == false)
+                {
+                    AlertService.ShowError("Login Failed", $"{result.Message}. Please try again.");
+                    return null;
+
+                }
+                else
+                {
+                    if (result != null && result.StatusCode == 0 && result.Status == false)
+                    {
+                        AlertService.ShowError($"Login Error", $"{result.Message}. Please try again.");
+                        Console.WriteLine($"Unexpected response: {response.StatusCode}");
+                        return null;
+                    }
+                }
+            }
+
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception: {ex.Message}");
+            return null;
+        }
+    }
+
+    // login Branch
+    private async Task LoginInBranch(Branch branch)
+
+    {
+        try
+        {
+            if (JWTToken != null)
+            {
+
+                using var client = new HttpClient();
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", JWTToken);
+                var response = await client.PostAsJsonAsync($"{Settings.MainApiBaseUrl}api/Branch/LoginBranch",
+               new { branch.Id, branch.BranchId });
+
+                var result = await response.Content.ReadFromJsonAsync<APIResponseSingleValue>();
+
+                if (response.IsSuccessStatusCode)
+                {
+
+                    if (result != null || result.StatusCode == 2 || result.Status == true)
+                    {
+                        await JS.InvokeVoidAsync("localStorage.setItem", "branchToken", result.Value);
+                        Navigation.NavigateTo("/branchDashbord");
+                    }
+                }
+                else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                {
+                    if (result != null || result.StatusCode == 1 || result.Status == false)
+                    {
+                        AlertService.ShowError("Login Failed", $"{result.Message}. Please try again.");
+
+                    }
+                    else
+                    {
+                        if (result != null || result.StatusCode == 0 || result.Status == false)
+                        {
+                            AlertService.ShowError($"Login Error", $"{result.Message}. Please try again.");
+                            Console.WriteLine($"Unexpected response: {response.StatusCode}");
+                        }
+                    }
+                }
+            }
+            else
+            {
+                AlertService.ShowError($"Login Error", $"Token is Not Found. Please try again.");
+                Console.WriteLine($"Unexpected response: Token is Not Found");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception: {ex.Message}");
+        }
+
+
+    }
+
+
+    
+   
+
+    private List<KioskData> GetPagedKiosks()
+    {
+        // Calculate skip and take for current page
+        int skip = (currentPageNumber - 1) * pageSize;
+        return allKiosks.Skip(skip).Take(pageSize).ToList();
+    }
+
+    private async Task OnPageChangedAsync(int newPageNumber)
+    {
+        currentPageNumber = newPageNumber;
+
+        // Optional: Scroll to top of kiosks section
+        // await JSRuntime.InvokeVoidAsync("scrollToTop");
+
+        StateHasChanged();
+    }
+
+  
+
+    private void RestartKiosk(int kioskNumber)
+    {
+        Console.WriteLine($"Restarting Kiosk #{kioskNumber}");
+        // TODO: Implement restart functionality
+    }
+
+    private void OpenSettings(int kioskNumber)
+    {
+        Console.WriteLine($"Opening settings for Kiosk #{kioskNumber}");
+        // TODO: Implement settings
+    }
+
+    // Kiosk data model
+    public class KioskData
+    {
+        public int Number { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string StatusText { get; set; } = string.Empty;
+        public string Branch { get; set; } = string.Empty;
+        public string Location { get; set; } = string.Empty;
+        public string Uptime { get; set; } = string.Empty;
+        public string LastUpdate { get; set; } = string.Empty;
+        public Branch branchDto { get; set; }
+        
+    }
+
+
+
+    public class Branch
+    {
+        public int Id { get; set; }
+        public string BranchId { get; set; }
+        public string BranchName { get; set; }
+        public string Location { get; set; }
+        public int BranchActiveStatus { get; set; }
+        public string KioskID { get; set; }
+        public string KioskVersion { get; set; }
+        public string KioskSeriNumber { get; set; }
+        public string KioskName { get; set; }
+        public string? KisokSessionKey { get; set; }
+    }
+}
+
+<style>
+    .page-info-text {
+        margin-top: 16px;
+        text-align: center;
+        color: #999;
+        font-size: 14px;
+        font-weight: 500;
+    }
+</style>

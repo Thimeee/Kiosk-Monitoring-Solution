@@ -1,0 +1,931 @@
+﻿@page "/patchupdate/fileserver"
+@inject NavigationManager Navigation
+@layout NavbarLayout
+@inject IJSRuntime JSRuntime
+
+
+<div class="kiosks-wrapper">
+    <main class="kiosks-content">
+        <section class="kiosks-section mt-4">
+                <div class="page-header">
+                    <div class="header-content">
+                        <div class="header-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                                <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                                <line x1="6" y1="18" x2="6.01" y2="18"></line>
+                            </svg>
+                        </div>
+                        <div class="header-text">
+                            <h1>File Server Patch Push</h1>
+                            <p>Deploy patches to file servers across all branches</p>
+                        </div>
+                    </div>
+                  
+                </div>
+
+                <div class="patch-content">
+                    <!-- Server Stats -->
+                     
+
+                    <!-- Patch Upload Section -->
+                    <div class="upload-section">
+                        <div>
+                        <div class="stats-grid mt-5">
+                            <div class="stat-card stat-selected">
+                                <div class="stat-icon">
+                                    <svg width="30px" height="30px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M3 5.45L10.5 4.5V11.5H3V5.45ZM10.5 12.5V19.5L3 18.55V12.5H10.5ZM11.5 4.3L21 3V11.5H11.5V4.3ZM21 12.5V21L11.5 19.7V12.5H21Z" />
+                                    </svg>
+                                </div>
+                                <div class="stat-info">
+                                    <span class="stat-value">@selectedServers.Count</span>
+                                    <span class="stat-label">Windows Update</span>
+                                </div>
+                            </div>
+
+                            <div class="stat-card stat-selected">
+                                <div class="stat-icon">
+                                    <svg viewBox="0 0 32 32" width="30" height="30" xmlns="http://www.w3.org/2000/svg" fill="#999">
+                                        <path d="M27 4H5C3.3 4 2 5.3 2 7v18c0 1.7 1.3 3 3 3h2.5c0-.4 0-.8.2-1.2-1.1-.2-2.1-1.1-2.4-2.2C5.1 23.7 5 22.8 5 22s.1-1.7.3-2.6c.3-1.2 1.2-2 2.4-2.2-.4-1.1-.1-2.3.8-3.2 1.3-1.2 2.8-2.1 4.4-2.6 1.2-.3 2.4 0 3.1.9.8-.9 2-1.3 3.1-.9 1.7.5 3.2 1.4 4.4 2.6.9.8 1.1 2.1.8 3.2 1.1.2 2.1 1.1 2.4 2.2.2.9.3 1.7.3 2.6s-.1 1.7-.3 2.6c-.3 1.2-1.2 2-2.4 2.2.1.4.2.8.2 1.2H27c1.7 0 3-1.3 3-3V7c0-1.7-1.3-3-3-3z" />
+                                        <circle cx="7" cy="8" r="1" />
+                                        <circle cx="10" cy="8" r="1" />
+                                        <circle cx="13" cy="8" r="1" />
+                                        <path d="M24.7 19.9c-.1-.5-.6-.8-1.1-.8-.6.1-1.2-.2-1.5-.7s-.3-1.1.1-1.6c.3-.4.3-1-.1-1.3-1-1-2.3-1.7-3.6-2.1-.5-.1-1 .1-1.2.6-.2.5-.8.9-1.3.9s-1.1-.4-1.3-.9c-.2-.5-.7-.7-1.2-.6-1.3.4-2.6 1.1-3.6 2.1-.4.4-.4.9-.1 1.3.4.5.4 1.1.1 1.6-.3.5-.9.8-1.5.7-.5-.1-1 .3-1.1.8C7.1 20.6 7 21.3 7 22s.1 1.4.3 2.1c.1.5.6.8 1.1.8.6-.1 1.2.2 1.5.7s.3 1.1-.1 1.6c-.3.4-.3 1 .1 1.3 1 1 2.3 1.7 3.6 2.1.5.1 1-.1 1.2-.6.2-.5.8-.9 1.3-.9s1.1.4 1.3.9c.2.4.5.6.9.6h.3c1.3-.4 2.6-1.1 3.6-2.1.4-.4.4-.9.1-1.3-.4-.5-.4-1.1-.1-1.6.3-.5.9-.8 1.5-.7.5.1 1-.3 1.1-.8.2-.7.3-1.4.3-2.1s-.1-1.4-.3-2.1zM16 25a3 3 0 1 1 0-6 3 3 0 0 1 0 6z" />
+                                    </svg>
+                                </div>
+                                <div class="stat-info">
+                                    <span class="stat-value">@selectedServers.Count</span>
+                                    <span class="stat-label">Application Update</span>
+                                </div>
+                            </div>
+
+                            <div class="stat-card stat-selected">
+                                <div class="stat-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M9 11l3 3L22 4"></path>
+                                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                                    </svg>
+                                </div>
+                                <div class="stat-info">
+                                    <span class="stat-value">@selectedServers.Count</span>
+                                    <span class="stat-label">Selected</span>
+                                </div>
+                            </div>
+
+                           
+                        </div>
+
+
+                        <div class="upload-card d-flex flex-column mt-5">
+                            <div class="d-flex  ">
+                                <div class=" row col-12">
+                                    <div class="upload-header col-3">
+                                        <h2>Upload Patch File</h2>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                            <div class="upload-area @(isDragging ? "dragging" : "")"
+                                 @ondragenter="HandleDragEnter"
+                                 @ondragleave="HandleDragLeave"
+                                 @ondragover:preventDefault
+                                 @ondrop="HandleDrop">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="upload-icon">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                                <h3>Drag & Drop patch file here</h3>
+                                <p>or click to browse</p>
+                                <button class="btn-upload" @onclick="TriggerFileInput">
+                                    Choose File
+                                </button>
+                                <span class="file-types">Supported: .msi, .exe, .zip</span>
+                            </div>
+
+                            @if (!string.IsNullOrEmpty(uploadedFileName))
+                            {
+                                <div class="uploaded-file">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                                        <polyline points="13 2 13 9 20 9"></polyline>
+                                    </svg>
+                                    <div class="file-info">
+                                        <span class="file-name">@uploadedFileName</span>
+                                        <span class="file-size">@uploadedFileSize MB</span>
+                                    </div>
+                                    <button class="btn-remove" @onclick="RemoveFile">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                        </div>
+                       
+
+                        <div class="patch-options">
+                            <h3>Patch Update Details</h3>
+                            <div class="options-grid">
+                            <div class="d-flex  flex-column">
+                              
+                                <div class="row ">
+                                    <div class="col-6 mb-3 d-flex  ">
+                                        <button class="update-type-btn active" @onclick="RefreshServers">
+                                            <svg width="30px" height="30px" viewBox="0 0 24 24" fill="none">
+                                                <path d="M3 5.45L10.5 4.5V11.5H3V5.45ZM10.5 12.5V19.5L3 18.55V12.5H10.5ZM11.5 4.3L21 3V11.5H11.5V4.3ZM21 12.5V21L11.5 19.7V12.5H21Z" fill="#999" />
+                                            </svg>
+
+                                            Windows Update
+                                        </button>
+                                       
+                                    </div>
+                                     <div class="col-6 mb-3 d-flex align-items-center justify-content-center ">
+                                        <button class="update-type-btn" @onclick="RefreshServers">
+                                            <svg viewBox="0 0 32 32" width="30" height="30" xmlns="http://www.w3.org/2000/svg" fill="#999">
+                                                <path d="M27 4H5C3.3 4 2 5.3 2 7v18c0 1.7 1.3 3 3 3h2.5c0-.4 0-.8.2-1.2-1.1-.2-2.1-1.1-2.4-2.2C5.1 23.7 5 22.8 5 22s.1-1.7.3-2.6c.3-1.2 1.2-2 2.4-2.2-.4-1.1-.1-2.3.8-3.2 1.3-1.2 2.8-2.1 4.4-2.6 1.2-.3 2.4 0 3.1.9.8-.9 2-1.3 3.1-.9 1.7.5 3.2 1.4 4.4 2.6.9.8 1.1 2.1.8 3.2 1.1.2 2.1 1.1 2.4 2.2.2.9.3 1.7.3 2.6s-.1 1.7-.3 2.6c-.3 1.2-1.2 2-2.4 2.2.1.4.2.8.2 1.2H27c1.7 0 3-1.3 3-3V7c0-1.7-1.3-3-3-3z" />
+                                                <circle cx="7" cy="8" r="1" />
+                                                <circle cx="10" cy="8" r="1" />
+                                                <circle cx="13" cy="8" r="1" />
+                                                <path d="M24.7 19.9c-.1-.5-.6-.8-1.1-.8-.6.1-1.2-.2-1.5-.7s-.3-1.1.1-1.6c.3-.4.3-1-.1-1.3-1-1-2.3-1.7-3.6-2.1-.5-.1-1 .1-1.2.6-.2.5-.8.9-1.3.9s-1.1-.4-1.3-.9c-.2-.5-.7-.7-1.2-.6-1.3.4-2.6 1.1-3.6 2.1-.4.4-.4.9-.1 1.3.4.5.4 1.1.1 1.6-.3.5-.9.8-1.5.7-.5-.1-1 .3-1.1.8C7.1 20.6 7 21.3 7 22s.1 1.4.3 2.1c.1.5.6.8 1.1.8.6-.1 1.2.2 1.5.7s.3 1.1-.1 1.6c-.3.4-.3 1 .1 1.3 1 1 2.3 1.7 3.6 2.1.5.1 1-.1 1.2-.6.2-.5.8-.9 1.3-.9s1.1.4 1.3.9c.2.4.5.6.9.6h.3c1.3-.4 2.6-1.1 3.6-2.1.4-.4.4-.9.1-1.3-.4-.5-.4-1.1-.1-1.6.3-.5.9-.8 1.5-.7.5.1 1-.3 1.1-.8.2-.7.3-1.4.3-2.1s-.1-1.4-.3-2.1zM16 25a3 3 0 1 1 0-6 3 3 0 0 1 0 6z" />
+                                            </svg>
+
+
+
+                                            Application Update
+                                        </button>
+                                       
+                                    </div>
+                                                                         <div class="col-6 mb-3 d-flex align-items-center justify-content-center ">
+                                        <button class="update-type-btn" @onclick="RefreshServers">
+                                            <svg xmlns="http://www.w3.org/2000/svg"
+                                                 viewBox="0 0 24 24"
+                                                 fill="#999"
+                                                 width="30" height="30">
+                                                <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0
+           00.12-.63l-1.92-3.32a.5.5 0 00-.61-.22l-2.39.96a7.007
+           7.007 0 00-1.63-.94l-.36-2.54A.5.5 0 0014.32 2h-4.63a.5.5
+           0 00-.5.42l-.36 2.54c-.59.23-1.14.53-1.63.94l-2.39-.96a.5.5
+           0 00-.61.22L2.68 8.85a.5.5 0 00.12.63l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03
+           1.58a.5.5 0 00-.12.63l1.92 3.32a.5.5 0 00.61.22l2.39-.96c.49.41
+           1.04.76 1.63.94l.36 2.54a.5.5 0 00.5.42h4.63a.5.5 0
+           00.5-.42l.36-2.54c.59-.23 1.14-.53 1.63-.94l2.39.96a.5.5
+           0 00.61-.22l1.92-3.32a.5.5 0 00-.12-.63l-2.03-1.58zM12
+           15.5A3.5 3.5 0 1115.5 12 3.5 3.5 0 0112 15.5z" />
+                                            </svg>
+
+
+                                            Service Update
+                                        </button>
+                                       
+                                    </div>
+                                    <div class="col-6 mb-3 d-flex align-items-center justify-content-center ">
+                                        <button class="update-type-btn" @onclick="RefreshServers">
+                                            <svg width="30px" height="30px" viewBox="0 0 24 24" fill="none">
+                                                <path d="M3 5.45L10.5 4.5V11.5H3V5.45ZM10.5 12.5V19.5L3 18.55V12.5H10.5ZM11.5 4.3L21 3V11.5H11.5V4.3ZM21 12.5V21L11.5 19.7V12.5H21Z" fill="#999" />
+                                            </svg>
+
+                                            Windows Update
+                                        </button>
+
+                                    </div>
+                                </div>
+                            </div>
+
+
+                            <div class="form-group">
+                                <label for="patch-version" class="text-white">File Name</label>
+
+                                <div class="input-wrapper">
+                                    <InputText id="username" @bind-Value="loginModel"
+                                               class="field-input text-white"
+                                               placeholder="Change File Name"
+                                               autocomplete="username" />
+                                    <div class="input-glow"></div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="patch-version" class="text-white">Version *</label>
+                                <div class="input-wrapper">
+                                    <input type="text"
+                                           id="patch-version"
+                                           class="field-input text-white"
+                                           @bind="loginModel"
+                                           placeholder="e.g., 1.0.0"
+                                           required
+                                           pattern="^\d+\.\d+\.\d+$"
+                                           maxlength="20"  />
+                                    <div class="input-glow"></div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="patch-description" class="text-white">Description</label>
+                                <div class="input-wrapper">
+                                    <textarea id="patch-description"
+                                              class="field-input text-white"
+                                              @bind="loginModel"
+                                              placeholder="Enter patch description"
+                                              rows="3"
+                                              maxlength="500"></textarea>
+                                    <div class="input-glow"></div>
+                                </div>
+                            </div>
+
+                            <div class="options-grid">
+                                <label class="option-item">
+                                    <input type="checkbox" @bind="autoReboot" />
+                                    <span class="checkmark"></span>
+                                    <span>Automatically reboot servers after installation</span>
+                                </label>
+
+                                <label class="option-item">
+                                    <input type="checkbox" @bind="createBackup" />
+                                    <span class="checkmark"></span>
+                                    <span>Create system backup before patching</span>
+                                </label>
+
+                                <label class="option-item">
+                                    <input type="checkbox" @bind="autoReboot" />
+                                    <span class="checkmark"></span>
+                                    <span>Rollback on failure</span>
+                                </label>
+
+                                <label class="option-item">
+                                    <input type="checkbox" @bind="autoReboot" />
+                                    <span class="checkmark"></span>
+                                    <span>Send notification on completion</span>
+                                </label>
+                            </div>
+                            <div>
+                                <button class="btn-upload w-100 mt-3" >
+                                    Push Server
+                                </button>
+                            </div>
+                            
+
+                        </div>
+
+                            @if (scheduleDeployment)
+                            {
+                                <div class="schedule-section">
+                                    <label>Schedule Date & Time</label>
+                                    <input type="datetime-local" class="datetime-input" @bind="scheduledTime" />
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                
+
+                   
+                </div>
+
+        </section>
+    </main>
+</div>
+
+@code {
+    private List<ServerModel> servers = new();
+    private HashSet<int> selectedServers = new();
+    private bool isDragging = false;
+    private string uploadedFileName = "";
+    private double uploadedFileSize = 0;
+    private bool scheduleDeployment = false;
+    private bool restartAfterPatch = true;
+    private bool notifyAdmins = true;
+    private bool createBackup = true;
+    private bool autoReboot = true;
+    
+    private DateTime scheduledTime = DateTime.Now.AddHours(1);
+
+    private string loginModel;
+    protected override void OnInitialized()
+    {
+        InitializeServers();
+    }
+
+    private void InitializeServers()
+    {
+        var random = new Random();
+        for (int i = 1; i <= 12; i++)
+        {
+            servers.Add(new ServerModel
+            {
+                Id = i,
+                Name = $"FileServer-{i:D2}",
+                IpAddress = $"192.168.{random.Next(1, 255)}.{random.Next(1, 255)}",
+                Branch = $"Branch {((i - 1) % 10) + 1}",
+                Status = i <= 10 ? "Online" : "Offline",
+                CurrentVersion = $"2.{random.Next(1, 5)}.{random.Next(0, 10)}",
+                LastPatchDate = DateTime.Now.AddDays(-random.Next(1, 30)).ToString("yyyy-MM-dd"),
+                PatchStatus = random.Next(100) > 70 ? "Up to date" : "Pending"
+            });
+        }
+    }
+
+    private void HandleDragEnter() => isDragging = true;
+    private void HandleDragLeave() => isDragging = false;
+    private void HandleDrop()
+    {
+        isDragging = false;
+        SimulateFileUpload();
+    }
+
+    private void TriggerFileInput() => SimulateFileUpload();
+
+    private void SimulateFileUpload()
+    {
+        uploadedFileName = $"security_patch_v2.4.{new Random().Next(1, 10)}.msi";
+        uploadedFileSize = Math.Round(new Random().NextDouble() * 50 + 10, 2);
+    }
+
+    private void RemoveFile()
+    {
+        uploadedFileName = "";
+        uploadedFileSize = 0;
+    }
+
+    private void RefreshServers()
+    {
+        // Simulate refresh
+        StateHasChanged();
+    }
+
+    private void ToggleServerSelection(int serverId, bool isSelected)
+    {
+        if (isSelected)
+            selectedServers.Add(serverId);
+        else
+            selectedServers.Remove(serverId);
+    }
+
+    private void SelectAll()
+    {
+        selectedServers = servers.Where(s => s.Status == "Online").Select(s => s.Id).ToHashSet();
+    }
+
+    private void DeselectAll()
+    {
+        selectedServers.Clear();
+    }
+
+    private void SelectOnlineOnly()
+    {
+        selectedServers = servers.Where(s => s.Status == "Online").Select(s => s.Id).ToHashSet();
+    }
+
+    private bool CanDeploy()
+    {
+        return !string.IsNullOrEmpty(uploadedFileName) && selectedServers.Any();
+    }
+
+    private async Task DeployPatch()
+    {
+        if (!CanDeploy()) return;
+
+        // Simulate deployment
+        await JSRuntime.InvokeVoidAsync("alert", $"Deploying patch to {selectedServers.Count} servers...");
+    }
+
+    private class ServerModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public string IpAddress { get; set; } = "";
+        public string Branch { get; set; } = "";
+        public string Status { get; set; } = "";
+        public string CurrentVersion { get; set; } = "";
+        public string LastPatchDate { get; set; } = "";
+        public string PatchStatus { get; set; } = "";
+    }
+}
+
+<style>
+    .patch-page-wrapper {
+        min-height: 100vh;
+        background: #2a2a2b;
+        padding: 90px 40px 40px;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+        flex-wrap: wrap;
+        gap: 20px;
+    }
+
+    .header-content {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+
+    .header-icon {
+        width: 60px;
+        height: 60px;
+        background: linear-gradient(135deg, #953e3f 0%, #b04e4f 100%);
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 8px 20px rgba(149, 62, 63, 0.3);
+    }
+
+        .header-icon svg {
+            width: 32px;
+            height: 32px;
+            color: white;
+        }
+
+    .header-text h1 {
+        font-size: 28px;
+        color: #ffffff;
+        font-weight: 700;
+        margin: 0 0 6px 0;
+    }
+
+    .header-text p {
+        font-size: 14px;
+        color: #999;
+        margin: 0;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 12px;
+    }
+
+    /* Buttons */
+    .btn-secondary, .update-type-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 24px;
+        background: rgba(100, 98, 100, 0.3);
+        border: 2px solid rgba(100, 98, 100, 0.3);
+        border-radius: 12px;
+        color: #ffffff;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        width:100%;
+    }
+
+        .btn-secondary:hover:not(:disabled), .update-type-btn:hover:not(:disabled) {
+            background: rgba(149, 62, 63, 0.2);
+            border-color: #953e3f;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary:disabled, .update-type-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary svg, .update-type-btn svg {
+            width: 30px;
+            height: 30px;
+        }
+
+    .update-type-btn {
+        flex-direction: column;
+        padding: 20px;
+        text-align: center;
+        gap: 12px;
+    }
+
+        .update-type-btn svg {
+            width: 30px;
+            height: 30px;
+        }
+
+        .update-type-btn.active {
+            background: rgba(149, 62, 63, 0.3);
+            border-color: #953e3f;
+        }
+       
+
+    .patch-content {
+        display: flex;
+        flex-direction: column;
+        gap: 30px;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 2fr));
+        gap: 20px;
+    }
+
+    .stat-card {
+        background: linear-gradient(135deg, #3e3e3f 0%, #2f2f30 100%);
+        border: 2px solid;
+        border-radius: 14px;
+        padding: 24px;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        transition: all 0.3s ease;
+    }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        }
+
+   
+
+    .stat-selected {
+        border-color: rgba(149, 62, 63, 0.4);
+    }
+
+    .stat-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .stat-total .stat-icon {
+        background: rgba(100, 98, 100, 0.2);
+    }
+
+    .stat-selected .stat-icon {
+        background: rgba(76, 175, 80, 0.2);
+    }
+
+    .stat-pending .stat-icon {
+        background: rgba(255, 152, 0, 0.2);
+    }
+
+    /* .stat-selected .stat-icon {
+        background: rgba(149, 62, 63, 0.2);
+    } */
+
+    .stat-icon svg {
+        width: 28px;
+        height: 28px;
+        color: #999;
+    }
+
+    .stat-selected .stat-icon svg {
+        color: #4caf50;
+    }
+
+    .stat-pending .stat-icon svg {
+        color: #ff9800;
+    }
+
+    /* .stat-selected .stat-icon svg {
+        color: #953e3f;
+    } */
+
+    .stat-info {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .stat-value {
+        font-size: 32px;
+        font-weight: 800;
+        color: #ffffff;
+        line-height: 1;
+    }
+
+    .stat-label {
+        font-size: 13px;
+        color: #666;
+        font-weight: 500;
+    }
+
+    /* Upload Section */
+    .upload-section {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 24px;
+    }
+
+    .upload-card {
+        background: linear-gradient(135deg, #3e3e3f 0%, #2f2f30 100%);
+        border: 2px solid rgba(100, 98, 100, 0.3);
+        border-radius: 16px;
+        padding: 30px;
+    }
+
+    .upload-header h2 {
+        font-size: 20px;
+        color: #ffffff;
+        font-weight: 700;
+        margin: 0 0 24px 0;
+    }
+
+    .upload-area {
+        border: 2px dashed rgba(100, 98, 100, 0.4);
+        border-radius: 14px;
+        padding: 50px 30px;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+        .upload-area:hover,
+        .upload-area.dragging {
+            border-color: #953e3f;
+            background: rgba(149, 62, 63, 0.05);
+        }
+
+    .upload-icon {
+        width: 60px;
+        height: 60px;
+        color: #666;
+        margin: 0 auto 20px;
+    }
+
+    .upload-area h3 {
+        font-size: 18px;
+        color: #ffffff;
+        margin: 0 0 8px 0;
+    }
+
+    .upload-area p {
+        font-size: 14px;
+        color: #666;
+        margin: 0 0 20px 0;
+    }
+
+    .btn-upload {
+        padding: 12px 32px;
+        background: linear-gradient(135deg, #953e3f 0%, #b04e4f 100%);
+        border: none;
+        border-radius: 10px;
+        color: white;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+        .btn-upload:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(149, 62, 63, 0.4);
+        }
+
+    .file-types {
+        display: block;
+        margin-top: 16px;
+        font-size: 12px;
+        color: #666;
+    }
+
+    .uploaded-file {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-top: 20px;
+        padding: 16px;
+        background: rgba(149, 62, 63, 0.1);
+        border: 1px solid rgba(149, 62, 63, 0.3);
+        border-radius: 10px;
+    }
+
+        .uploaded-file svg {
+            width: 32px;
+            height: 32px;
+            color: #953e3f;
+            flex-shrink: 0;
+        }
+
+    .file-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .file-name {
+        font-size: 14px;
+        color: #ffffff;
+        font-weight: 600;
+    }
+
+    .file-size {
+        font-size: 12px;
+        color: #666;
+    }
+
+    .btn-remove {
+        width: 32px;
+        height: 32px;
+        background: rgba(149, 62, 63, 0.2);
+        border: 1px solid rgba(149, 62, 63, 0.3);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+        .btn-remove:hover {
+            background: rgba(149, 62, 63, 0.3);
+            transform: rotate(90deg);
+        }
+
+        .btn-remove svg {
+            width: 16px;
+            height: 16px;
+            color: #953e3f;
+        }
+
+    /* Patch Options */
+    .patch-options {
+        background: linear-gradient(135deg, #3e3e3f 0%, #2f2f30 100%);
+        border: 2px solid rgba(100, 98, 100, 0.3);
+        border-radius: 16px;
+        padding: 30px;
+    }
+
+        .patch-options h3 {
+            font-size: 18px;
+            color: #ffffff;
+            font-weight: 700;
+            margin: 0 0 20px 0;
+        }
+
+    .options-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .option-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+        position: relative;
+    }
+
+        .option-item input[type="checkbox"] {
+            position: absolute;
+            opacity: 0;
+        }
+
+    .checkmark {
+        width: 22px;
+        height: 22px;
+        border: 2px solid rgba(100, 98, 100, 0.4);
+        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.3);
+        transition: all 0.3s ease;
+        position: relative;
+        flex-shrink: 0;
+    }
+
+    .option-item input[type="checkbox"]:checked + .checkmark {
+        background: #953e3f;
+        border-color: #953e3f;
+    }
+
+        .option-item input[type="checkbox"]:checked + .checkmark::after {
+            content: '';
+            position: absolute;
+            left: 6px;
+            top: 2px;
+            width: 6px;
+            height: 11px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+    .option-item span:last-child {
+        font-size: 14px;
+        color: #999;
+    }
+
+    .schedule-section {
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid rgba(100, 98, 100, 0.3);
+    }
+
+        .schedule-section label {
+            display: block;
+            font-size: 14px;
+            color: #999;
+            margin-bottom: 8px;
+        }
+
+    .datetime-input {
+        width: 100%;
+        padding: 12px;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(100, 98, 100, 0.3);
+        border-radius: 8px;
+        color: #ffffff;
+        font-size: 14px;
+    }
+
+        .datetime-input:focus {
+            outline: none;
+            border-color: #953e3f;
+        }
+
+    /* Server Section */
+    .server-section {
+        background: linear-gradient(135deg, #3e3e3f 0%, #2f2f30 100%);
+        border: 2px solid rgba(100, 98, 100, 0.3);
+        border-radius: 16px;
+        padding: 30px;
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+
+        .section-header h2 {
+            font-size: 20px;
+            color: #ffffff;
+            font-weight: 700;
+            margin: 0;
+        }
+
+    .selection-actions {
+        display: flex;
+        gap: 16px;
+    }
+
+    .btn-link {
+        background: none;
+        border: none;
+        color: #953e3f;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+
+
+/* new */
+
+    .input-wrapper {
+        position: relative;
+    }
+
+    .field-input {
+        width: 100%;
+        padding: 16px 20px;
+        background: rgba(0, 0, 0, 0.4);
+        border: 2px solid rgba(100, 98, 100, 0.3);
+        border-radius: 12px;
+        color: #ffffff;
+        font-size: 15px;
+        transition: all 0.3s ease;
+    }
+
+        .field-input:focus {
+            outline: none;
+            background: rgba(0, 0, 0, 0.5);
+            border-color: #953e3f;
+        }
+
+        .field-input::placeholder {
+            color: #666;
+        }
+
+    .input-glow {
+        position: absolute;
+        inset: -2px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #953e3f, #646264);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        z-index: -1;
+        filter: blur(8px);
+    }
+
+    .field-input:focus + .input-glow {
+        opacity: 0.4;
+    }
+
+</style>

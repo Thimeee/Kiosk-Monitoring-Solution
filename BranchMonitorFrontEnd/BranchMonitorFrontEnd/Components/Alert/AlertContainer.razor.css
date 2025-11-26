@@ -1,0 +1,76 @@
+﻿.alert-stack-container {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 420px;
+    width: 100%;
+    pointer-events: none;
+}
+
+    .alert-stack-container > * {
+        pointer-events: auto;
+    }
+
+        /* Smooth stacking animation */
+        .alert-stack-container > *:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .alert-stack-container > *:nth-child(2) {
+            animation-delay: 0.1s;
+        }
+
+        .alert-stack-container > *:nth-child(3) {
+            animation-delay: 0.2s;
+        }
+
+        .alert-stack-container > *:nth-child(4) {
+            animation-delay: 0.3s;
+        }
+
+        .alert-stack-container > *:nth-child(5) {
+            animation-delay: 0.4s;
+        }
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .alert-stack-container {
+        right: 16px;
+        max-width: 380px;
+    }
+}
+
+@media (max-width: 480px) {
+    .alert-stack-container {
+        left: 16px;
+        right: 16px;
+        top: 16px;
+        max-width: none;
+    }
+}
+
+/* Add backdrop blur effect for multiple alerts */
+@supports (backdrop-filter: blur(10px)) {
+    .alert-stack-container::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 450px;
+        height: 100vh;
+        background: linear-gradient(to left, rgba(0, 0, 0, 0.1), transparent);
+        backdrop-filter: blur(2px);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        z-index: -1;
+    }
+
+    .alert-stack-container:has(> *) ::before {
+        opacity: 1;
+    }
+}

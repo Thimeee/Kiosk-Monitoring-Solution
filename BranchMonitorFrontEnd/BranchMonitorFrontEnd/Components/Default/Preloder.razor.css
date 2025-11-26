@@ -1,0 +1,330 @@
+﻿/* Animated Background */
+.loader-background {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+}
+
+.loader-circle {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0.08;
+    animation: float 20s infinite ease-in-out;
+}
+
+.loader-circle-1 {
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, #953e3f 0%, transparent 70%);
+    top: -150px;
+    left: -150px;
+    animation-delay: 0s;
+}
+
+.loader-circle-2 {
+    width: 350px;
+    height: 350px;
+    background: radial-gradient(circle, #646264 0%, transparent 70%);
+    bottom: -100px;
+    right: -100px;
+    animation-delay: 5s;
+}
+
+.loader-circle-3 {
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, #953e3f 0%, transparent 70%);
+    top: 50%;
+    right: 20%;
+    animation-delay: 10s;
+}
+
+@keyframes float {
+    0%, 100% {
+        transform: translate(0, 0) scale(1);
+    }
+
+    33% {
+        transform: translate(40px, -40px) scale(1.1);
+    }
+
+    66% {
+        transform: translate(-30px, 30px) scale(0.9);
+    }
+}
+
+/* Main Loader Container */
+.loader-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 40px;
+    position: relative;
+    z-index: 1;
+}
+
+/* Logo Section */
+.loader-logo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    animation: fadeInDown 0.8s ease-out;
+}
+
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.logo-hexagon {
+    width: 100px;
+    height: 100px;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+.logo-hexagon svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 10px 20px rgba(149, 62, 63, 0.5));
+}
+
+.loader-brand {
+    text-align: center;
+}
+
+    .loader-brand h1 {
+        font-size: 32px;
+        font-weight: 800;
+        letter-spacing: 3px;
+        background: linear-gradient(135deg, #ffffff 0%, #e0e0e0 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin: 0 0 8px 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    .loader-brand p {
+        color: #999;
+        font-size: 14px;
+        letter-spacing: 1.5px;
+        font-weight: 500;
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+/* Spinner Section */
+.loader-spinner-wrapper {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    animation: fadeIn 1s ease-out 0.3s both;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* Outer Ring */
+.spinner-outer {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border: 4px solid rgba(149, 62, 63, 0.2);
+    border-top-color: #953e3f;
+    border-radius: 50%;
+    animation: spin 1.5s linear infinite;
+}
+
+/* Middle Ring */
+.spinner-middle {
+    position: absolute;
+    width: 85%;
+    height: 85%;
+    top: 7.5%;
+    left: 7.5%;
+    border: 4px solid rgba(100, 98, 100, 0.2);
+    border-right-color: #646264;
+    border-radius: 50%;
+    animation: spin 2s linear infinite reverse;
+}
+
+/* Inner Ring */
+.spinner-inner {
+    position: absolute;
+    width: 70%;
+    height: 70%;
+    top: 15%;
+    left: 15%;
+    border: 4px solid rgba(149, 62, 63, 0.2);
+    border-bottom-color: #953e3f;
+    border-radius: 50%;
+    animation: spin 2.5s linear infinite;
+}
+
+/* Center Dot */
+.spinner-center {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #953e3f;
+    border-radius: 50%;
+    box-shadow: 0 0 20px rgba(149, 62, 63, 0.6);
+    animation: glow 2s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes glow {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(149, 62, 63, 0.6);
+        transform: translate(-50%, -50%) scale(1);
+    }
+
+    50% {
+        box-shadow: 0 0 30px rgba(149, 62, 63, 0.8);
+        transform: translate(-50%, -50%) scale(1.2);
+    }
+}
+
+/* Loading Text */
+.loader-text {
+    text-align: center;
+    animation: fadeIn 1s ease-out 0.5s both;
+}
+
+    .loader-text h2 {
+        color: #ffffff;
+        font-size: 20px;
+        font-weight: 600;
+        margin: 0 0 12px 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    .loader-text p {
+        color: #999;
+        font-size: 14px;
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+/* Loading Dots Animation */
+.loading-dots {
+    display: inline-block;
+}
+
+    .loading-dots span {
+        animation: blink 1.4s infinite;
+        animation-fill-mode: both;
+    }
+
+        .loading-dots span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .loading-dots span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+@keyframes blink {
+    0%, 80%, 100% {
+        opacity: 0;
+    }
+
+    40% {
+        opacity: 1;
+    }
+}
+
+/* Progress Bar */
+.loader-progress {
+    width: 250px;
+    height: 4px;
+    background: rgba(100, 98, 100, 0.3);
+    border-radius: 10px;
+    overflow: hidden;
+    animation: fadeIn 1s ease-out 0.7s both;
+}
+
+.loader-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #953e3f 0%, #c54e4f 50%, #953e3f 100%);
+    background-size: 200% 100%;
+    border-radius: 10px;
+    animation: progress 2s ease-in-out infinite;
+}
+
+@keyframes progress {
+    0% {
+        width: 0%;
+        background-position: 0% 0%;
+    }
+
+    50% {
+        width: 70%;
+        background-position: 100% 0%;
+    }
+
+    100% {
+        width: 100%;
+        background-position: 200% 0%;
+    }
+}
+
+
+
+/* Responsive */
+@media (max-width: 768px) {
+    .loader-brand h1 {
+        font-size: 24px;
+    }
+
+    .logo-hexagon {
+        width: 80px;
+        height: 80px;
+    }
+
+    .loader-spinner-wrapper {
+        width: 100px;
+        height: 100px;
+    }
+
+    .loader-text h2 {
+        font-size: 18px;
+    }
+
+    .loader-progress {
+        width: 200px;
+    }
+}

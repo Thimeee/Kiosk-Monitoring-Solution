@@ -1,0 +1,368 @@
+﻿@* Pagination.razor *@
+
+<div class="pagination-wrapper">
+    <div class="pagination-info">
+        <span>Showing page @ActivePageNumber of @TotalPages</span>
+    </div>
+    
+    <nav class="pagination">
+        <!-- First Page Button -->
+        <button class="pagination-btn pagination-nav" 
+                @onclick="() => GoToPage(1)" 
+                disabled="@(ActivePageNumber == 1)"
+                title="First Page">
+            <svg  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="11 17 6 12 11 7"></polyline>
+                <polyline points="18 17 13 12 18 7"></polyline>
+            </svg>
+        </button>
+
+        <!-- Previous Button -->
+        <button class="pagination-btn pagination-nav" 
+                @onclick="() => GoToPage(ActivePageNumber - 1)" 
+                disabled="@(ActivePageNumber == 1)"
+                title="Previous Page">
+            <svg  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+        </button>
+
+        <!-- Page Numbers -->
+        @foreach (var page2 in GetPageNumbers())
+        {
+            @if (page2 == -1)
+            {
+                <span class="pagination-dots">...</span>
+            }
+            else
+            {
+                <button class="pagination-btn pagination-number @(page2 == ActivePageNumber ? "active" : "")" 
+                        @onclick="() => GoToPage(page2)">
+                   <sapn> @page2 </sapn> 
+                </button>
+            }
+        }
+
+        <!-- Next Button -->
+        <button class="pagination-btn pagination-nav" 
+                @onclick="() => GoToPage(ActivePageNumber + 1)" 
+                disabled="@(ActivePageNumber == TotalPages)"
+                title="Next Page">
+            <svg  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+        </button>
+
+        <!-- Last Page Button -->
+        <button class="pagination-btn pagination-nav" 
+                @onclick="() => GoToPage(TotalPages)" 
+                disabled="@(ActivePageNumber == TotalPages)"
+                title="Last Page">
+            <svg  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="13 17 18 12 13 7"></polyline>
+                <polyline points="6 17 11 12 6 7"></polyline>
+            </svg>
+        </button>
+    </nav>
+
+    <div class="pagination-jump">
+        <span>Go to page:</span>
+        <input type="number" 
+               class="page-input" 
+               min="1" 
+               max="@TotalPages" 
+               @bind="jumpToPage" 
+               @onkeypress="HandleKeyPress" />
+        <button class="btn-go" @onclick="JumpToPage">Go</button>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int ActivePageNumber { get; set; } = 1;
+
+    [Parameter]
+    public int TotalPages { get; set; } = 1;
+
+    [Parameter]
+    public EventCallback<int> PageChanged { get; set; }
+
+    private int jumpToPage = 1;
+
+    private async Task GoToPage(int pageNumber)
+    {
+        if (pageNumber < 1 || pageNumber > TotalPages || pageNumber == ActivePageNumber)
+            return;
+
+        await PageChanged.InvokeAsync(pageNumber);
+    }
+
+    private async Task JumpToPage()
+    {
+        if (jumpToPage >= 1 && jumpToPage <= TotalPages)
+        {
+            await GoToPage(jumpToPage);
+        }
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await JumpToPage();
+        }
+    }
+
+    private List<int> GetPageNumbers()
+    {
+        var pages = new List<int>();
+        var maxPagesToShow = 7; // Show max 7 page numbers
+
+        if (TotalPages <= maxPagesToShow)
+        {
+            // Show all pages if total is small
+            for (int i = 1; i <= TotalPages; i++)
+            {
+                pages.Add(i);
+            }
+        }
+        else
+        {
+            // Always show first page
+            pages.Add(1);
+
+            if (ActivePageNumber <= 4)
+            {
+                // Near the start
+                for (int i = 2; i <= 5; i++)
+                {
+                    pages.Add(i);
+                }
+                pages.Add(-1); // Dots
+                pages.Add(TotalPages);
+            }
+            else if (ActivePageNumber >= TotalPages - 3)
+            {
+                // Near the end
+                pages.Add(-1); // Dots
+                for (int i = TotalPages - 4; i <= TotalPages; i++)
+                {
+                    pages.Add(i);
+                }
+            }
+            else
+            {
+                // In the middle
+                pages.Add(-1); // Dots
+                for (int i = ActivePageNumber - 1; i <= ActivePageNumber + 1; i++)
+                {
+                    pages.Add(i);
+                }
+                pages.Add(-1); // Dots
+                pages.Add(TotalPages);
+            }
+        }
+
+        return pages;
+    }
+}
+
+<style>
+    .pagination-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 32px;
+        padding: 24px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 12px;
+        border: 1px solid rgba(100, 98, 100, 0.3);
+        flex-wrap: wrap;
+        gap: 20px;
+    }
+
+    .pagination-info {
+        font-size: 14px;
+        color: #999;
+        font-weight: 500;
+    }
+
+    .pagination {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .pagination-btn {
+        min-width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(100, 98, 100, 0.3);
+        border-radius: 8px;
+        color: #999;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        padding: 0 12px;
+    }
+
+    .pagination-btn:hover:not(:disabled) {
+        background: rgba(149, 62, 63, 0.2);
+        border-color: rgba(149, 62, 63, 0.4);
+        color: #ffffff;
+        transform: translateY(-2px);
+    }
+
+    .pagination-btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+
+    .pagination-btn.active {
+        background: linear-gradient(135deg, #953e3f 0%, #b04e4f 100%);
+        border-color: #953e3f;
+        color: #ffffff;
+        box-shadow: 0 4px 12px rgba(149, 62, 63, 0.4);
+    }
+
+    .pagination-nav svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .pagination-number {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    .pagination-dots {
+        color: #666;
+        font-size: 16px;
+        font-weight: 700;
+        padding: 0 8px;
+        user-select: none;
+    }
+
+    .pagination-jump {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 14px;
+        color: #999;
+    }
+
+    .page-input {
+        width: 60px;
+        height: 40px;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(100, 98, 100, 0.3);
+        border-radius: 8px;
+        color: #ffffff;
+        text-align: center;
+        font-size: 14px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .page-input:focus {
+        outline: none;
+        border-color: #953e3f;
+        box-shadow: 0 0 0 3px rgba(149, 62, 63, 0.2);
+    }
+
+    .page-input::-webkit-inner-spin-button,
+    .page-input::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    .page-input[type=number] {
+        -moz-appearance: textfield;
+    }
+
+    .btn-go {
+        height: 40px;
+        padding: 0 20px;
+        background: linear-gradient(135deg, #953e3f 0%, #b04e4f 100%);
+        border: none;
+        border-radius: 8px;
+        color: #ffffff;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 12px rgba(149, 62, 63, 0.3);
+    }
+
+    .btn-go:hover {
+        background: linear-gradient(135deg, #a54848 0%, #c05656 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(149, 62, 63, 0.4);
+    }
+
+    .btn-go:active {
+        transform: translateY(0);
+    }
+
+    /* Responsive Design */
+    @@media (max-width: 768px) {
+        .pagination-wrapper {
+            flex-direction: column;
+            align-items: stretch;
+            text-align: center;
+        }
+
+        .pagination-info {
+            order: 1;
+            text-align: center;
+        }
+
+        .pagination {
+            order: 2;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .pagination-jump {
+            order: 3;
+            justify-content: center;
+        }
+
+        .pagination-btn {
+            min-width: 36px;
+            height: 36px;
+            padding: 0 10px;
+        }
+
+        .page-input {
+            width: 50px;
+            height: 36px;
+        }
+
+        .btn-go {
+            height: 36px;
+            padding: 0 16px;
+        }
+    }
+
+    @@media (max-width: 480px) {
+        .pagination-btn {
+            min-width: 32px;
+            height: 32px;
+            font-size: 12px;
+        }
+
+        .pagination-nav svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Hide some page numbers on very small screens */
+        .pagination-number:not(.active):nth-child(n+8) {
+            display: none;
+        }
+    }
+</style>
