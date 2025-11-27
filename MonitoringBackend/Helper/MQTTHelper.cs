@@ -46,7 +46,7 @@ namespace MonitoringBackend.Helper
                     .WithTcpServer(host, port)
                     .WithCredentials(user, pass)
                     .WithKeepAlivePeriod(TimeSpan.FromSeconds(30))
-                    .WithCleanSession()
+                    .WithCleanSession(true)
                     .Build();
 
                 _client.DisconnectedAsync += HandleDisconnect;
@@ -169,36 +169,43 @@ namespace MonitoringBackend.Helper
         // SUBSCRIBE
         // ----------------------------------------------------------------------
 
+        private bool _eventsBound = false;
 
         public async Task SubscribeAsync(string topic, Func<string, string, Task> handler)
         {
             if (_client == null) return;
 
-            // Subscribe to all topics using a wildcard if needed
             await _client.SubscribeAsync(topic); // "#" subscribes to all topics
 
-            // Attach a single event handler
-            _client.ApplicationMessageReceivedAsync += async e =>
+
+            if (!_eventsBound)
             {
-                await _log.WriteLog("MQTT", "hi");
+                // Subscribe to all topics using a wildcard if needed
 
-                string topic = e.ApplicationMessage.Topic;
-                string payload = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
-
-                try
+                // Attach a single event handler
+                _client.ApplicationMessageReceivedAsync += async e =>
                 {
-                    if (handler != null)
+                    await _log.WriteLog("MQTT", "hi");
+
+                    string topic = e.ApplicationMessage.Topic;
+                    string payload = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
+
+                    try
                     {
-                        await handler(payload, topic); // pass both payload and topic
+                        if (handler != null)
+                        {
+                            await handler(payload, topic); // pass both payload and topic
+                        }
                     }
-                }
-                catch (Exception ex)
-                {
-                    await _log.WriteLog("MQTT Error", $"Global handler exception for topic {topic}: {ex}", 3);
-                }
-            };
+                    catch (Exception ex)
+                    {
+                        await _log.WriteLog("MQTT Error", $"Global handler exception for topic {topic}: {ex}", 3);
+                    }
+                };
 
-            await _log.WriteLog("MQTT", "Global handler set to receive all MQTT messages");
+                await _log.WriteLog("MQTT", "Global handler set to receive all MQTT messages");
+                _eventsBound = true; // stays TRUE forever while client exists
+            }
         }
 
 

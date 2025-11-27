@@ -32,7 +32,7 @@ namespace SFTPService.Helper
         }
 
 
-        private string ConvertRemotePath(string remotePath)
+        public string ConvertRealPath(string remotePath)
         {
             if (string.IsNullOrWhiteSpace(remotePath))
                 throw new ArgumentException("Remote path is empty");
@@ -69,8 +69,8 @@ namespace SFTPService.Helper
                 attempt++;
                 try
                 {
-                    var remotePath = ConvertRemotePath(remotePathBefore);
-                    var localPath = ConvertRemotePath(localPathBefore);
+                    var remotePath = ConvertRealPath(remotePathBefore);
+                    var localPath = ConvertRealPath(localPathBefore);
 
                     using var sftp = new SftpClient(_host, _port, _user, _pass);
                     sftp.Connect();
@@ -99,7 +99,7 @@ namespace SFTPService.Helper
                             await _mqtt.PublishToServer(
                                 progressObj,
                                 $"server/{branchID}/SFTP/DownloadResponse",
-                                MqttQualityOfServiceLevel.AtLeastOnce);
+                                MqttQualityOfServiceLevel.AtMostOnce);
 
                             return;
                         }
@@ -154,7 +154,7 @@ namespace SFTPService.Helper
             }
         }
 
-        public async Task UploadFileAsync(string localPathBefore, string remotePathBefore, IProgress<double>? progress = null)
+        public async Task UploadFileAsync(string localPathBefore, string remotePathBefore, string userId, string branchID, IProgress<double>? progress = null)
         {
             int attempt = 0;
             bool success = false;
@@ -166,8 +166,8 @@ namespace SFTPService.Helper
                 attempt++;
                 try
                 {
-                    var remotePath = ConvertRemotePath(remotePathBefore);
-                    var localPath = ConvertRemotePath(localPathBefore);
+                    var remotePath = ConvertRealPath(remotePathBefore);
+                    var localPath = ConvertRealPath(localPathBefore);
 
                     using var sftp = new SftpClient(_host, _port, _user, _pass);
                     sftp.Connect();
@@ -179,6 +179,27 @@ namespace SFTPService.Helper
                     {
                         offset = sftp.GetAttributes(remotePath).Size;
                         if (offset > localFileSize) offset = 0;
+
+                        if (offset == localFileSize)
+                        {
+                            var progressObj = new BranchJobResponse<JobDownloadResponse>
+                            {
+                                jobUser = userId,
+                                jobEndTime = DateTime.Now,
+                                jobRsValue = new JobDownloadResponse
+                                {
+                                    jobMsg = $"AllReadyDownload",
+                                    jobStatus = 0,
+                                }
+                            };
+
+                            await _mqtt.PublishToServer(
+                                progressObj,
+                                $"server/{branchID}/SFTP/UploadResponse",
+                                MqttQualityOfServiceLevel.AtMostOnce);
+
+                            return;
+                        }
                     }
 
                     using var fs = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, true);
@@ -193,7 +214,30 @@ namespace SFTPService.Helper
                         await remoteStream.WriteAsync(buffer.AsMemory(0, bytesRead));
                         offset += bytesRead;
 
-                        progress?.Report((double)offset / localFileSize * 100);
+                        double percent = Math.Round((double)offset / localFileSize * 100, 2);
+                        progress?.Report(percent);
+
+
+                        //progress?.Report((double)offset / localFileSize * 100);
+
+                        var progressObj = new BranchJobResponse<JobDownloadResponse>
+                        {
+                            jobUser = userId,
+                            jobEndTime = DateTime.Now,
+                            jobRsValue = new JobDownloadResponse
+                            {
+                                jobMsg = $"Downloading... {percent}%",
+                                jobStatus = 0,
+                                jobProgress = percent,
+                                jobTotalBytes = localFileSize,
+                                jobDownloadedBytes = offset
+                            }
+                        };
+
+                        await _mqtt.PublishToServer(
+                            progressObj,
+                            $"server/{branchID}/SFTP/UploadProgress",
+                            MqttQualityOfServiceLevel.AtMostOnce);
                     }
 
                     sftp.Disconnect();

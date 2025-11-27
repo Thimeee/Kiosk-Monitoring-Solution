@@ -149,22 +149,44 @@ namespace MonitoringBackend.Service
                     await _hubContext.Clients.Group(BranchHub.UserAndBranchGroup(jobRes.jobUser, branchId))
                         .SendAsync("BranchUpdate", payload);
                     break;
-                case "uploadResponse":
-                    await _log.WriteLog("SFTP Upload", $"Branch: {branchId}, Payload: {payload}");
+                case "UploadResponse":
+                    //var jobResUpload = JsonSerializer.Deserialize<BranchJobResponse<FolderNode>>(payload);
+
+                    await _hubContext.Clients.Group(BranchHub.BranchGroup(branchId))
+                       .SendAsync("UploadFile", payload);
                     break;
                 case "DownloadResponse":
-                    var jobResDownlod = JsonSerializer.Deserialize<BranchJobResponse<JobDownloadResponse>>(payload);
+                    //var jobResDownload = JsonSerializer.Deserialize<BranchJobResponse<JobDownloadResponse>>(payload);
 
-                    await _hubContext.Clients.Group(BranchHub.UserAndBranchGroup(jobResDownlod.jobUser, branchId))
+                    await _hubContext.Clients.Group(BranchHub.BranchGroup(branchId))
                       .SendAsync("DownloadFile", payload);
                     break;
 
                 case "DownloadProgress":
-                default:
-                    var jobResProgress = JsonSerializer.Deserialize<BranchJobResponse<JobDownloadResponse>>(payload);
 
-                    await _hubContext.Clients.Group(BranchHub.UserAndBranchGroup(jobResProgress.jobUser, branchId))
+                    //var jobResProgressDownload = JsonSerializer.Deserialize<BranchJobResponse<JobDownloadResponse>>(payload);
+
+                    await _hubContext.Clients.Group(BranchHub.BranchGroup(branchId))
                       .SendAsync("DownloadFileProgress", payload);
+                    break;
+
+                case "UploadProgress":
+
+                    //var jobResProgressUpload = JsonSerializer.Deserialize<BranchJobResponse<JobDownloadResponse>>(payload);
+
+                    await _hubContext.Clients.Group(BranchHub.BranchGroup(branchId))
+                      .SendAsync("UploadFileProgress", payload);
+                    break;
+                case "DeleteResponse":
+
+                    //var jobResProgressUpload = JsonSerializer.Deserialize<BranchJobResponse<JobDownloadResponse>>(payload);
+
+                    await _hubContext.Clients.Group(BranchHub.BranchGroup(branchId))
+                      .SendAsync("DeleteResponse", payload);
+                    break;
+
+                default:
+                    //await _log.WriteLog("MQTT Unknown SFTP SubTopic", $"Branch: {branchId}, SubTopic: {subTopic}, Payload: {payload}");
                     break;
             }
         }

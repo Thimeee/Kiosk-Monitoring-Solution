@@ -148,107 +148,7 @@ namespace MonitoringBackend.Controllers
             }
         }
 
-
-
-
-        [HttpPost("sendFileToBranch")]
-        public async Task<IActionResult> sendFileToBranch([FromBody] JsonElement data)
-        {
-            var responseDTO = new APIResponseSingleValue();
-            try
-            {
-                string? path = data.TryGetProperty("path", out var pathElement) ? pathElement.GetString() : null;
-                string? file = data.TryGetProperty("file", out var branchCodeElement) ? branchCodeElement.GetString() : null;
-                string? userId = data.TryGetProperty("userId", out var userIdElement) ? userIdElement.GetString() : null;
-                string? branchCode = data.TryGetProperty("branchId", out var branchIdElement) ? branchIdElement.GetString() : null;
-
-                if (string.IsNullOrEmpty(path))
-                {
-                    responseDTO.Status = false;
-                    responseDTO.StatusCode = 1;
-                    responseDTO.Message = "Server Path are required.";
-                    return BadRequest(responseDTO);
-                }
-                var branchIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-                if (branchIdClaim == null)
-                {
-                    responseDTO.Status = false;
-                    responseDTO.StatusCode = 1;
-                    responseDTO.Message = "Branch ID Invalid";
-                    return BadRequest(responseDTO);
-                }
-
-                if (int.TryParse(branchIdClaim, out int branchId))
-                {
-                    var SFTPObj = await _db.SFTPFolders
-    .Include(s => s.Branch)           // load the related Branch
-    .FirstOrDefaultAsync(s => s.Branch.Id == branchId);
-
-                    if (SFTPObj == null)
-                    {
-                        responseDTO.Status = false;
-                        responseDTO.StatusCode = 1;
-                        responseDTO.Message = "Branch Not Found";
-                        return NotFound(responseDTO);
-                    }
-                    //var topicID = $"branch/{branchId}/heartbeat";
-
-                    //var topic = $"branch/{SFTPObj.Branch.BranchId}/SFTP/FolderStucher";
-                    var topic = $"branch/{branchCode}/SFTP/Download";
-
-                    var job = new BranchJobRequest<FileDetails>
-                    {
-                        jobUser = userId,
-                        jobStartTime = DateTime.Now,
-                        jobRqValue = new FileDetails
-                        {
-                            branch = new BranchFile
-                            {
-                                name = file,
-                                path = SFTPObj.BranchPath,
-                            },
-
-                            server = new ServerFile
-                            {
-
-                                name = file,
-                                path = path,
-                            }
-
-
-                        }
-                    };
-                    await _mqtt.PublishToServer(job, topic, MqttQualityOfServiceLevel.AtLeastOnce);
-
-                    responseDTO.Status = true;
-                    responseDTO.StatusCode = 2;
-                    responseDTO.Message = "operation Success";
-
-                }
-
-
-
-
-
-                return Ok(responseDTO);
-
-            }
-
-            catch (Exception ex)
-            {
-                // Log the exception (optional)
-                Console.WriteLine($"Error during registration: {ex.Message}");
-
-                // Return a generic error response
-                responseDTO.Status = false;
-                responseDTO.StatusCode = 0;
-                responseDTO.Message = "Error during registration";
-                responseDTO.Ex = ex.Message;
-                return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
-                //return StatusCode(500, new { Error = "An unexpected error occurred." });
-            }
-        }
+    
         [HttpPost("getSFTPBranchStructure")]
         public async Task<IActionResult> getSFTPBranchStructure([FromBody] JsonElement data)
         {
@@ -334,6 +234,252 @@ namespace MonitoringBackend.Controllers
                 responseDTO.Ex = ex.Message;
                 return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
                 //return StatusCode(500, new { Error = "An unexpected error occurred." });
+            }
+        }
+
+
+
+        [HttpPost("downloadAndUploadFileBoth")]
+        public async Task<IActionResult> downloadAndUploadFileBoth([FromBody] JsonElement data)
+        {
+            var responseDTO = new APIResponseSingleValue();
+            try
+            {
+                string? path = data.TryGetProperty("path", out var pathElement) ? pathElement.GetString() : null;
+                string? file = data.TryGetProperty("file", out var branchCodeElement) ? branchCodeElement.GetString() : null;
+                string? userId = data.TryGetProperty("userId", out var userIdElement) ? userIdElement.GetString() : null;
+                string? branchCode = data.TryGetProperty("branchId", out var branchIdElement) ? branchIdElement.GetString() : null;
+                string? type = data.TryGetProperty("type", out var typeElement) ? typeElement.GetString() : null;
+
+                if (string.IsNullOrEmpty(path))
+                {
+                    responseDTO.Status = false;
+                    responseDTO.StatusCode = 1;
+                    responseDTO.Message = " Path are required.";
+                    return BadRequest(responseDTO);
+                }
+                var branchIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+                if (branchIdClaim == null)
+                {
+                    responseDTO.Status = false;
+                    responseDTO.StatusCode = 1;
+                    responseDTO.Message = "Branch ID Invalid";
+                    return BadRequest(responseDTO);
+                }
+
+                if (int.TryParse(branchIdClaim, out int branchId))
+                {
+                    var SFTPObj = await _db.SFTPFolders
+    .Include(s => s.Branch)           // load the related Branch
+    .FirstOrDefaultAsync(s => s.Branch.Id == branchId);
+
+                    if (SFTPObj == null)
+                    {
+                        responseDTO.Status = false;
+                        responseDTO.StatusCode = 1;
+                        responseDTO.Message = "Branch Not Found";
+                        return NotFound(responseDTO);
+                    }
+                    //var topicID = $"branch/{branchId}/heartbeat";
+
+                    //var topic = $"branch/{SFTPObj.Branch.BranchId}/SFTP/FolderStucher";
+
+                    BranchJobRequest<FileDetails>? job = null;
+                    string? topic = null;
+
+                    if (type == "branch")
+                    {
+                        topic = $"branch/{branchCode}/SFTP/Download";
+
+                        job = new BranchJobRequest<FileDetails>
+                        {
+                            jobUser = userId,
+                            jobStartTime = DateTime.Now,
+                            jobRqValue = new FileDetails
+                            {
+                                branch = new BranchFile
+                                {
+                                    name = file,
+                                    path = SFTPObj.BranchPath,
+                                },
+
+                                server = new ServerFile
+                                {
+
+                                    name = file,
+                                    path = path,
+                                }
+
+
+                            }
+                        };
+                    }
+                    else if (type == "server")
+                    {
+                        topic = $"branch/{branchCode}/SFTP/Upload";
+
+                        job = new BranchJobRequest<FileDetails>
+                        {
+                            jobUser = userId,
+                            jobStartTime = DateTime.Now,
+                            jobRqValue = new FileDetails
+                            {
+                                branch = new BranchFile
+                                {
+                                    name = file,
+                                    path = path,
+                                },
+
+                                server = new ServerFile
+                                {
+
+                                    name = file,
+                                    path = SFTPObj.ServerBranchPath,
+                                }
+                            }
+                        };
+                    }
+                    if (job != null && topic != null)
+                    {
+                        await _mqtt.PublishToServer(job, topic, MqttQualityOfServiceLevel.ExactlyOnce);
+
+                        responseDTO.Status = true;
+                        responseDTO.StatusCode = 2;
+                        responseDTO.Message = "operation Success";
+                    }
+                    else
+                    {
+                        responseDTO.Status = false;
+                        responseDTO.StatusCode = 1;
+                        responseDTO.Message = "Server Error Not Found";
+                        return NotFound(responseDTO);
+                    }
+
+
+                }
+
+
+
+
+
+                return Ok(responseDTO);
+
+            }
+
+            catch (Exception ex)
+            {
+                // Log the exception (optional)
+                Console.WriteLine($"Error during registration: {ex.Message}");
+
+                // Return a generic error response
+                responseDTO.Status = false;
+                responseDTO.StatusCode = 0;
+                responseDTO.Message = "Error during registration";
+                responseDTO.Ex = ex.Message;
+                return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
+            }
+        }
+
+
+
+        //Delete to selected file branch and server Both
+
+        [HttpPost("deleteFileBoth")]
+        public async Task<IActionResult> deleteFileBoth([FromBody] JsonElement data)
+        {
+            var responseDTO = new APIResponseSingleValue();
+            try
+            {
+                string? path = data.TryGetProperty("path", out var pathElement) ? pathElement.GetString() : null;
+                string? userId = data.TryGetProperty("userId", out var userIdElement) ? userIdElement.GetString() : null;
+                string? branchCode = data.TryGetProperty("branchId", out var branchIdElement) ? branchIdElement.GetString() : null;
+
+                bool? isServer = null;
+                if (data.TryGetProperty("isServer", out var isServerElement))
+                {
+                    isServer = isServerElement.GetBoolean();
+                }
+
+
+                if (string.IsNullOrEmpty(path))
+                {
+                    responseDTO.Status = false;
+                    responseDTO.StatusCode = 1;
+                    responseDTO.Message = " Path are required.";
+                    return BadRequest(responseDTO);
+                }
+
+
+                if (isServer !=null)
+                {
+                    if ((bool)isServer)
+                    {
+                        if (!System.IO.File.Exists(path))
+                        {
+                            responseDTO.Status = false;
+                            responseDTO.StatusCode = 1;
+                            responseDTO.Message = "Server File not found";
+                            return NotFound(responseDTO);
+                        }
+
+                        System.IO.File.Delete(path);
+
+
+                        responseDTO.Status = true;
+                        responseDTO.StatusCode = 2;
+                        responseDTO.Message = "operation Success";
+                        responseDTO.Value = "server";
+
+                    }
+                    else
+                    {
+                        //var topicID = $"branch/{branchId}/heartbeat";
+
+                        //var topic = $"branch/{SFTPObj.Branch.BranchId}/SFTP/FolderStucher";
+
+
+                       var topic = $"branch/{branchCode}/SFTP/Delete";
+
+                           var job = new BranchJobRequest<FileDetails>
+                            {
+                                jobUser = userId,
+                                jobStartTime = DateTime.Now,
+                                jobRqValue = new FileDetails
+                                {
+                                    branch = new BranchFile
+                                    {
+                                        path = path,
+                                    }
+                                }
+                            };
+
+
+                            await _mqtt.PublishToServer(job, topic, MqttQualityOfServiceLevel.ExactlyOnce);
+
+                            responseDTO.Status = true;
+                            responseDTO.StatusCode = 2;
+                            responseDTO.Message = "operation Success";
+
+                        
+                    }
+               
+                }
+                return Ok(responseDTO);
+
+            }
+
+            catch (Exception ex)
+            {
+                // Log the exception (optional)
+                Console.WriteLine($"Error during registration: {ex.Message}");
+
+                // Return a generic error response
+                responseDTO.Status = false;
+                responseDTO.StatusCode = 0;
+                responseDTO.Message = "Error during registration";
+                responseDTO.Ex = ex.Message;
+                return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
             }
         }
     }

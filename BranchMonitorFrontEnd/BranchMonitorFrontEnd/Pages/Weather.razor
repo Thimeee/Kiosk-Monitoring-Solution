@@ -1,742 +1,491 @@
-﻿@page "/healthsss"
-@implements IDisposable
+﻿@page "/patchupdate/fileserver"
+@using Microsoft.AspNetCore.Components.Forms
+@inject IJSRuntime JS
 
-<div class="health-analytics-wrapper">
-    <div class="analytics-container">
-        <!-- Left Sidebar with Metrics -->
-        <aside class="metrics-sidebar">
-            <h2 class="sidebar-title">System Health</h2>
-
-            <!-- CPU Metric -->
-            <div class="metric-card @(cpuUsage > 80 ? "critical" : cpuUsage > 60 ? "warning" : "normal")">
-                <div class="metric-chart-mini">
-                    <svg viewBox="0 0 100 40" preserveAspectRatio="none">
-                        <polyline points="@GetSparklinePoints(cpuHistory)" />
-                    </svg>
-                </div>
-                <div class="metric-info">
-                    <h3>CPU</h3>
-                    <div class="metric-value">@cpuUsage.ToString("F1")%</div>
-                    <div class="metric-detail">@cpuSpeed GHz</div>
-                </div>
+<div class="upload-card d-flex flex-column mt-5">
+    <div class="d-flex">
+        <div class="row col-12">
+            <div class="upload-header col-3">
+                <h2>Upload Patch File</h2>
             </div>
-
-            <!-- Memory Metric -->
-            <div class="metric-card @(memoryUsagePercent > 80 ? "critical" : memoryUsagePercent > 60 ? "warning" : "normal")">
-                <div class="metric-chart-mini">
-                    <svg viewBox="0 0 100 40" preserveAspectRatio="none">
-                        <polyline points="@GetSparklinePoints(memoryHistory)" />
-                    </svg>
-                </div>
-                <div class="metric-info">
-                    <h3>Memory</h3>
-                    <div class="metric-value">@memoryUsed/@memoryTotal GB</div>
-                    <div class="metric-detail">(@memoryUsagePercent.ToString("F0")%)</div>
-                </div>
-            </div>
-
-            <!-- Disk Metric -->
-            <div class="metric-card normal">
-                <div class="metric-chart-mini">
-                    <svg viewBox="0 0 100 40" preserveAspectRatio="none">
-                        <polyline points="@GetSparklinePoints(diskHistory)" />
-                    </svg>
-                </div>
-                <div class="metric-info">
-                    <h3>Disk 0 (C: D:)</h3>
-                    <div class="metric-value">SSD (NVMe)</div>
-                    <div class="metric-detail">@diskUsage%</div>
-                </div>
-            </div>
-
-            <!-- Network Metric -->
-            <div class="metric-card normal">
-                <div class="metric-chart-mini">
-                    <svg viewBox="0 0 100 40" preserveAspectRatio="none">
-                        <polyline points="@GetSparklinePoints(networkHistory)" />
-                    </svg>
-                </div>
-                <div class="metric-info">
-                    <h3>Network</h3>
-                    <div class="metric-value">Ethernet</div>
-                    <div class="metric-detail">S: @networkSend R: @networkReceive Kbps</div>
-                </div>
-            </div>
-
-            <!-- Kiosks Online Metric -->
-            <div class="metric-card @(kiosksOnline < 80 ? "critical" : kiosksOnline < 95 ? "warning" : "normal")">
-                <div class="metric-chart-mini">
-                    <svg viewBox="0 0 100 40" preserveAspectRatio="none">
-                        <polyline points="@GetSparklinePoints(kiosksHistory)" />
-                    </svg>
-                </div>
-                <div class="metric-info">
-                    <h3>Kiosks Online</h3>
-                    <div class="metric-value">@kiosksOnline/@totalKiosks</div>
-                    <div class="metric-detail">(@((kiosksOnline * 100.0 / totalKiosks).ToString("F0"))%)</div>
-                </div>
-            </div>
-        </aside>
-
-        <!-- Main Chart Area -->
-        <main class="chart-area">
-            <div class="chart-header">
-                <h1>@selectedMetric</h1>
-                <div class="chart-tabs">
-                    <button class="@(selectedMetric == "CPU" ? "active" : "")" @onclick='() => SelectMetric("CPU")'>CPU</button>
-                    <button class="@(selectedMetric == "Memory" ? "active" : "")" @onclick='() => SelectMetric("Memory")'>Memory</button>
-                    <button class="@(selectedMetric == "Disk" ? "active" : "")" @onclick='() => SelectMetric("Disk")'>Disk</button>
-                    <button class="@(selectedMetric == "Network" ? "active" : "")" @onclick='() => SelectMetric("Network")'>Network</button>
-                    <button class="@(selectedMetric == "Kiosks" ? "active" : "")" @onclick='() => SelectMetric("Kiosks")'>Kiosks</button>
-                </div>
-                <div class="system-info-badge">
-                    <span>@systemName</span>
-                </div>
-            </div>
-
-            <div class="chart-container">
-                <div class="chart-canvas">
-                    <svg viewBox="0 0 1000 400" preserveAspectRatio="none" class="main-chart">
-                        <defs>
-                            <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                                <stop offset="0%" style="stop-color:@GetChartColor();stop-opacity:0.6" />
-                                <stop offset="100%" style="stop-color:@GetChartColor();stop-opacity:0.1" />
-                            </linearGradient>
-                        </defs>
-
-                        <!-- Grid lines -->
-                        <line x1="0" y1="100" x2="1000" y2="100" stroke="rgba(255,255,255,0.05)" stroke-width="1" />
-                        <line x1="0" y1="200" x2="1000" y2="200" stroke="rgba(255,255,255,0.05)" stroke-width="1" />
-                        <line x1="0" y1="300" x2="1000" y2="300" stroke="rgba(255,255,255,0.05)" stroke-width="1" />
-
-                        <!-- Area chart -->
-                        <path d="@GetAreaPath()" fill="url(#chartGradient)" />
-
-                        <!-- Line chart -->
-                        <polyline points="@GetLinePoints()" fill="none" stroke="@GetChartColor()" stroke-width="2" />
-                    </svg>
-
-                    <!-- Y-axis labels -->
-                    <div class="y-axis">
-                        <span>100%</span>
-                        <span>75%</span>
-                        <span>50%</span>
-                        <span>25%</span>
-                        <span>0%</span>
-                    </div>
-                </div>
-
-                <div class="time-label">60 seconds</div>
-            </div>
-
-            <div class="stats-grid">
-                <div class="stat-item">
-                    <div class="stat-label">Utilization</div>
-                    <div class="stat-value">@GetCurrentValue().ToString("F1")%</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">@GetSecondaryLabel()</div>
-                    <div class="stat-value">@GetSecondaryValue()</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Processes</div>
-                    <div class="stat-value">@processes</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Threads</div>
-                    <div class="stat-value">@threads</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Handles</div>
-                    <div class="stat-value">@handles</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Up time</div>
-                    <div class="stat-value">@upTime</div>
-                </div>
-            </div>
-
-            <div class="details-grid">
-                <div class="details-column">
-                    <div class="detail-row">
-                        <span class="detail-label">Base speed:</span>
-                        <span class="detail-value">1.20 GHz</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Sockets:</span>
-                        <span class="detail-value">1</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Cores:</span>
-                        <span class="detail-value">6</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Logical processors:</span>
-                        <span class="detail-value">8</span>
-                    </div>
-                </div>
-                <div class="details-column">
-                    <div class="detail-row">
-                        <span class="detail-label">Virtualisation:</span>
-                        <span class="detail-value">Enabled</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">L1 cache:</span>
-                        <span class="detail-value">544 KB</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">L2 cache:</span>
-                        <span class="detail-value">4.5 MB</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">L3 cache:</span>
-                        <span class="detail-value">10.0 MB</span>
-                    </div>
-                </div>
-            </div>
-        </main>
+        </div>
     </div>
+
+    <div @ref="dropZoneElement"
+         class="upload-area @(isDragging ? "dragging" : "")"
+         @ondragenter="HandleDragEnter"
+         @ondragleave="HandleDragLeave"
+         @ondragover:preventDefault>
+
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="upload-icon">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+
+        <h3>Drag & Drop patch file here</h3>
+        <p>or click to browse</p>
+
+        <button class="btn-upload" type="button" @onclick:stopPropagation="true" @onclick="TriggerFileInput">
+            Choose File
+        </button>
+
+        <span class="file-types">Supported: .msi, .exe, .zip</span>
+    </div>
+
+    <InputFile OnChange="HandleFileSelected"
+               @ref="inputFile"
+               id="fileInput"
+               style="display: none;"
+                />
+
+    @if (!string.IsNullOrEmpty(uploadedFileName))
+    {
+        <div class="uploaded-file">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                <polyline points="13 2 13 9 20 9"></polyline>
+            </svg>
+
+            <div class="file-info">
+                <span class="file-name">@uploadedFileName</span>
+                <span class="file-size">@uploadedFileSize MB</span>
+            </div>
+
+            <button class="btn-remove" type="button" @onclick="RemoveFile">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+    }
+
+    @if (isUploading)
+    {
+        <div class="upload-progress">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: @uploadProgress%"></div>
+            </div>
+            <span class="progress-text">@uploadProgress% Uploaded</span>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="status-message @statusClass">
+            @statusMessage
+        </div>
+    }
 </div>
 
 @code {
-    private System.Threading.Timer? timer;
-    private string selectedMetric = "CPU";
-    private string systemName = "Kiosk Monitor System";
+    private ElementReference dropZoneElement;
+    private InputFile? inputFile;
 
-    // CPU Data
-    private double cpuUsage = 100;
-    private double cpuSpeed = 2.44;
-    private List<double> cpuHistory = new();
+    private bool isDragging = false;
+    private string uploadedFileName = string.Empty;
+    private string uploadedFileSize = string.Empty;
+    private bool isUploading = false;
+    private int uploadProgress = 0;
+    private string statusMessage = string.Empty;
+    private string statusClass = string.Empty;
+    private IBrowserFile? selectedFile;
 
-    // Memory Data
-    private double memoryUsed = 7.3;
-    private double memoryTotal = 7.7;
-    private double memoryUsagePercent => (memoryUsed / memoryTotal) * 100;
-    private List<double> memoryHistory = new();
+    private readonly string[] allowedExtensions = { "*" };
+    private const long maxFileSize = 5_000L * 1024L * 1024L; // 500 MB
 
-    // Disk Data
-    private int diskUsage = 43;
-    private List<double> diskHistory = new();
-
-    // Network Data
-    private int networkSend = 0;
-    private int networkReceive = 0;
-    private List<double> networkHistory = new();
-
-    // Kiosks Data
-    private int kiosksOnline = 98;
-    private int totalKiosks = 100;
-    private List<double> kiosksHistory = new();
-
-    // System Data
-    private int processes = 378;
-    private int threads = 5437;
-    private int handles = 191331;
-    private string upTime = "3:13:54:08";
-
-    private Random random = new Random();
-    private int maxDataPoints = 60;
-
-    protected override void OnInitialized()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // Initialize history with some data
-        for (int i = 0; i < maxDataPoints; i++)
+        if (firstRender)
         {
-            cpuHistory.Add(50 + random.Next(-20, 20));
-            memoryHistory.Add(70 + random.Next(-10, 10));
-            diskHistory.Add(40 + random.Next(-5, 5));
-            networkHistory.Add(20 + random.Next(-10, 10));
-            kiosksHistory.Add(95 + random.Next(-5, 5));
-        }
-
-        // Start update timer (updates every second)
-        timer = new System.Threading.Timer(async _ =>
-        {
-            UpdateMetrics();
-            await InvokeAsync(StateHasChanged);
-        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
-    }
-
-    private void UpdateMetrics()
-    {
-        // Simulate real-time data updates
-        cpuUsage = Math.Max(0, Math.Min(100, cpuUsage + random.Next(-15, 15)));
-        memoryUsed = Math.Max(0, Math.Min(memoryTotal, memoryUsed + random.NextDouble() * 0.2 - 0.1));
-        diskUsage = Math.Max(0, Math.Min(100, diskUsage + random.Next(-2, 2)));
-        networkSend = Math.Max(0, networkSend + random.Next(-50, 100));
-        networkReceive = Math.Max(0, networkReceive + random.Next(-50, 100));
-        kiosksOnline = Math.Max(80, Math.Min(totalKiosks, kiosksOnline + random.Next(-2, 2)));
-
-        // Update histories
-        AddToHistory(cpuHistory, cpuUsage);
-        AddToHistory(memoryHistory, memoryUsagePercent);
-        AddToHistory(diskHistory, diskUsage);
-        AddToHistory(networkHistory, (networkSend + networkReceive) / 2.0);
-        AddToHistory(kiosksHistory, (kiosksOnline * 100.0 / totalKiosks));
-
-        // Update system stats
-        threads += random.Next(-10, 20);
-        handles += random.Next(-50, 100);
-    }
-
-    private void AddToHistory(List<double> history, double value)
-    {
-        history.Add(value);
-        if (history.Count > maxDataPoints)
-        {
-            history.RemoveAt(0);
+            await JS.InvokeVoidAsync("initializeFileUpload", dropZoneElement, "fileInput");
         }
     }
 
-    private string GetSparklinePoints(List<double> data)
+    private void HandleDragEnter()
     {
-        if (data.Count == 0) return "";
+        isDragging = true;
+    }
 
-        var points = new List<string>();
-        for (int i = 0; i < data.Count; i++)
+    private void HandleDragLeave()
+    {
+        isDragging = false;
+    }
+
+    private async Task TriggerFileInput()
+    {
+        await JS.InvokeVoidAsync("triggerFileInput", "fileInput");
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        isDragging = false;
+        selectedFile = e.File;
+
+        if (selectedFile == null)
+            return;
+
+        // Validate file extension
+        var extension = Path.GetExtension(selectedFile.Name).ToLowerInvariant();
+        // if (!allowedExtensions.Contains(extension))
+        // {
+        //     statusMessage = $"Invalid file type. Only {string.Join(", ", allowedExtensions)} files are allowed.";
+        //     statusClass = "error";
+        //     selectedFile = null;
+        //     uploadedFileName = string.Empty;
+        //     uploadedFileSize = string.Empty;
+        //     return;
+        // }
+
+        // Validate file size
+        // if (selectedFile.Size > maxFileSize)
+        // {
+        //     statusMessage = $"File size exceeds maximum allowed size of {maxFileSize / (1024 * 1024)} MB.";
+        //     statusClass = "error";
+        //     selectedFile = null;
+        //     uploadedFileName = string.Empty;
+        //     uploadedFileSize = string.Empty;
+        //     return;
+        // }
+
+        // Display file info
+        uploadedFileName = selectedFile.Name;
+        uploadedFileSize = (selectedFile.Size / (1024.0 * 1024.0)).ToString("F2");
+        statusMessage = string.Empty;
+        statusClass = string.Empty;
+
+        // Automatically start upload
+        await UploadFile();
+    }
+
+    private async Task UploadFile()
+    {
+        if (selectedFile == null)
+            return;
+
+        try
         {
-            double x = (i / (double)(data.Count - 1)) * 100;
-            double y = 40 - (data[i] / 100.0 * 40);
-            points.Add($"{x:F1},{y:F1}");
+            isUploading = true;
+            uploadProgress = 0;
+            statusMessage = "Uploading file...";
+            statusClass = string.Empty;
+
+            // Define upload directory
+            var uploadPath = Path.Combine(Environment.CurrentDirectory, "Uploads", "Patches");
+
+            // Create directory if it doesn't exist
+            if (!Directory.Exists(uploadPath))
+            {
+                Directory.CreateDirectory(uploadPath);
+            }
+
+            // Generate unique filename
+            var timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+            var fileName = $"{Path.GetFileNameWithoutExtension(selectedFile.Name)}_{timestamp}{Path.GetExtension(selectedFile.Name)}";
+            var filePath = Path.Combine(uploadPath, fileName);
+
+            // Read and save the file with progress
+            var buffer = new byte[512000]; // 500KB buffer
+            using var stream = selectedFile.OpenReadStream(maxFileSize);
+            using var fs = new FileStream(filePath, FileMode.Create);
+
+            int bytesRead;
+            long totalBytesRead = 0;
+
+            while ((bytesRead = await stream.ReadAsync(buffer)) > 0)
+            {
+                await fs.WriteAsync(buffer.AsMemory(0, bytesRead));
+                totalBytesRead += bytesRead;
+
+                // Update progress
+                uploadProgress = (int)((totalBytesRead * 100) / selectedFile.Size);
+                StateHasChanged();
+
+                // Small delay to show progress smoothly
+                await Task.Delay(10);
+            }
+
+            uploadProgress = 100;
+            statusMessage = $"File uploaded successfully! Saved to: {filePath}";
+            statusClass = "success";
         }
-        return string.Join(" ", points);
-    }
-
-    private List<double> GetCurrentData()
-    {
-        return selectedMetric switch
+        catch (Exception ex)
         {
-            "CPU" => cpuHistory,
-            "Memory" => memoryHistory,
-            "Disk" => diskHistory,
-            "Network" => networkHistory,
-            "Kiosks" => kiosksHistory,
-            _ => cpuHistory
-        };
-    }
-
-    private string GetLinePoints()
-    {
-        var data = GetCurrentData();
-        if (data.Count == 0) return "";
-
-        var points = new List<string>();
-        for (int i = 0; i < data.Count; i++)
-        {
-            double x = (i / (double)(data.Count - 1)) * 1000;
-            double y = 400 - (data[i] / 100.0 * 400);
-            points.Add($"{x:F1},{y:F1}");
+            statusMessage = $"Upload failed: {ex.Message}";
+            statusClass = "error";
         }
-        return string.Join(" ", points);
-    }
-
-    private string GetAreaPath()
-    {
-        var data = GetCurrentData();
-        if (data.Count == 0) return "";
-
-        var path = "M 0,400 ";
-        for (int i = 0; i < data.Count; i++)
+        finally
         {
-            double x = (i / (double)(data.Count - 1)) * 1000;
-            double y = 400 - (data[i] / 100.0 * 400);
-            path += $"L {x:F1},{y:F1} ";
+            isUploading = false;
+            StateHasChanged();
         }
-        path += "L 1000,400 Z";
-        return path;
     }
 
-    private string GetChartColor()
+    private void RemoveFile()
     {
-        return selectedMetric switch
-        {
-            "CPU" => "#2196f3",
-            "Memory" => "#2196f3",
-            "Disk" => "#4caf50",
-            "Network" => "#ff9800",
-            "Kiosks" => "#953e3f",
-            _ => "#2196f3"
-        };
-    }
-
-    private double GetCurrentValue()
-    {
-        return selectedMetric switch
-        {
-            "CPU" => cpuUsage,
-            "Memory" => memoryUsagePercent,
-            "Disk" => diskUsage,
-            "Network" => (networkSend + networkReceive) / 2.0,
-            "Kiosks" => (kiosksOnline * 100.0 / totalKiosks),
-            _ => cpuUsage
-        };
-    }
-
-    private string GetSecondaryLabel()
-    {
-        return selectedMetric switch
-        {
-            "CPU" => "Speed",
-            "Memory" => "Available",
-            "Disk" => "Type",
-            "Network" => "Throughput",
-            "Kiosks" => "Online Count",
-            _ => "Speed"
-        };
-    }
-
-    private string GetSecondaryValue()
-    {
-        return selectedMetric switch
-        {
-            "CPU" => $"{cpuSpeed} GHz",
-            "Memory" => $"{(memoryTotal - memoryUsed):F1} GB",
-            "Disk" => "SSD (NVMe)",
-            "Network" => $"{networkSend + networkReceive} Kbps",
-            "Kiosks" => $"{kiosksOnline}/{totalKiosks}",
-            _ => $"{cpuSpeed} GHz"
-        };
-    }
-
-    private void SelectMetric(string metric)
-    {
-        selectedMetric = metric;
-    }
-
-    public void Dispose()
-    {
-        timer?.Dispose();
+        selectedFile = null;
+        uploadedFileName = string.Empty;
+        uploadedFileSize = string.Empty;
+        uploadProgress = 0;
+        statusMessage = string.Empty;
+        statusClass = string.Empty;
     }
 }
 
 <style>
-    * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
+    /* Upload Section */
+    .upload-card {
+        background: linear-gradient(135deg, #3e3e3f 0%, #2f2f30 100%);
+        border: 2px solid rgba(100, 98, 100, 0.3);
+        border-radius: 16px;
+        padding: 30px;
+        max-width: 800px;
+        margin: 0 auto;
     }
 
-    .health-analytics-wrapper {
-        min-height: 100vh;
-        background: #1a1a1b;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    .upload-header h2 {
+        font-size: 20px;
         color: #ffffff;
+        font-weight: 700;
+        margin: 0 0 24px 0;
     }
 
-    .analytics-container {
-        display: flex;
-        height: 100vh;
+    .upload-area {
+        border: 2px dashed rgba(100, 98, 100, 0.4);
+        border-radius: 14px;
+        padding: 50px 30px;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
     }
 
-    /* Sidebar */
-    .metrics-sidebar {
-        width: 320px;
-        background: #252526;
-        border-right: 1px solid #3e3e3f;
-        padding: 20px;
-        overflow-y: auto;
+        .upload-area:hover,
+        .upload-area.dragging {
+            border-color: #953e3f;
+            background: rgba(149, 62, 63, 0.05);
+        }
+
+    .upload-icon {
+        width: 60px;
+        height: 60px;
+        color: #666;
+        margin: 0 auto 20px;
+        display: block;
     }
 
-    .sidebar-title {
-        font-size: 16px;
+    .upload-area h3 {
+        font-size: 18px;
+        color: #ffffff;
+        margin: 0 0 8px 0;
+    }
+
+    .upload-area p {
+        font-size: 14px;
+        color: #666;
+        margin: 0 0 20px 0;
+    }
+
+    .btn-upload {
+        padding: 12px 32px;
+        background: linear-gradient(135deg, #953e3f 0%, #b04e4f 100%);
+        border: none;
+        border-radius: 10px;
+        color: white;
+        font-size: 14px;
         font-weight: 600;
-        color: #ffffff;
-        margin-bottom: 20px;
-        padding-bottom: 12px;
-        border-bottom: 1px solid #3e3e3f;
-    }
-
-    .metric-card {
-        background: #2a2a2b;
-        border: 1px solid #3e3e3f;
-        border-radius: 8px;
-        padding: 16px;
-        margin-bottom: 12px;
-        display: flex;
-        gap: 12px;
         cursor: pointer;
         transition: all 0.3s ease;
     }
 
-        .metric-card:hover {
-            background: #2f2f30;
-            border-color: #953e3f;
-            transform: translateX(4px);
+        .btn-upload:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(149, 62, 63, 0.4);
         }
 
-        .metric-card.critical {
-            border-left: 3px solid #953e3f;
-        }
-
-        .metric-card.warning {
-            border-left: 3px solid #ff9800;
-        }
-
-        .metric-card.normal {
-            border-left: 3px solid #4caf50;
-        }
-
-    .metric-chart-mini {
-        width: 60px;
-        height: 40px;
-    }
-
-        .metric-chart-mini svg {
-            width: 100%;
-            height: 100%;
-        }
-
-        .metric-chart-mini polyline {
-            fill: none;
-            stroke: #2196f3;
-            stroke-width: 2;
-        }
-
-    .metric-card.critical .metric-chart-mini polyline {
-        stroke: #953e3f;
-    }
-
-    .metric-card.warning .metric-chart-mini polyline {
-        stroke: #ff9800;
-    }
-
-    .metric-card.normal .metric-chart-mini polyline {
-        stroke: #4caf50;
-    }
-
-    .metric-info {
-        flex: 1;
-    }
-
-        .metric-info h3 {
-            font-size: 13px;
-            color: #999;
-            margin-bottom: 4px;
-            font-weight: 400;
-        }
-
-    .metric-value {
-        font-size: 16px;
-        font-weight: 700;
-        color: #ffffff;
-        margin-bottom: 2px;
-    }
-
-    .metric-detail {
+    .file-types {
+        display: block;
+        margin-top: 16px;
         font-size: 12px;
         color: #666;
     }
 
-    /* Main Chart Area */
-    .chart-area {
-        flex: 1;
-        background: #1a1a1b;
-        padding: 20px 30px;
-        overflow-y: auto;
-    }
-
-    .chart-header {
+    .uploaded-file {
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
         gap: 16px;
+        margin-top: 20px;
+        padding: 16px;
+        background: rgba(149, 62, 63, 0.1);
+        border: 1px solid rgba(149, 62, 63, 0.3);
+        border-radius: 10px;
     }
 
-        .chart-header h1 {
-            font-size: 28px;
-            font-weight: 300;
-            color: #ffffff;
+        .uploaded-file svg {
+            width: 32px;
+            height: 32px;
+            color: #953e3f;
+            flex-shrink: 0;
         }
 
-    .chart-tabs {
-        display: flex;
-        gap: 8px;
-    }
-
-        .chart-tabs button {
-            padding: 8px 16px;
-            background: transparent;
-            border: 1px solid #3e3e3f;
-            border-radius: 6px;
-            color: #999;
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-            .chart-tabs button:hover {
-                background: #2a2a2b;
-                color: #ffffff;
-            }
-
-            .chart-tabs button.active {
-                background: #953e3f;
-                border-color: #953e3f;
-                color: #ffffff;
-            }
-
-    .system-info-badge {
-        padding: 8px 16px;
-        background: #2a2a2b;
-        border: 1px solid #3e3e3f;
-        border-radius: 6px;
-        font-size: 13px;
-        color: #999;
-    }
-
-    .chart-container {
-        position: relative;
-        background: #1e1e1f;
-        border: 1px solid #3e3e3f;
-        border-radius: 12px;
-        padding: 20px;
-        margin-bottom: 20px;
-        height: 450px;
-    }
-
-    .chart-canvas {
-        position: relative;
-        height: 400px;
-        padding-left: 50px;
-    }
-
-    .main-chart {
-        width: 100%;
-        height: 100%;
-    }
-
-    .y-axis {
-        position: absolute;
-        left: 0;
-        top: 0;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        font-size: 11px;
-        color: #666;
-        padding: 5px 0;
-    }
-
-    .time-label {
-        text-align: center;
-        font-size: 12px;
-        color: #666;
-        margin-top: 8px;
-    }
-
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 20px;
-        margin-bottom: 30px;
-    }
-
-    .stat-item {
+    .file-info {
+        flex: 1;
         display: flex;
         flex-direction: column;
         gap: 4px;
     }
 
-    .stat-label {
-        font-size: 13px;
-        color: #999;
-    }
-
-    .stat-value {
-        font-size: 22px;
-        font-weight: 700;
-        color: #ffffff;
-    }
-
-    .details-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 30px;
-    }
-
-    .details-column {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .detail-row {
-        display: flex;
-        justify-content: space-between;
-        padding: 8px 0;
-        border-bottom: 1px solid #2a2a2b;
-    }
-
-    .detail-label {
-        font-size: 13px;
-        color: #999;
-    }
-
-    .detail-value {
-        font-size: 13px;
+    .file-name {
+        font-size: 14px;
         color: #ffffff;
         font-weight: 600;
     }
 
-    /* Scrollbar Styling */
-    .metrics-sidebar::-webkit-scrollbar,
-    .chart-area::-webkit-scrollbar {
-        width: 8px;
+    .file-size {
+        font-size: 12px;
+        color: #666;
     }
 
-    .metrics-sidebar::-webkit-scrollbar-track,
-    .chart-area::-webkit-scrollbar-track {
-        background: #1a1a1b;
+    .btn-remove {
+        width: 32px;
+        height: 32px;
+        background: rgba(149, 62, 63, 0.2);
+        border: 1px solid rgba(149, 62, 63, 0.3);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
     }
 
-    .metrics-sidebar::-webkit-scrollbar-thumb,
-    .chart-area::-webkit-scrollbar-thumb {
-        background: #3e3e3f;
-        border-radius: 4px;
+        .btn-remove:hover {
+            background: rgba(149, 62, 63, 0.3);
+            transform: rotate(90deg);
+        }
+
+        .btn-remove svg {
+            width: 16px;
+            height: 16px;
+            color: #953e3f;
+        }
+
+    /* Upload Progress */
+    .upload-progress {
+        margin-top: 20px;
     }
 
-        .metrics-sidebar::-webkit-scrollbar-thumb:hover,
-        .chart-area::-webkit-scrollbar-thumb:hover {
-            background: #953e3f;
-        }
-
-    /* Responsive */
-    @@media (max-width: 1024px) {
-        .analytics-container {
-            flex-direction: column;
-        }
-
-        .metrics-sidebar {
-            width: 100%;
-            max-height: 300px;
-        }
-
-        .stats-grid {
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-        }
+    .progress-bar {
+        width: 100%;
+        height: 8px;
+        background: rgba(100, 98, 100, 0.3);
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 10px;
     }
 
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #953e3f 0%, #b04e4f 100%);
+        transition: width 0.3s ease;
+    }
+
+    .progress-text {
+        display: block;
+        text-align: center;
+        font-size: 13px;
+        color: #ffffff;
+        font-weight: 500;
+    }
+
+    /* Status Messages */
+    .status-message {
+        margin-top: 16px;
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+        .status-message.success {
+            background: rgba(76, 175, 80, 0.2);
+            border: 1px solid rgba(76, 175, 80, 0.4);
+            color: #4caf50;
+        }
+
+        .status-message.error {
+            background: rgba(244, 67, 54, 0.2);
+            border: 1px solid rgba(244, 67, 54, 0.4);
+            color: #f44336;
+        }
+
+    /* Responsive Design */
     @@media (max-width: 768px) {
-        .chart-header {
-            flex-direction: column;
-            align-items: flex-start;
+        .upload-area {
+            padding: 30px 20px;
         }
 
-        .chart-tabs {
-            width: 100%;
-            flex-wrap: wrap;
+        .upload-icon {
+            width: 48px;
+            height: 48px;
         }
 
-        .chart-container {
-            height: 350px;
+        .upload-area h3 {
+            font-size: 16px;
         }
 
-        .chart-canvas {
-            height: 300px;
-            padding-left: 35px;
+        .btn-upload {
+            padding: 10px 24px;
+            font-size: 13px;
         }
     }
 </style>
+
+<script>
+    window.initializeFileUpload = (dropZone, inputId) => {
+        const inputElement = document.getElementById(inputId);
+
+        if (!dropZone || !inputElement) {
+            console.error('Drop zone or input element not found');
+            return;
+        }
+
+        // Prevent default drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        // Handle dropped files
+        dropZone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+
+            if (files.length > 0) {
+                inputElement.files = files;
+                const event = new Event('change', { bubbles: true });
+                inputElement.dispatchEvent(event);
+            }
+        }, false);
+
+        // Click anywhere in drop zone to open file browser
+        dropZone.addEventListener('click', (e) => {
+            // Don't trigger if clicking the button itself
+            if (e.target.tagName !== 'BUTTON') {
+                inputElement.click();
+            }
+        });
+    };
+
+    window.triggerFileInput = (inputId) => {
+        const inputElement = document.getElementById(inputId);
+        if (inputElement) {
+            inputElement.click();
+        }
+    };
+</script>

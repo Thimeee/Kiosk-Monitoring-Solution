@@ -52,7 +52,7 @@ namespace SFTPService.Helper
                     .WithTcpServer(host, port)
                     .WithCredentials(user, pass)
                     .WithKeepAlivePeriod(TimeSpan.FromSeconds(30))
-                    .WithCleanSession()
+                    .WithCleanSession(true)
                     .Build();
 
                 _client.DisconnectedAsync += HandleDisconnect;
@@ -175,7 +175,7 @@ namespace SFTPService.Helper
         // SUBSCRIBE
         // ----------------------------------------------------------------------
 
-
+        private bool _eventsBound = false;
         public async Task SubscribeAsync(string topic, Func<string, string, Task> handler)
         {
             if (_client == null) return;
@@ -183,8 +183,10 @@ namespace SFTPService.Helper
             // Subscribe to all topics using a wildcard if needed
             await _client.SubscribeAsync(topic); // "#" subscribes to all topics
 
-            // Attach a single event handler
-            _client.ApplicationMessageReceivedAsync += async e =>
+            if (!_eventsBound)
+            {
+                // Attach a single event handler
+                _client.ApplicationMessageReceivedAsync += async e =>
             {
                 //await _log.WriteLog("MQTT", "hi");
 
@@ -204,9 +206,10 @@ namespace SFTPService.Helper
                 }
             };
 
-            await _log.WriteLog("MQTT", "Global handler set to receive all MQTT messages");
+                await _log.WriteLog("MQTT", "Global handler set to receive all MQTT messages");
+            }
+            _eventsBound = true; // stays TRUE forever while client exists
         }
-
 
         // ----------------------------------------------------------------------
         public async Task CleanupAsync()

@@ -251,8 +251,8 @@
     background: #252526;
     border: 1px solid #3e3e3f;
     border-radius: 12px;
-    width: 500px;
-    max-width: 90%;
+/*    width: 500px;*/
+/*    max-width: 90%;*/
     overflow: hidden;
     animation: slideUp 0.3s ease;
 }
