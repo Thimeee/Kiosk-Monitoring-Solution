@@ -148,7 +148,7 @@ namespace MonitoringBackend.Controllers
             }
         }
 
-    
+
         [HttpPost("getSFTPBranchStructure")]
         public async Task<IActionResult> getSFTPBranchStructure([FromBody] JsonElement data)
         {
@@ -411,7 +411,7 @@ namespace MonitoringBackend.Controllers
                 }
 
 
-                if (isServer !=null)
+                if (isServer != null)
                 {
                     if ((bool)isServer)
                     {
@@ -439,31 +439,31 @@ namespace MonitoringBackend.Controllers
                         //var topic = $"branch/{SFTPObj.Branch.BranchId}/SFTP/FolderStucher";
 
 
-                       var topic = $"branch/{branchCode}/SFTP/Delete";
+                        var topic = $"branch/{branchCode}/SFTP/Delete";
 
-                           var job = new BranchJobRequest<FileDetails>
+                        var job = new BranchJobRequest<FileDetails>
+                        {
+                            jobUser = userId,
+                            jobStartTime = DateTime.Now,
+                            jobRqValue = new FileDetails
                             {
-                                jobUser = userId,
-                                jobStartTime = DateTime.Now,
-                                jobRqValue = new FileDetails
+                                branch = new BranchFile
                                 {
-                                    branch = new BranchFile
-                                    {
-                                        path = path,
-                                    }
+                                    path = path,
                                 }
-                            };
+                            }
+                        };
 
 
-                            await _mqtt.PublishToServer(job, topic, MqttQualityOfServiceLevel.ExactlyOnce);
+                        await _mqtt.PublishToServer(job, topic, MqttQualityOfServiceLevel.ExactlyOnce);
 
-                            responseDTO.Status = true;
-                            responseDTO.StatusCode = 2;
-                            responseDTO.Message = "operation Success";
+                        responseDTO.Status = true;
+                        responseDTO.StatusCode = 2;
+                        responseDTO.Message = "operation Success";
 
-                        
+
                     }
-               
+
                 }
                 return Ok(responseDTO);
 
@@ -481,6 +481,110 @@ namespace MonitoringBackend.Controllers
                 responseDTO.Ex = ex.Message;
                 return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
             }
+
+
+
+
+
         }
+
+
+        [HttpPost("chunk")]
+        public async Task<IActionResult> UploadChunk()
+        {
+            var responseDTO = new APIResponseSingleValue();
+            string chunksFolder = string.Empty;
+            string mergedFile = string.Empty;
+
+            try
+            {
+                var form = await Request.ReadFormAsync();
+
+                var file = form.Files["chunk"];
+                string fileName = form["fileName"];
+                int chunkIndex = int.Parse(form["chunkIndex"]);
+                int totalChunks = int.Parse(form["totalChunks"]);
+
+                if (file == null || file.Length == 0)
+                {
+                    responseDTO.Status = false;
+                    responseDTO.StatusCode = 1;
+                    responseDTO.Message = "Chunk is missing";
+                    return BadRequest(responseDTO);
+                }
+
+                // Store chunks in temp folder
+                chunksFolder = Path.Combine("C:\\Branches\\SFTPFolder\\Chunks", fileName);
+                if (!Directory.Exists(chunksFolder))
+                    Directory.CreateDirectory(chunksFolder);
+
+                string chunkPath = Path.Combine(chunksFolder, $"{chunkIndex}.chunk");
+
+                using (var fs = new FileStream(chunkPath, FileMode.Create, FileAccess.Write))
+                    await file.CopyToAsync(fs);
+
+                // If NOT last chunk -> return OK
+                if (chunkIndex != totalChunks - 1)
+                {
+                    responseDTO.Status = true;
+                    responseDTO.StatusCode = 2;
+                    responseDTO.Message = "Chunk";
+                    return Ok(responseDTO);
+                }
+
+                // ⭐ FINAL CHUNK -> MERGE FILE
+
+                string finalFolder = Path.Combine("C:\\Branches\\SFTPFolder\\Final");
+                if (!Directory.Exists(finalFolder))
+                    Directory.CreateDirectory(finalFolder);
+
+                mergedFile = Path.Combine(finalFolder, fileName);
+
+                using (var output = new FileStream(mergedFile, FileMode.Create))
+                {
+                    for (int i = 0; i < totalChunks; i++)
+                    {
+                        string part = Path.Combine(chunksFolder, $"{i}.chunk");
+
+                        if (!System.IO.File.Exists(part))
+                            throw new Exception($"Missing chunk {i}");
+
+                        byte[] bytes = await System.IO.File.ReadAllBytesAsync(part);
+                        await output.WriteAsync(bytes, 0, bytes.Length);
+                    }
+                }
+
+                // ⭐ CLEANUP: remove chunk folder
+                if (Directory.Exists(chunksFolder))
+                    Directory.Delete(chunksFolder, true);
+
+                responseDTO.Status = true;
+                responseDTO.StatusCode = 2;
+                responseDTO.Message = "File uploaded & merged successfully";
+
+                return Ok(responseDTO);
+            }
+            catch (Exception ex)
+            {
+                // --- ROLLBACK ---
+                try
+                {
+                    if (Directory.Exists(chunksFolder))
+                        Directory.Delete(chunksFolder, true);
+
+                    if (System.IO.File.Exists(mergedFile))
+                        System.IO.File.Delete(mergedFile);
+                }
+                catch { }
+
+                responseDTO.Status = false;
+                responseDTO.StatusCode = 0;
+                responseDTO.Message = "Upload failed";
+                responseDTO.Ex = ex.Message;
+
+                return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
+            }
+        }
+
     }
 }

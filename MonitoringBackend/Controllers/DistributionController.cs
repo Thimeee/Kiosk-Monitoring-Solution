@@ -25,16 +25,16 @@ namespace MonitoringBackend.Controllers
         //{
         //    var path = await _sftp.SaveFileAsync(file);
 
-        //    var job = new BranchJobRequest
-        //    {
-        //        command = "DownloadGlobalUpdate",
-        //        file = new BranchFile
-        //        {
-        //            name = file.FileName,
-        //            path = path,
-        //            size = file.Length
-        //        }
-        //    };
+        //    //var job = new BranchJobRequest
+        //    //{
+        //    //    command = "DownloadGlobalUpdate",
+        //    //    file = new BranchFile
+        //    //    {
+        //    //        name = file.FileName,
+        //    //        path = path,
+        //    //        size = file.Length
+        //    //    }
+        //    //};
 
         //    await _rabbit.PublishBroadcast(job);
         //    return Ok(new { message = "Update sent to all branches", file = file.FileName });

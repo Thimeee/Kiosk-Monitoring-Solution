@@ -46,5 +46,11 @@ namespace Monitoring.Shared.Models
         public string? BranchLicenseKey { get; set; }
 
         public int? BranchLicenseStatus { get; set; }
+
+        public virtual BranchRemot? Remote { get; set; }
+
+        //// Navigation
+        //public virtual ICollection<Job> Jobs { get; set; } = new List<Job>();
+        //public virtual ICollection<BranchRemot> Remotes { get; set; } = new List<BranchRemot>();
     }
 }

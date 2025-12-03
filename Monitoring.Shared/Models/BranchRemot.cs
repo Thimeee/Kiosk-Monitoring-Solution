@@ -30,5 +30,7 @@ namespace Monitoring.Shared.Models
         // Navigation Property
         [ForeignKey("Id")]
         public virtual Branch Branch { get; set; }
+
+
     }
 }

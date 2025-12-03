@@ -58,14 +58,18 @@
                         <div class="panel-actions">
                             @if (IsActiveDropdownActive)
                             {
-                                <button class="action-btn" @onclick="() => FileSelector(true)" title="File Selector">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                                        <line x1="12" y1="11" x2="12" y2="17"></line>
-                                        <line x1="9" y1="14" x2="15" y2="14"></line>
-                                    </svg>
-                                </button>
+                                <Tooltip Class="d-inline-block" Title="File Selector Model" role="button">
+                                    <button class="action-btn" @onclick="() => FileSelector(true)" title="File Selector">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                                            <line x1="12" y1="11" x2="12" y2="17"></line>
+                                            <line x1="9" y1="14" x2="15" y2="14"></line>
+                                        </svg>
+                                    </button>
+                                </Tooltip>
+                              
                             }
+                                <Tooltip Class="d-inline-block" Title="Server Refresh" role="button">
                        
                             <button class="action-btn" @onclick="RefreshServer" title="Refresh">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -74,7 +78,8 @@
                                     <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                                 </svg>
                             </button>
-                           
+                            </Tooltip>
+
                         </div>
                     </div>
                     <div class="panel-body">
@@ -149,6 +154,8 @@
                             </div>
                         </div>
                         <div class="panel-actions">
+                                <Tooltip Class="d-inline-block" Title="Branch Refresh" role="button">
+
                             <button class="action-btn" @onclick="RefreshBranch" title="Refresh">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="23 4 23 10 17 10"></polyline>
@@ -156,7 +163,8 @@
                                     <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                                 </svg>
                             </button>
-                      
+                            </Tooltip>
+
                         </div>
                     </div>
                     <div class="panel-body">
@@ -326,9 +334,9 @@
                                             <polyline points="13 2 13 9 20 9"></polyline>
                                         </svg>
 
-                                        <div class="file-info">
-                                            <span class="file-name">@uploadedFileName</span>
-                                            <span class="file-size">@uploadedFileSize MB</span>
+                                        <div class="file-info-upload ov">
+                                            <span class="file-name-upload ">@uploadedFileName</span>
+                                            <span class="file-size-upload">@uploadedFileSize MB</span>
                                         </div>
 
                                         <button class="btn-remove" type="button" @onclick="RemoveFile">
@@ -343,7 +351,7 @@
                                 <Button Color="ButtonColor.Success"
                                         Size="ButtonSize.ExtraLarge"
                                         Class="w-75 rounded-3 opacity-75"
-                                        @onclick="() => DeleteFileAfterConform(deleteFilePath, (bool)deleteserverOrBranch)">
+                                        @onclick="() => FileUploadToServer()">
                                     Upload Server
                                 </Button>
 
@@ -1509,7 +1517,7 @@
             var token = await GetJwtToken();
             if (token != null)
             {
-               await DeleteFileCancle(false);
+                await DeleteFileCancle(false);
 
                 if (branchId == null)
                     branchId = await getBranchDetails();
@@ -1536,7 +1544,7 @@
     {
         deleteFilePath = fullpath;
         deleteserverOrBranch = isServer;
-		isDeleting = true;    
+        isDeleting = true;    
     }
 
     private async Task<bool> DeleteFileServerAndBarnch(string baseUrl, string fullpath, string jwtToken, string branchCode, string userid,bool isServer)
@@ -1569,8 +1577,8 @@
                     }
                     else
                     {
-                    return true;
-                        
+                        return true;
+
                     }
 
                 }
@@ -1654,6 +1662,10 @@
     private readonly string[] allowedExtensions = { "*" };
     private const long maxFileSize = 5_000L * 1024L * 1024L; // 500 MB
 
+
+    private const int ChunkSize = 10 * 1024 * 1024; // 10MB per chunk
+
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -1686,7 +1698,7 @@
             return;
 
         // Validate file extension
-        var extension = Path.GetExtension(selectedFile.Name).ToLowerInvariant();
+        // var extension = Path.GetExtension(selectedFile.Name).ToLowerInvariant();
         // if (!allowedExtensions.Contains(extension))
         // {
         //     statusMessage = $"Invalid file type. Only {string.Join(", ", allowedExtensions)} files are allowed.";
@@ -1714,8 +1726,18 @@
         statusMessage = string.Empty;
         statusClass = string.Empty;
 
-        // Automatically start upload
+    }
+
+    private async Task FileUploadToServer()
+    {
+        if (selectedFile == null)
+        {
+            AlertService.ShowError("File Uploding", "Please Select To File First ");
+            return;
+        }
+
         await UploadFile();
+
     }
 
     private async Task UploadFile()
@@ -1727,47 +1749,69 @@
         {
             isUploading = true;
             uploadProgress = 0;
-            statusMessage = "Uploading file...";
+            statusMessage = "Uploading file in chunks...";
             statusClass = string.Empty;
 
-            // Define upload directory
-            var uploadPath = Path.Combine(Environment.CurrentDirectory, "Uploads", "Patches");
+            var totalChunks = (int)Math.Ceiling((double)selectedFile.Size / ChunkSize);
 
-            // Create directory if it doesn't exist
-            if (!Directory.Exists(uploadPath))
-            {
-                Directory.CreateDirectory(uploadPath);
-            }
-
-            // Generate unique filename
-            var timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
-            var fileName = $"{Path.GetFileNameWithoutExtension(selectedFile.Name)}_{timestamp}{Path.GetExtension(selectedFile.Name)}";
-            var filePath = Path.Combine(uploadPath, fileName);
-
-            // Read and save the file with progress
-            var buffer = new byte[512000]; // 500KB buffer
             using var stream = selectedFile.OpenReadStream(maxFileSize);
-            using var fs = new FileStream(filePath, FileMode.Create);
+            var buffer = new byte[ChunkSize];
 
-            int bytesRead;
-            long totalBytesRead = 0;
-
-            while ((bytesRead = await stream.ReadAsync(buffer)) > 0)
+            var token = await GetJwtToken();
+            if (token != null)
             {
-                await fs.WriteAsync(buffer.AsMemory(0, bytesRead));
-                totalBytesRead += bytesRead;
 
-                // Update progress
-                uploadProgress = (int)((totalBytesRead * 100) / selectedFile.Size);
-                StateHasChanged();
+                if (branchId == null)
+                    branchId = await getBranchDetails();
+                if (user == null)
+                    user = await getUserDetails();
 
-                // Small delay to show progress smoothly
-                await Task.Delay(10);
+                for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++)
+                {
+                    int bytesRead = await stream.ReadAsync(buffer);
+
+                    var content = new MultipartFormDataContent();
+
+                    content.Add(new ByteArrayContent(buffer, 0, bytesRead), "chunk", selectedFile.Name);
+                    content.Add(new StringContent(selectedFile.Name), "fileName");
+                    content.Add(new StringContent(chunkIndex.ToString()), "chunkIndex");
+                    content.Add(new StringContent(totalChunks.ToString()), "totalChunks");
+
+                    var result = await UploadFileToServer(Settings.MainApiBaseUrl, token, content);
+
+                    if (result==1)
+                    {
+                        // isTransferring = true;
+                        uploadProgress = (int)(((chunkIndex + 1) / (double)totalChunks) * 100);
+                        // StateHasChanged();
+                    }else if(result==2)
+                    {
+                        isFileSelector = false;
+                        AlertService.ShowSuccess("File Uploding ", $"File Sharing Sucess to Main");
+
+                        // statusMessage = "File uploaded successfully (chunked)";
+                        // statusClass = "success";
+                    }else{
+                    
+                        AlertService.ShowSuccess("File Uploding ", $"File Sharing Sucess to Main");
+                    }
+                    StateHasChanged();
+
+                    // var response = await Http.PostAsync("api/upload/chunk", content);
+
+                    // if (!response.IsSuccessStatusCode)
+                    //     throw new Exception("Chunk upload failed");
+
+
+                }
+
+
+
             }
 
-            uploadProgress = 100;
-            statusMessage = $"File uploaded successfully! Saved to: {filePath}";
-            statusClass = "success";
+
+
+          
         }
         catch (Exception ex)
         {
@@ -1779,6 +1823,93 @@
             isUploading = false;
             StateHasChanged();
         }
+
+
+    }
+
+    private async Task<int> UploadFileToServer(string baseUrl, string jwtToken,MultipartFormDataContent content)
+    {
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
+            var response = await client.PostAsync("api/SFTPFiles/chunk", content);
+
+            var result = await response.Content.ReadFromJsonAsync<APIResponseSingleValue>();
+
+            if (response.IsSuccessStatusCode)
+            {
+
+                if (result != null && result.StatusCode == 2 && result.Status == true)
+                {
+                    if (result.Message == "Chunk")
+                    {
+                        return 1;
+
+                    }
+                    else
+                    {
+                        return 2;
+
+                    }
+                    // if (result.Value != null && result.Value == "server")
+                    // {
+                    //     await RefreshServer();
+                    //     AlertService.ShowSuccess("File Delete", "Server File Delete Successfully");
+                    // }
+                    // else
+                    // {
+
+                    // }
+
+                }
+            }
+            else
+            {
+                switch (response.StatusCode)
+                {
+                    case HttpStatusCode.BadRequest:
+                    case HttpStatusCode.NotFound:
+                    case HttpStatusCode.Unauthorized:
+                        if (result?.StatusCode == 1 && result.Status == false)
+                        {
+                            AlertService.ShowError("File Sharing Error", $"{result.Message}. Please try again.");
+                            return 0;
+                        }
+                        break;
+
+                    case HttpStatusCode.InternalServerError: // 500
+
+                        if (result?.StatusCode == 0 && result.Status == false)
+                        {
+                            var serverMsg = result?.Message ?? "Server error occurred.";
+                            // var content = await response.Content.ReadAsStringAsync();
+                            Console.WriteLine($"Server 500 response body: {result?.Ex}");
+                            AlertService.ShowError("Server Error", $"{serverMsg}. Please contact support.");
+                            return 0;
+                        }
+                        break;
+
+                }
+
+
+            }
+
+            return 0;
+
+        }
+        catch (HttpRequestException ex)
+        {
+            AlertService.ShowError("Server Error", "Server fetch failed. Please contact support.");
+            Console.WriteLine($"HttpRequestException: {ex.Message}");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"General Exception: {ex.Message}");
+            return 0;
+        }
+
     }
 
     private void RemoveFile()
@@ -1890,20 +2021,21 @@
             flex-shrink: 0;
         }
 
-    .file-info {
+    .file-info-upload {
         flex: 1;
         display: flex;
         flex-direction: column;
         gap: 4px;
     }
 
-    .file-name {
+    .file-name-upload {
         font-size: 14px;
         color: #ffffff;
         font-weight: 600;
+    
     }
 
-    .file-size {
+    .file-size-upload {
         font-size: 12px;
         color: #666;
     }
@@ -2147,6 +2279,10 @@
         font-size: 13px;
         color: #ffffff;
         font-weight: 500;
+        max-width: 350px; /* adjust width */
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .file-meta {

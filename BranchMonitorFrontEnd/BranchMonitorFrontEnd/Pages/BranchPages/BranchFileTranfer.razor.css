@@ -397,3 +397,211 @@
         min-height: 400px;
     }
 }
+
+
+
+/* Upload Section */
+    /*.upload-card {
+        background: linear-gradient(135deg, #3e3e3f 0%, #2f2f30 100%);
+        border: 2px solid rgba(100, 98, 100, 0.3);
+        border-radius: 16px;
+        padding: 5px;*/
+        /* max-width: 800px; */
+        /*margin: 0 auto;
+    }
+
+    .upload-header h2 {
+        font-size: 20px;
+        color: #ffffff;
+        font-weight: 700;
+        margin: 0 0 24px 0;
+    }
+
+    .upload-area {
+        border: 2px dashed rgba(100, 98, 100, 0.4);
+        border-radius: 14px;
+        padding: 50px 30px;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+        .upload-area:hover,
+        .upload-area.dragging {
+            border-color: #953e3f;
+            background: rgba(149, 62, 63, 0.05);
+        }
+
+    .upload-icon {
+        width: 60px;
+        height: 60px;
+        color: #666;
+        margin: 0 auto 20px;
+        display: block;
+    }
+
+    .upload-area h3 {
+        font-size: 18px;
+        color: #ffffff;
+        margin: 0 0 8px 0;
+    }
+
+    .upload-area p {
+        font-size: 14px;
+        color: #666;
+        margin: 0 0 20px 0;
+    }
+
+    .btn-upload {
+        padding: 12px 32px;
+        background: linear-gradient(135deg, #953e3f 0%, #b04e4f 100%);
+        border: none;
+        border-radius: 10px;
+        color: white;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+        .btn-upload:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(149, 62, 63, 0.4);
+        }
+
+    .file-types {
+        display: block;
+        margin-top: 16px;
+        font-size: 12px;
+        color: #666;
+    }
+
+    .uploaded-file {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-top: 20px;
+        padding: 16px;
+        background: rgba(149, 62, 63, 0.1);
+        border: 1px solid rgba(149, 62, 63, 0.3);
+        border-radius: 10px;
+    }
+
+        .uploaded-file svg {
+            width: 32px;
+            height: 32px;
+            color: #953e3f;
+            flex-shrink: 0;
+        }
+
+    .file-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .file-name {
+        font-size: 14px;
+        color: #ffffff;
+        font-weight: 600;
+    }
+
+    .file-size {
+        font-size: 12px;
+        color: #666;
+    }
+
+    .btn-remove {
+        width: 32px;
+        height: 32px;
+        background: rgba(149, 62, 63, 0.2);
+        border: 1px solid rgba(149, 62, 63, 0.3);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+        .btn-remove:hover {
+            background: rgba(149, 62, 63, 0.3);
+            transform: rotate(90deg);
+        }
+
+        .btn-remove svg {
+            width: 16px;
+            height: 16px;
+            color: #953e3f;
+        }*/
+
+    /* Upload Progress */
+    /*.upload-progress {
+        margin-top: 20px;
+    }
+
+    .progress-bar {
+        width: 100%;
+        height: 8px;
+        background: rgba(100, 98, 100, 0.3);
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 10px;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #953e3f 0%, #b04e4f 100%);
+        transition: width 0.3s ease;
+    }
+
+    .progress-text {
+        display: block;
+        text-align: center;
+        font-size: 13px;
+        color: #ffffff;
+        font-weight: 500;
+    }*/
+
+    /* Status Messages */
+    /*.status-message {
+        margin-top: 16px;
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+        .status-message.success {
+            background: rgba(76, 175, 80, 0.2);
+            border: 1px solid rgba(76, 175, 80, 0.4);
+            color: #4caf50;
+        }
+
+        .status-message.error {
+            background: rgba(244, 67, 54, 0.2);
+            border: 1px solid rgba(244, 67, 54, 0.4);
+            color: #f44336;
+        }*/
+
+    /* Responsive Design */
+    /*@@media (max-width: 768px) {
+        .upload-area {
+            padding: 30px 20px;
+        }
+
+        .upload-icon {
+            width: 48px;
+            height: 48px;
+        }
+
+        .upload-area h3 {
+            font-size: 16px;
+        }
+
+        .btn-upload {
+            padding: 10px 24px;
+            font-size: 13px;
+        }
+    }*/
