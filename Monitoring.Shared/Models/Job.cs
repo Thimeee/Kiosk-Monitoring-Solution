@@ -18,7 +18,6 @@ namespace Monitoring.Shared.Models
         public string? UserId { get; set; }
 
         [Column("JobUId")]
-        [StringLength(10)]
         public string? JobUId { get; set; }
 
         [Column("JobDate")]

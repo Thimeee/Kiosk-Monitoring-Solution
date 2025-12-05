@@ -27,6 +27,7 @@ namespace MonitoringBackend.Controllers
         private readonly GetFolderStructure _folderStructure;
         private readonly MQTTHelper _mqtt;
 
+
         public SFTPFilesController(AppDbContext db, GetFolderStructure folderStructure, MQTTHelper mqtt)
         {
             _db = db;
@@ -36,7 +37,7 @@ namespace MonitoringBackend.Controllers
         }
 
         [HttpGet("getSFTPFolderPaths")]
-        public async Task<IActionResult> Register()
+        public async Task<IActionResult> getSFTPFolderPaths()
         {
 
             var responseDTO = new APIResponseObjectValue<SFTPFolderPath> { };
@@ -489,12 +490,14 @@ namespace MonitoringBackend.Controllers
         }
 
 
+        [RequestSizeLimit(long.MaxValue)]
         [HttpPost("chunk")]
         public async Task<IActionResult> UploadChunk()
         {
             var responseDTO = new APIResponseSingleValue();
             string chunksFolder = string.Empty;
             string mergedFile = string.Empty;
+            string jobUId = string.Empty;
 
             try
             {
@@ -502,8 +505,14 @@ namespace MonitoringBackend.Controllers
 
                 var file = form.Files["chunk"];
                 string fileName = form["fileName"];
+                string userId = form["userId"];
+                string branchId = form["branchId"];
                 int chunkIndex = int.Parse(form["chunkIndex"]);
                 int totalChunks = int.Parse(form["totalChunks"]);
+                bool firstChunkStatus = bool.TryParse(form["firstChunkStatus"], out var result) && result;
+                jobUId = form["jobUId"];
+
+
 
                 if (file == null || file.Length == 0)
                 {
@@ -520,8 +529,32 @@ namespace MonitoringBackend.Controllers
 
                 string chunkPath = Path.Combine(chunksFolder, $"{chunkIndex}.chunk");
 
-                using (var fs = new FileStream(chunkPath, FileMode.Create, FileAccess.Write))
+                using (var fs = new FileStream(chunkPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
                     await file.CopyToAsync(fs);
+
+
+
+                if (firstChunkStatus)
+                {
+                    int branchIdInt = int.Parse(branchId);
+
+                    var job = new Job
+                    {
+                        BranchId = branchIdInt,
+                        UserId = userId,
+                        JTId = 1,
+                        JobUId = jobUId,
+                        JobDate = DateTime.Now,
+                        JobStartTime = DateTime.Now,
+                        JobStatus = 1, // In Progress
+                        JobMassage = $"Uploading file: {fileName}",
+                        JobActive = 1
+                    };
+
+                    await _db.Jobs.AddAsync(job);
+                    await _db.SaveChangesAsync();
+                }
+
 
                 // If NOT last chunk -> return OK
                 if (chunkIndex != totalChunks - 1)
@@ -529,6 +562,9 @@ namespace MonitoringBackend.Controllers
                     responseDTO.Status = true;
                     responseDTO.StatusCode = 2;
                     responseDTO.Message = "Chunk";
+
+
+
                     return Ok(responseDTO);
                 }
 
@@ -540,17 +576,15 @@ namespace MonitoringBackend.Controllers
 
                 mergedFile = Path.Combine(finalFolder, fileName);
 
-                using (var output = new FileStream(mergedFile, FileMode.Create))
+                using (var output = new FileStream(mergedFile, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
                 {
                     for (int i = 0; i < totalChunks; i++)
                     {
                         string part = Path.Combine(chunksFolder, $"{i}.chunk");
-
-                        if (!System.IO.File.Exists(part))
-                            throw new Exception($"Missing chunk {i}");
-
-                        byte[] bytes = await System.IO.File.ReadAllBytesAsync(part);
-                        await output.WriteAsync(bytes, 0, bytes.Length);
+                        using (var input = new FileStream(part, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, true))
+                        {
+                            await input.CopyToAsync(output);
+                        }
                     }
                 }
 
@@ -558,15 +592,26 @@ namespace MonitoringBackend.Controllers
                 if (Directory.Exists(chunksFolder))
                     Directory.Delete(chunksFolder, true);
 
+                if (jobUId != null)
+                {
+                    var job = await _db.Jobs.FirstOrDefaultAsync(j => j.JobUId == jobUId);
+                    job.JobStatus = 2;
+                    job.JobActive = 0;
+                    job.JobEndTime = DateTime.Now;
+                    job.JobMassage = $"File uploaded successfully: {fileName}";
+
+                    _db.Jobs.Update(job);
+                    await _db.SaveChangesAsync();
+                }
+
                 responseDTO.Status = true;
                 responseDTO.StatusCode = 2;
-                responseDTO.Message = "File uploaded & merged successfully";
+                responseDTO.Message = "Complete";
 
                 return Ok(responseDTO);
             }
             catch (Exception ex)
             {
-                // --- ROLLBACK ---
                 try
                 {
                     if (Directory.Exists(chunksFolder))
@@ -574,15 +619,95 @@ namespace MonitoringBackend.Controllers
 
                     if (System.IO.File.Exists(mergedFile))
                         System.IO.File.Delete(mergedFile);
+
+                    if (!string.IsNullOrEmpty(jobUId))
+                    {
+                        var job = await _db.Jobs.FirstOrDefaultAsync(j => j.JobUId == jobUId);
+                        if (job != null)
+                        {
+                            job.JobStatus = 0; // Failed
+                            job.JobActive = 0;
+                            job.JobEndTime = DateTime.Now;
+                            job.JobMassage = $"File upload failed: {ex.Message}";
+
+                            _db.Jobs.Update(job);
+                            await _db.SaveChangesAsync();
+                        }
+                    }
                 }
                 catch { }
 
+                return StatusCode(StatusCodes.Status500InternalServerError, new APIResponseSingleValue
+                {
+                    Status = false,
+                    StatusCode = 0,
+                    Message = "Upload failed",
+                    Ex = ex.Message
+                });
+            }
+
+        }
+
+
+        [HttpPost("UploadFileToServerCancel")]
+        public async Task<IActionResult> UploadFileToServerCancel([FromBody] JsonElement data)
+        {
+            var responseDTO = new APIResponseSingleValue();
+            try
+            {
+                string? jobUId = data.TryGetProperty("jobUId", out var jobUIdElement) ? jobUIdElement.GetString() : null;
+                string? fileName = data.TryGetProperty("fileName", out var fileNameElement) ? fileNameElement.GetString() : null;
+
+                if (jobUId == null || string.IsNullOrEmpty(jobUId))
+                {
+                    responseDTO.Status = false;
+                    responseDTO.StatusCode = 1;
+                    responseDTO.Message = "JobId are required.";
+                    return BadRequest(responseDTO);
+                }
+
+
+                var job = await _db.Jobs.FirstOrDefaultAsync(j => j.JobUId == jobUId);
+                if (job != null)
+                {
+                    job.JobStatus = 3; // Failed
+                    job.JobActive = 0;
+                    job.JobEndTime = DateTime.Now;
+                    job.JobMassage = $"file upload was cancelled by the user";
+
+                    _db.Jobs.Update(job);
+                    await _db.SaveChangesAsync();
+                }
+
+                var chunksFolder = Path.Combine("C:\\Branches\\SFTPFolder\\Chunks", fileName);
+                if (Directory.Exists(chunksFolder))
+                    Directory.Delete(chunksFolder, true);
+
+                string finalFolder = Path.Combine("C:\\Branches\\SFTPFolder\\Final", fileName);
+                if (Directory.Exists(finalFolder))
+                    System.IO.File.Delete(finalFolder);
+
+
+                responseDTO.Status = true;
+                responseDTO.StatusCode = 2;
+                responseDTO.Message = "operation Success";
+
+                return Ok(responseDTO);
+
+            }
+
+            catch (Exception ex)
+            {
+                // Log the exception (optional)
+                Console.WriteLine($"Error during File upload: {ex.Message}");
+
+                // Return a generic error response
                 responseDTO.Status = false;
                 responseDTO.StatusCode = 0;
-                responseDTO.Message = "Upload failed";
+                responseDTO.Message = "Error during File upload";
                 responseDTO.Ex = ex.Message;
-
                 return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
+                //return StatusCode(500, new { Error = "An unexpected error occurred." });
             }
         }
 

@@ -316,12 +316,6 @@
 
                          
 
-                            @* @if (!string.IsNullOrEmpty(statusMessage))
-                            {
-                                <div class="status-message @statusClass">
-                                    @statusMessage
-                                </div>
-                            } *@
                         </div>
 
                              <div class="col-6 d-flex flex-column justify-content-center align-items-center gap-5">
@@ -1481,11 +1475,7 @@
 
     }
     private void RefreshBranch() { }
-    private void FileSelector(bool isServer)
 
-    {
-        isFileSelector = isServer;
-    }
     private void DownloadFile(string fullpath)
     {
         try
@@ -1632,20 +1622,7 @@
     }
 
 
-    // public class FolderNode
-    // {
-    //     public string Name { get; set; }
-    //     public bool IsExpanded { get; set; }
-    //     public List<FileItem> Files { get; set; }
-    //     public List<FolderNode> SubFolders { get; set; }
-    // }
-
-    // public class FileItem
-    // {
-    //     public string Name { get; set; }
-    //     public string Size { get; set; }
-    //     public DateTime Modified { get; set; }
-    // }
+    // Client to Server File Upload Section
 
     private ElementReference dropZoneElement;
     private InputFile? inputFile;
@@ -1655,8 +1632,6 @@
     private string uploadedFileSize = string.Empty;
     private bool isUploading = false;
     private int uploadProgress = 0;
-    private string statusMessage = string.Empty;
-    private string statusClass = string.Empty;
     private IBrowserFile? selectedFile;
 
     private readonly string[] allowedExtensions = { "*" };
@@ -1664,6 +1639,20 @@
 
 
     private const int ChunkSize = 10 * 1024 * 1024; // 10MB per chunk
+
+
+    private void FileSelector(bool isServer)
+
+    {
+        isFileSelector = isServer;
+    }
+
+    private void FileSelectorDisable(bool isServer)
+
+    {
+        RemoveFile();
+        isFileSelector = isServer;
+    }
 
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -1684,6 +1673,8 @@
         isDragging = false;
     }
 
+
+
     private async Task TriggerFileInput()
     {
         await JS.InvokeVoidAsync("triggerFileInput", "fileInput");
@@ -1697,34 +1688,11 @@
         if (selectedFile == null)
             return;
 
-        // Validate file extension
-        // var extension = Path.GetExtension(selectedFile.Name).ToLowerInvariant();
-        // if (!allowedExtensions.Contains(extension))
-        // {
-        //     statusMessage = $"Invalid file type. Only {string.Join(", ", allowedExtensions)} files are allowed.";
-        //     statusClass = "error";
-        //     selectedFile = null;
-        //     uploadedFileName = string.Empty;
-        //     uploadedFileSize = string.Empty;
-        //     return;
-        // }
 
-        // Validate file size
-        // if (selectedFile.Size > maxFileSize)
-        // {
-        //     statusMessage = $"File size exceeds maximum allowed size of {maxFileSize / (1024 * 1024)} MB.";
-        //     statusClass = "error";
-        //     selectedFile = null;
-        //     uploadedFileName = string.Empty;
-        //     uploadedFileSize = string.Empty;
-        //     return;
-        // }
 
         // Display file info
         uploadedFileName = selectedFile.Name;
         uploadedFileSize = (selectedFile.Size / (1024.0 * 1024.0)).ToString("F2");
-        statusMessage = string.Empty;
-        statusClass = string.Empty;
 
     }
 
@@ -1749,8 +1717,9 @@
         {
             isUploading = true;
             uploadProgress = 0;
-            statusMessage = "Uploading file in chunks...";
-            statusClass = string.Empty;
+
+            bool firstChunkStatus = false;
+            string? seletedFile =null;
 
             var totalChunks = (int)Math.Ceiling((double)selectedFile.Size / ChunkSize);
 
@@ -1766,57 +1735,71 @@
                 if (user == null)
                     user = await getUserDetails();
 
+                string jobUId = $"{branchId.BranchID}_{user.UserId}_{DateTime.Now:yyyyMMdd_HHmmssfff}_{Guid.NewGuid():N}";
+
                 for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++)
                 {
+
+                    if (selectedFile == null)
+                    {
+                        if (seletedFile != null)
+                        {
+                            var result2 = await UploadFileToServerCancel(Settings.MainApiBaseUrl, token, jobUId.ToString(), seletedFile);
+                            if (result2)
+                            {
+                                AlertService.ShowWarning("File Upload", "The file upload was cancelled by the user.");
+                                seletedFile = null;
+                                StateHasChanged();
+                                return;
+
+                            }
+                        }
+                    }
+                   
                     int bytesRead = await stream.ReadAsync(buffer);
 
                     var content = new MultipartFormDataContent();
+                    if (chunkIndex == 0)
+                    {
+                        firstChunkStatus = true;
+                      seletedFile = selectedFile.Name;
+                    }
+                    else
+                    {
+                        firstChunkStatus = false;
+
+                    }
+
+                
 
                     content.Add(new ByteArrayContent(buffer, 0, bytesRead), "chunk", selectedFile.Name);
                     content.Add(new StringContent(selectedFile.Name), "fileName");
                     content.Add(new StringContent(chunkIndex.ToString()), "chunkIndex");
                     content.Add(new StringContent(totalChunks.ToString()), "totalChunks");
+                    content.Add(new StringContent(user.UserId.ToString()), "userId");
+                    content.Add(new StringContent(branchId.BranchID.ToString()), "branchId");
+                    content.Add(new StringContent(jobUId.ToString()), "jobUId");
+                    content.Add(new StringContent(firstChunkStatus.ToString()), "firstChunkStatus");
 
                     var result = await UploadFileToServer(Settings.MainApiBaseUrl, token, content);
 
                     if (result==1)
                     {
-                        // isTransferring = true;
                         uploadProgress = (int)(((chunkIndex + 1) / (double)totalChunks) * 100);
-                        // StateHasChanged();
                     }else if(result==2)
                     {
-                        isFileSelector = false;
-                        AlertService.ShowSuccess("File Uploding ", $"File Sharing Sucess to Main");
+                        FileSelectorDisable(false);
+                        AlertService.ShowSuccess("File Upload", "The file has been successfully uploaded to Main.");
 
-                        // statusMessage = "File uploaded successfully (chunked)";
-                        // statusClass = "success";
-                    }else{
-                    
-                        AlertService.ShowSuccess("File Uploding ", $"File Sharing Sucess to Main");
+
+                      
                     }
                     StateHasChanged();
-
-                    // var response = await Http.PostAsync("api/upload/chunk", content);
-
-                    // if (!response.IsSuccessStatusCode)
-                    //     throw new Exception("Chunk upload failed");
-
-
                 }
-
-
-
-            }
-
-
-
-          
+            }         
         }
         catch (Exception ex)
         {
-            statusMessage = $"Upload failed: {ex.Message}";
-            statusClass = "error";
         }
         finally
         {
@@ -1847,20 +1830,12 @@
                         return 1;
 
                     }
-                    else
+					else if (result.Message == "Complete")
                     {
                         return 2;
 
                     }
-                    // if (result.Value != null && result.Value == "server")
-                    // {
-                    //     await RefreshServer();
-                    //     AlertService.ShowSuccess("File Delete", "Server File Delete Successfully");
-                    // }
-                    // else
-                    // {
-
-                    // }
+               
 
                 }
             }
@@ -1911,6 +1886,78 @@
         }
 
     }
+    private async Task<bool> UploadFileToServerCancel(string baseUrl, string jwtToken, string jobId,string fileName)
+    {
+        try
+        {
+            var obj = new
+            {
+                JobUId = jobId,
+                FileName = fileName
+               
+            };
+            using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
+            var response = await client.PostAsJsonAsync("api/SFTPFiles/UploadFileToServerCancel", obj);
+
+            var result = await response.Content.ReadFromJsonAsync<APIResponseSingleValue>();
+
+            if (response.IsSuccessStatusCode)
+            {
+
+                if (result != null && result.StatusCode == 2 && result.Status == true)
+                {
+                    return true;    
+                
+
+                }
+            }
+            else
+            {
+                switch (response.StatusCode)
+                {
+                    case HttpStatusCode.BadRequest:
+                    case HttpStatusCode.NotFound:
+                    case HttpStatusCode.Unauthorized:
+                        if (result?.StatusCode == 1 && result.Status == false)
+                        {
+                            AlertService.ShowError("File Sharing Error", $"{result.Message}. Please try again.");
+                            return false;
+                        }
+                        break;
+
+                    case HttpStatusCode.InternalServerError: // 500
+
+                        if (result?.StatusCode == 0 && result.Status == false)
+                        {
+                            var serverMsg = result?.Message ?? "Server error occurred.";
+                            Console.WriteLine($"Server 500 response body: {result?.Ex}");
+                            AlertService.ShowError("Server Error", $"{serverMsg}. Please contact support.");
+                            return false;
+                        }
+                        break;
+
+                }
+
+
+            }
+
+            return false;
+
+        }
+        catch (HttpRequestException ex)
+        {
+            AlertService.ShowError("Server Error", "Server fetch failed. Please contact support.");
+            Console.WriteLine($"HttpRequestException: {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"General Exception: {ex.Message}");
+            return false;
+        }
+
+    }
 
     private void RemoveFile()
     {
@@ -1918,222 +1965,14 @@
         uploadedFileName = string.Empty;
         uploadedFileSize = string.Empty;
         uploadProgress = 0;
-        statusMessage = string.Empty;
-        statusClass = string.Empty;
     }
 
+    // Client to Server File Upload Section
 
 
 
 }
-<style>
-    /* Upload Section */
-    .upload-card {
-        background: linear-gradient(135deg, #3e3e3f 0%, #2f2f30 100%);
-        border: 2px solid rgba(100, 98, 100, 0.3);
-        border-radius: 16px;
-        padding: 5px;
-        /* max-width: 800px; */
-        margin: 0 auto;
-    }
 
-    .upload-header h2 {
-        font-size: 20px;
-        color: #ffffff;
-        font-weight: 700;
-        margin: 0 0 24px 0;
-    }
-
-    .upload-area {
-        border: 2px dashed rgba(100, 98, 100, 0.4);
-        border-radius: 14px;
-        padding: 50px 30px;
-        text-align: center;
-        transition: all 0.3s ease;
-        cursor: pointer;
-    }
-
-        .upload-area:hover,
-        .upload-area.dragging {
-            border-color: #953e3f;
-            background: rgba(149, 62, 63, 0.05);
-        }
-
-    .upload-icon {
-        width: 60px;
-        height: 60px;
-        color: #666;
-        margin: 0 auto 20px;
-        display: block;
-    }
-
-    .upload-area h3 {
-        font-size: 18px;
-        color: #ffffff;
-        margin: 0 0 8px 0;
-    }
-
-    .upload-area p {
-        font-size: 14px;
-        color: #666;
-        margin: 0 0 20px 0;
-    }
-
-    .btn-upload {
-        padding: 12px 32px;
-        background: linear-gradient(135deg, #953e3f 0%, #b04e4f 100%);
-        border: none;
-        border-radius: 10px;
-        color: white;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-
-        .btn-upload:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(149, 62, 63, 0.4);
-        }
-
-    .file-types {
-        display: block;
-        margin-top: 16px;
-        font-size: 12px;
-        color: #666;
-    }
-
-    .uploaded-file {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        margin-top: 20px;
-        padding: 16px;
-        background: rgba(149, 62, 63, 0.1);
-        border: 1px solid rgba(149, 62, 63, 0.3);
-        border-radius: 10px;
-    }
-
-        .uploaded-file svg {
-            width: 32px;
-            height: 32px;
-            color: #953e3f;
-            flex-shrink: 0;
-        }
-
-    .file-info-upload {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-    }
-
-    .file-name-upload {
-        font-size: 14px;
-        color: #ffffff;
-        font-weight: 600;
-    
-    }
-
-    .file-size-upload {
-        font-size: 12px;
-        color: #666;
-    }
-
-    .btn-remove {
-        width: 32px;
-        height: 32px;
-        background: rgba(149, 62, 63, 0.2);
-        border: 1px solid rgba(149, 62, 63, 0.3);
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-
-        .btn-remove:hover {
-            background: rgba(149, 62, 63, 0.3);
-            transform: rotate(90deg);
-        }
-
-        .btn-remove svg {
-            width: 16px;
-            height: 16px;
-            color: #953e3f;
-        }
-
-    /* Upload Progress */
-    .upload-progress {
-        margin-top: 20px;
-    }
-
-    .progress-bar {
-        width: 100%;
-        height: 8px;
-        background: rgba(100, 98, 100, 0.3);
-        border-radius: 10px;
-        overflow: hidden;
-        margin-bottom: 10px;
-    }
-
-    .progress-fill {
-        height: 100%;
-        background: linear-gradient(90deg, #953e3f 0%, #b04e4f 100%);
-        transition: width 0.3s ease;
-    }
-
-    .progress-text {
-        display: block;
-        text-align: center;
-        font-size: 13px;
-        color: #ffffff;
-        font-weight: 500;
-    }
-
-    /* Status Messages */
-    .status-message {
-        margin-top: 16px;
-        padding: 12px 16px;
-        border-radius: 8px;
-        font-size: 14px;
-        font-weight: 500;
-    }
-
-        .status-message.success {
-            background: rgba(76, 175, 80, 0.2);
-            border: 1px solid rgba(76, 175, 80, 0.4);
-            color: #4caf50;
-        }
-
-        .status-message.error {
-            background: rgba(244, 67, 54, 0.2);
-            border: 1px solid rgba(244, 67, 54, 0.4);
-            color: #f44336;
-        }
-
-    /* Responsive Design */
-    @@media (max-width: 768px) {
-        .upload-area {
-            padding: 30px 20px;
-        }
-
-        .upload-icon {
-            width: 48px;
-            height: 48px;
-        }
-
-        .upload-area h3 {
-            font-size: 16px;
-        }
-
-        .btn-upload {
-            padding: 10px 24px;
-            font-size: 13px;
-        }
-    }
-</style>
 
 <script>
     window.initializeFileUpload = (dropZone, inputId) => {

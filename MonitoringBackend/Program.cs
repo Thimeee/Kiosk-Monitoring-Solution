@@ -2,6 +2,7 @@ using System;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -62,7 +63,10 @@ builder.Services.AddCors(options =>
 //});
 //use production level 
 
-
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = long.MaxValue; // Allow very large uploads
+});
 
 // Database
 builder.Services.AddDbContext<AppDbContext>(options =>
