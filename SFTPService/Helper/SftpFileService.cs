@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Monitoring.Shared.DTO;
+using Monitoring.Shared.Models;
 using MQTTnet.Protocol;
 using Renci.SshNet;
 
@@ -19,7 +20,7 @@ namespace SFTPService.Helper
         private readonly MQTTHelper _mqtt;
 
         private const int BufferSize = 1024 * 1024 * 4; // 4MB
-        private const int MaxRetries = 3;
+        private const int MaxRetries = 5;
 
         public SftpFileService(IConfiguration config, LoggerService log, MQTTHelper mqtt)
         {
@@ -56,7 +57,7 @@ namespace SFTPService.Helper
         }
 
 
-        public async Task DownloadFileAsync(string remotePathBefore, string localPathBefore, string userId, string branchID, IProgress<double>? progress = null)
+        public async Task DownloadFileAsync(string remotePathBefore, string localPathBefore, string userId, string branchID, string jobId, IProgress<double>? progress = null)
 
         {
             int attempt = 0;
@@ -89,9 +90,10 @@ namespace SFTPService.Helper
                             {
                                 jobUser = userId,
                                 jobEndTime = DateTime.Now,
+                                jobId = jobId,
                                 jobRsValue = new JobDownloadResponse
                                 {
-                                    jobMsg = $"AllReadyDownload",
+                                    jobMsg = $"AllReady",
                                     jobStatus = 0,
                                 }
                             };
@@ -99,7 +101,7 @@ namespace SFTPService.Helper
                             await _mqtt.PublishToServer(
                                 progressObj,
                                 $"server/{branchID}/SFTP/DownloadResponse",
-                                MqttQualityOfServiceLevel.AtMostOnce);
+                                MqttQualityOfServiceLevel.ExactlyOnce);
 
                             return;
                         }
@@ -124,10 +126,10 @@ namespace SFTPService.Helper
                         {
                             jobUser = userId,
                             jobEndTime = DateTime.Now,
+                            jobId = jobId,
                             jobRsValue = new JobDownloadResponse
                             {
-                                jobMsg = $"Downloading... {percent}%",
-                                jobStatus = 0,
+                                jobStatus = 1,
                                 jobProgress = percent,
                                 jobTotalBytes = remoteFileSize,
                                 jobDownloadedBytes = offset
@@ -149,12 +151,30 @@ namespace SFTPService.Helper
                     await _log.WriteLog("SFTP Error", $"Download attempt {attempt} failed for {remotePathBefore}");
                     await _log.WriteLog("SFTP Exception", ex.ToString(), 3);
 
+                    if (attempt == 5)
+                    {
+                        var progressObj = new BranchJobResponse<JobDownloadResponse>
+                        {
+                            jobUser = userId,
+                            jobEndTime = DateTime.Now,
+                            jobId = jobId,
+                            jobRsValue = new JobDownloadResponse
+                            {
+                                jobStatus = 0,
+                            }
+                        };
+
+                        await _mqtt.PublishToServer(
+                            progressObj,
+                            $"server/{branchID}/SFTP/DownloadResponse",
+                            MqttQualityOfServiceLevel.ExactlyOnce);
+                    }
                     if (attempt >= MaxRetries) throw;
                 }
             }
         }
 
-        public async Task UploadFileAsync(string localPathBefore, string remotePathBefore, string userId, string branchID, IProgress<double>? progress = null)
+        public async Task UploadFileAsync(string localPathBefore, string remotePathBefore, string userId, string branchID, string jobId, IProgress<double>? progress = null)
         {
             int attempt = 0;
             bool success = false;
@@ -186,9 +206,10 @@ namespace SFTPService.Helper
                             {
                                 jobUser = userId,
                                 jobEndTime = DateTime.Now,
+                                jobId = jobId,
                                 jobRsValue = new JobDownloadResponse
                                 {
-                                    jobMsg = $"AllReadyDownload",
+                                    jobMsg = $"AllReady",
                                     jobStatus = 0,
                                 }
                             };
@@ -224,10 +245,10 @@ namespace SFTPService.Helper
                         {
                             jobUser = userId,
                             jobEndTime = DateTime.Now,
+                            jobId = jobId,
                             jobRsValue = new JobDownloadResponse
                             {
-                                jobMsg = $"Downloading... {percent}%",
-                                jobStatus = 0,
+                                jobStatus = 1,
                                 jobProgress = percent,
                                 jobTotalBytes = localFileSize,
                                 jobDownloadedBytes = offset
@@ -248,6 +269,25 @@ namespace SFTPService.Helper
                 {
                     await _log.WriteLog("SFTP Error", $"Upload attempt {attempt} failed for {localPathBefore}");
                     await _log.WriteLog("SFTP Exception", ex.ToString(), 3);
+
+                    if (attempt == 5)
+                    {
+                        var progressObj = new BranchJobResponse<JobDownloadResponse>
+                        {
+                            jobUser = userId,
+                            jobEndTime = DateTime.Now,
+                            jobId = jobId,
+                            jobRsValue = new JobDownloadResponse
+                            {
+                                jobStatus = 0,
+                            }
+                        };
+
+                        await _mqtt.PublishToServer(
+                            progressObj,
+                            $"server/{branchID}/SFTP/UploadResponse",
+                            MqttQualityOfServiceLevel.ExactlyOnce);
+                    }
 
                     if (attempt >= MaxRetries) throw;
                 }

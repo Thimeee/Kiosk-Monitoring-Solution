@@ -9,6 +9,7 @@ namespace Monitoring.Shared.DTO
     public class BranchJobRequest<T>
     {
         public string? jobUser { get; set; }
+        public string? jobId { get; set; }
         public DateTime? jobStartTime { get; set; }
 
         public T? jobRqValue { get; set; }

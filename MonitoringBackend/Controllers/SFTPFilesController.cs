@@ -1,4 +1,6 @@
-﻿using System.IdentityModel.Tokens.Jwt;
+﻿using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
+using System.IO;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
@@ -84,12 +86,12 @@ namespace MonitoringBackend.Controllers
             catch (Exception ex)
             {
                 // Log the exception (optional)
-                Console.WriteLine($"Error during registration: {ex.Message}");
+                Console.WriteLine($"Error during Get Paths: {ex.Message}");
 
                 // Return a generic error response
                 responseDTO.Status = false;
                 responseDTO.StatusCode = 0;
-                responseDTO.Message = "Error during Get Branches";
+                responseDTO.Message = "Error during Get Paths";
                 responseDTO.Ex = ex.ToString();
                 return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
             }
@@ -137,12 +139,12 @@ namespace MonitoringBackend.Controllers
             catch (Exception ex)
             {
                 // Log the exception (optional)
-                Console.WriteLine($"Error during registration: {ex.Message}");
+                Console.WriteLine($"Error during Get Server Paths: {ex.Message}");
 
                 // Return a generic error response
                 responseDTO.Status = false;
                 responseDTO.StatusCode = 0;
-                responseDTO.Message = "Error during registration";
+                responseDTO.Message = "Error during Get Server Paths";
                 responseDTO.Ex = ex.Message;
                 return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
                 //return StatusCode(500, new { Error = "An unexpected error occurred." });
@@ -226,18 +228,19 @@ namespace MonitoringBackend.Controllers
             catch (Exception ex)
             {
                 // Log the exception (optional)
-                Console.WriteLine($"Error during registration: {ex.Message}");
+                Console.WriteLine($"Error during Get Branch Paths: {ex.Message}");
 
                 // Return a generic error response
                 responseDTO.Status = false;
                 responseDTO.StatusCode = 0;
-                responseDTO.Message = "Error during registration";
+                responseDTO.Message = "Error during Get Branch Paths";
                 responseDTO.Ex = ex.Message;
                 return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
                 //return StatusCode(500, new { Error = "An unexpected error occurred." });
             }
         }
 
+        //Upload and Download branch and server Both Methods Start
 
 
         [HttpPost("downloadAndUploadFileBoth")]
@@ -247,9 +250,10 @@ namespace MonitoringBackend.Controllers
             try
             {
                 string? path = data.TryGetProperty("path", out var pathElement) ? pathElement.GetString() : null;
-                string? file = data.TryGetProperty("file", out var branchCodeElement) ? branchCodeElement.GetString() : null;
+                string? file = data.TryGetProperty("file", out var fileElement) ? fileElement.GetString() : null;
                 string? userId = data.TryGetProperty("userId", out var userIdElement) ? userIdElement.GetString() : null;
-                string? branchCode = data.TryGetProperty("branchId", out var branchIdElement) ? branchIdElement.GetString() : null;
+                string? branchId = data.TryGetProperty("branchId", out var branchIdElement) ? branchIdElement.GetString() : null;
+                string? branchCode = data.TryGetProperty("branchCode", out var branchCodeElement) ? branchCodeElement.GetString() : null;
                 string? type = data.TryGetProperty("type", out var typeElement) ? typeElement.GetString() : null;
 
                 if (string.IsNullOrEmpty(path))
@@ -259,9 +263,9 @@ namespace MonitoringBackend.Controllers
                     responseDTO.Message = " Path are required.";
                     return BadRequest(responseDTO);
                 }
-                var branchIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                //var branchIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-                if (branchIdClaim == null)
+                if (branchId == null)
                 {
                     responseDTO.Status = false;
                     responseDTO.StatusCode = 1;
@@ -269,25 +273,35 @@ namespace MonitoringBackend.Controllers
                     return BadRequest(responseDTO);
                 }
 
-                if (int.TryParse(branchIdClaim, out int branchId))
+                int branchIdInt = int.Parse(branchId);
+
+
+                var SFTPObj = await _db.SFTPFolders
+.Include(s => s.Branch)           // load the related Branch
+.FirstOrDefaultAsync(s => s.Branch.Id == branchIdInt);
+
+                if (SFTPObj == null)
                 {
-                    var SFTPObj = await _db.SFTPFolders
-    .Include(s => s.Branch)           // load the related Branch
-    .FirstOrDefaultAsync(s => s.Branch.Id == branchId);
+                    responseDTO.Status = false;
+                    responseDTO.StatusCode = 1;
+                    responseDTO.Message = "Branch Not Found";
+                    return NotFound(responseDTO);
+                }
+                //var topicID = $"branch/{branchId}/heartbeat";
 
-                    if (SFTPObj == null)
-                    {
-                        responseDTO.Status = false;
-                        responseDTO.StatusCode = 1;
-                        responseDTO.Message = "Branch Not Found";
-                        return NotFound(responseDTO);
-                    }
-                    //var topicID = $"branch/{branchId}/heartbeat";
+                //var topic = $"branch/{SFTPObj.Branch.BranchId}/SFTP/FolderStucher";
 
-                    //var topic = $"branch/{SFTPObj.Branch.BranchId}/SFTP/FolderStucher";
+                BranchJobRequest<FileDetails>? job = null;
+                string? topic = null;
+                Job jobLog = null;
+                if (type != null)
+                {
+                    var list = new List<string>() {
 
-                    BranchJobRequest<FileDetails>? job = null;
-                    string? topic = null;
+                    branchId, userId
+
+                };
+                    var jobId = new CreateUniqId().GenarateUniqID(list);
 
                     if (type == "branch")
                     {
@@ -297,6 +311,7 @@ namespace MonitoringBackend.Controllers
                         {
                             jobUser = userId,
                             jobStartTime = DateTime.Now,
+                            jobId = jobId,
                             jobRqValue = new FileDetails
                             {
                                 branch = new BranchFile
@@ -311,10 +326,26 @@ namespace MonitoringBackend.Controllers
                                     name = file,
                                     path = path,
                                 }
-
-
                             }
                         };
+
+
+                        jobLog = new Job
+                        {
+                            BranchId = branchIdInt,
+                            UserId = userId,
+                            JTId = 2,
+                            JobUId = jobId,
+                            JobDate = DateTime.Now,
+                            JobStartTime = DateTime.Now,
+                            JobEndTime = DateTime.Now,
+                            JobStatus = 1, // In Progress
+                            JobName = $"Download File to Branch: {path} ",
+                            JobMassage = $"File Download Start",
+                            JobActive = 1
+                        };
+
+
                     }
                     else if (type == "server")
                     {
@@ -324,6 +355,7 @@ namespace MonitoringBackend.Controllers
                         {
                             jobUser = userId,
                             jobStartTime = DateTime.Now,
+                            jobId = jobId,
                             jobRqValue = new FileDetails
                             {
                                 branch = new BranchFile
@@ -340,9 +372,28 @@ namespace MonitoringBackend.Controllers
                                 }
                             }
                         };
+
+                        jobLog = new Job
+                        {
+                            BranchId = branchIdInt,
+                            UserId = userId,
+                            JTId = 4,
+                            JobUId = jobId,
+                            JobDate = DateTime.Now,
+                            JobStartTime = DateTime.Now,
+                            JobEndTime = DateTime.Now,
+                            JobStatus = 1, // In Progress
+                            JobName = $"Upload File to Server: {path} ",
+                            JobMassage = $"Upload File Start",
+                            JobActive = 1
+                        };
                     }
-                    if (job != null && topic != null)
+                    if (job != null && topic != null && jobLog != null)
                     {
+
+                        await _db.Jobs.AddAsync(jobLog);
+                        await _db.SaveChangesAsync();
+
                         await _mqtt.PublishToServer(job, topic, MqttQualityOfServiceLevel.ExactlyOnce);
 
                         responseDTO.Status = true;
@@ -360,10 +411,6 @@ namespace MonitoringBackend.Controllers
 
                 }
 
-
-
-
-
                 return Ok(responseDTO);
 
             }
@@ -371,37 +418,40 @@ namespace MonitoringBackend.Controllers
             catch (Exception ex)
             {
                 // Log the exception (optional)
-                Console.WriteLine($"Error during registration: {ex.Message}");
+                Console.WriteLine($"Error during File sharing: {ex.Message}");
 
                 // Return a generic error response
                 responseDTO.Status = false;
                 responseDTO.StatusCode = 0;
-                responseDTO.Message = "Error during registration";
+                responseDTO.Message = "Error during File sharing";
                 responseDTO.Ex = ex.Message;
                 return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
             }
         }
+        //Upload and Download branch and server Both Methods End
 
 
 
-        //Delete to selected file branch and server Both
+        //Delete to selected file branch and server Both Methods Start
 
         [HttpPost("deleteFileBoth")]
         public async Task<IActionResult> deleteFileBoth([FromBody] JsonElement data)
         {
             var responseDTO = new APIResponseSingleValue();
+            var jobId = string.Empty;
             try
             {
                 string? path = data.TryGetProperty("path", out var pathElement) ? pathElement.GetString() : null;
                 string? userId = data.TryGetProperty("userId", out var userIdElement) ? userIdElement.GetString() : null;
-                string? branchCode = data.TryGetProperty("branchId", out var branchIdElement) ? branchIdElement.GetString() : null;
+                string? branchId = data.TryGetProperty("branchId", out var branchIdElement) ? branchIdElement.GetString() : null;
+                string? branchCode = data.TryGetProperty("branchCode", out var branchCodeElement) ? branchCodeElement.GetString() : null;
 
                 bool? isServer = null;
+
                 if (data.TryGetProperty("isServer", out var isServerElement))
                 {
                     isServer = isServerElement.GetBoolean();
                 }
-
 
                 if (string.IsNullOrEmpty(path))
                 {
@@ -411,11 +461,28 @@ namespace MonitoringBackend.Controllers
                     return BadRequest(responseDTO);
                 }
 
+                var list = new List<string>() {
 
+                    branchId, userId
+
+                };
+
+                jobId = new CreateUniqId().GenarateUniqID(list);
+                int branchIdInt = int.Parse(branchId);
+
+                if (jobId == null)
+                {
+                    responseDTO.Status = false;
+                    responseDTO.StatusCode = 1;
+                    responseDTO.Message = " Server Error.";
+                    return NotFound(responseDTO);
+
+                }
                 if (isServer != null)
                 {
                     if ((bool)isServer)
                     {
+
                         if (!System.IO.File.Exists(path))
                         {
                             responseDTO.Status = false;
@@ -426,6 +493,24 @@ namespace MonitoringBackend.Controllers
 
                         System.IO.File.Delete(path);
 
+                        var jobLog = new Job
+                        {
+                            BranchId = branchIdInt,
+                            UserId = userId,
+                            JTId = 2,
+                            JobUId = jobId,
+                            JobDate = DateTime.Now,
+                            JobStartTime = DateTime.Now,
+                            JobEndTime = DateTime.Now,
+                            JobStatus = 2, // In Progress
+                            JobName = $"File deleted successfully Server: {path} ",
+                            JobMassage = $"File deleted successfully: {path}",
+                            JobActive = 0
+                        };
+
+
+                        await _db.Jobs.AddAsync(jobLog);
+                        await _db.SaveChangesAsync();
 
                         responseDTO.Status = true;
                         responseDTO.StatusCode = 2;
@@ -446,6 +531,7 @@ namespace MonitoringBackend.Controllers
                         {
                             jobUser = userId,
                             jobStartTime = DateTime.Now,
+                            jobId = jobId,
                             jobRqValue = new FileDetails
                             {
                                 branch = new BranchFile
@@ -457,6 +543,24 @@ namespace MonitoringBackend.Controllers
 
 
                         await _mqtt.PublishToServer(job, topic, MqttQualityOfServiceLevel.ExactlyOnce);
+
+                        var jobLog = new Job
+                        {
+                            BranchId = branchIdInt,
+                            UserId = userId,
+                            JTId = 2,
+                            JobUId = jobId,
+                            JobDate = DateTime.Now,
+                            JobStartTime = DateTime.Now,
+                            JobStatus = 1, // In Progress
+                            JobName = $"Deleting Branch this file: {path}",
+                            JobMassage = $"Start Deleting file",
+                            JobActive = 1
+                        };
+
+
+                        await _db.Jobs.AddAsync(jobLog);
+                        await _db.SaveChangesAsync();
 
                         responseDTO.Status = true;
                         responseDTO.StatusCode = 2;
@@ -474,21 +578,33 @@ namespace MonitoringBackend.Controllers
             {
                 // Log the exception (optional)
                 Console.WriteLine($"Error during registration: {ex.Message}");
+                if (!string.IsNullOrEmpty(jobId))
+                {
+                    var job = await _db.Jobs.FirstOrDefaultAsync(j => j.JobUId == jobId);
+                    if (job != null)
+                    {
+                        job.JobStatus = 0; // Failed
+                        job.JobActive = 0;
+                        job.JobEndTime = DateTime.Now;
+                        job.JobMassage = $"File deleting failed";
 
+                        _db.Jobs.Update(job);
+                        await _db.SaveChangesAsync();
+                    }
+
+                }
                 // Return a generic error response
                 responseDTO.Status = false;
                 responseDTO.StatusCode = 0;
-                responseDTO.Message = "Error during registration";
+                responseDTO.Message = "File deleting failed";
                 responseDTO.Ex = ex.Message;
                 return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
             }
-
-
-
-
-
         }
+        //Delete to selected file branch and server Both Methods End
 
+
+        //Client UploadFile Serve Methods Start
 
         [RequestSizeLimit(long.MaxValue)]
         [HttpPost("chunk")]
@@ -523,7 +639,7 @@ namespace MonitoringBackend.Controllers
                 }
 
                 // Store chunks in temp folder
-                chunksFolder = Path.Combine("C:\\Branches\\SFTPFolder\\Chunks", fileName);
+                chunksFolder = Path.Combine("C:\\Branches\\MCS\\SFTPFolder\\Chunks", fileName);
                 if (!Directory.Exists(chunksFolder))
                     Directory.CreateDirectory(chunksFolder);
 
@@ -547,7 +663,8 @@ namespace MonitoringBackend.Controllers
                         JobDate = DateTime.Now,
                         JobStartTime = DateTime.Now,
                         JobStatus = 1, // In Progress
-                        JobMassage = $"Uploading file: {fileName}",
+                        JobName = $"Upload file: {fileName} Server",
+                        JobMassage = $"Start Uploading",
                         JobActive = 1
                     };
 
@@ -570,7 +687,7 @@ namespace MonitoringBackend.Controllers
 
                 // ⭐ FINAL CHUNK -> MERGE FILE
 
-                string finalFolder = Path.Combine("C:\\Branches\\SFTPFolder\\Final");
+                string finalFolder = Path.Combine("C:\\Branches\\MCS\\SFTPFolder\\Final");
                 if (!Directory.Exists(finalFolder))
                     Directory.CreateDirectory(finalFolder);
 
@@ -598,7 +715,7 @@ namespace MonitoringBackend.Controllers
                     job.JobStatus = 2;
                     job.JobActive = 0;
                     job.JobEndTime = DateTime.Now;
-                    job.JobMassage = $"File uploaded successfully: {fileName}";
+                    job.JobMassage = $"File uploaded successfully";
 
                     _db.Jobs.Update(job);
                     await _db.SaveChangesAsync();
@@ -628,7 +745,7 @@ namespace MonitoringBackend.Controllers
                             job.JobStatus = 0; // Failed
                             job.JobActive = 0;
                             job.JobEndTime = DateTime.Now;
-                            job.JobMassage = $"File upload failed: {ex.Message}";
+                            job.JobMassage = $"File upload failed";
 
                             _db.Jobs.Update(job);
                             await _db.SaveChangesAsync();
@@ -679,11 +796,11 @@ namespace MonitoringBackend.Controllers
                     await _db.SaveChangesAsync();
                 }
 
-                var chunksFolder = Path.Combine("C:\\Branches\\SFTPFolder\\Chunks", fileName);
+                var chunksFolder = Path.Combine("C:\\Branches\\MCS\\SFTPFolder\\Chunks", fileName);
                 if (Directory.Exists(chunksFolder))
                     Directory.Delete(chunksFolder, true);
 
-                string finalFolder = Path.Combine("C:\\Branches\\SFTPFolder\\Final", fileName);
+                string finalFolder = Path.Combine("C:\\Branches\\MCS\\SFTPFolder\\Final", fileName);
                 if (Directory.Exists(finalFolder))
                     System.IO.File.Delete(finalFolder);
 
@@ -710,6 +827,8 @@ namespace MonitoringBackend.Controllers
                 //return StatusCode(500, new { Error = "An unexpected error occurred." });
             }
         }
+
+        //Client UploadFile Serve Methods End
 
     }
 }

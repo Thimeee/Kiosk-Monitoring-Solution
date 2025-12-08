@@ -481,7 +481,7 @@
 
                      var JobStatus = status.jobRsValue;
 
-                     if (JobStatus.jobStatus == 1)
+                     if (JobStatus.jobStatus == 2)
                      {
                          await afterDownloadAndUpload();
                          if (SFTPFolderPathObj != null)
@@ -494,7 +494,16 @@
                      }else
                      if (JobStatus.jobStatus == 0)
                      {
-                         AlertService.ShowInfo("File Transfer", "The selected file has already been downloaded.");
+                         if (JobStatus.jobMsg == "AllReady")
+                         {
+                             AlertService.ShowInfo("File Transfer", "The selected file has already been downloaded.");
+
+                         }
+                         else
+                         {
+                             AlertService.ShowError("File Transfer", "File Download failed");
+
+                         }
 
 
 
@@ -509,7 +518,7 @@
 
                      var JobStatus = status.jobRsValue;
 
-                     if (JobStatus.jobStatus == 1)
+                     if (JobStatus.jobStatus == 2)
                      {
                          await afterDownloadAndUpload();
                          if (SFTPFolderPathObj != null)
@@ -523,10 +532,18 @@
                      else
                      if (JobStatus.jobStatus == 0)
                      {
-                         AlertService.ShowInfo("File Transfer", "The selected file has already been Upload.");
+                         if (JobStatus.jobMsg == "AllReady")
+                         {
+                             AlertService.ShowInfo("File Transfer", "The selected file has already been Upload.");
+                         }
+                         else
+                         {
+                             AlertService.ShowError("File Transfer", "File Upload failed");
 
+                         }
 
-
+                         
+                     
                      }
                  });
 
@@ -541,12 +558,9 @@
 
                      if (JobStatus == null) return;
 
-                     if (JobStatus.jobStatus == 0)
-                     {
-
+                    
                          await downloadAndUploadProgressBar(status);
 
-                     }
                  });
 
             // Register event handler
@@ -559,12 +573,9 @@
 
                      if (JobStatus == null) return;
 
-                     if (JobStatus.jobStatus == 0)
-                     {
-
+                   
                          await downloadAndUploadProgressBar(status);
 
-                     }
                  });
 
             // Register event handler
@@ -577,18 +588,13 @@
 
                      if (JobStatus == null) return;
 
-                     if (JobStatus.jobStatus == 0)
+                     if (JobStatus.jobStatus == 1)
                      {
 
                          await downloadAndUploadProgressBar(status);
 
-                         if (JobStatus.jobMsg == "File not found")
-                         {
-                             AlertService.ShowInfo("File Transfer", "The selected file has already been Upload.");
 
-                         }
-
-                     }else if(JobStatus.jobStatus == 1)
+                     }else if(JobStatus.jobStatus == 2)
                      {
                          await afterDownloadAndUpload();
                          if (SFTPFolderPathObj != null)
@@ -597,6 +603,12 @@
                              StateHasChanged();
 
                          }
+                     }
+                     else
+                     {
+                        
+                         AlertService.ShowError("File Transfer", "File delete failed");
+
                      }
                  });
 
@@ -1321,7 +1333,7 @@
                         if (user == null)
                             user = await getUserDetails();
 
-                        if (await TransferToServerAsync(Settings.MainApiBaseUrl, SelectedFile, token, branchId.BranchCode, user.UserId, "branch"))
+                        if (await TransferToServerAsync(Settings.MainApiBaseUrl, SelectedFile, token, branchId.BranchCode, branchId.BranchID, user.UserId, "branch"))
                         {
                             isTransferring = true;
 
@@ -1367,7 +1379,7 @@
                         if (user == null)
                             user = await getUserDetails();
 
-                        if (await TransferToServerAsync(Settings.MainApiBaseUrl, SelectedFile, token, branchId.BranchCode, user.UserId,"server"))
+                        if (await TransferToServerAsync(Settings.MainApiBaseUrl, SelectedFile, token, branchId.BranchCode,branchId.BranchID, user.UserId,"server"))
                         {
                             isTransferring = true;
 
@@ -1387,7 +1399,7 @@
     }
 
 
-    private async Task<bool> TransferToServerAsync(string baseUrl, FileNode node, string jwtToken,string branchCode,string userid,string type)
+    private async Task<bool> TransferToServerAsync(string baseUrl, FileNode node, string jwtToken,string branchCode,string branchid,string userid,string type)
     {
         try
         {
@@ -1396,7 +1408,8 @@
                 Path = node.FullPath,
                 File = node.Name,
                 UserId = userid,
-                BranchId = branchCode,
+                BranchId = branchid,
+                BranchCode = branchCode,
                 Type = type,
 
             };
@@ -1514,7 +1527,7 @@
                 if (user == null)
                     user = await getUserDetails();
 
-                if (await DeleteFileServerAndBarnch(Settings.MainApiBaseUrl, fullpath, token, branchId.BranchCode, user.UserId, isServer))
+                if (await DeleteFileServerAndBarnch(Settings.MainApiBaseUrl, fullpath, token, branchId.BranchCode,branchId.BranchID, user.UserId, isServer))
                 {
                     isTransferring = true;
 
@@ -1537,7 +1550,7 @@
         isDeleting = true;    
     }
 
-    private async Task<bool> DeleteFileServerAndBarnch(string baseUrl, string fullpath, string jwtToken, string branchCode, string userid,bool isServer)
+    private async Task<bool> DeleteFileServerAndBarnch(string baseUrl, string fullpath, string jwtToken, string branchCode, string branchId, string userid, bool isServer)
     {
         try
         {
@@ -1545,7 +1558,8 @@
             {
                 Path = fullpath,
                 UserId = userid,
-                BranchId = branchCode,
+                BranchId = branchId,
+                BranchCode = branchCode,
                 IsServer=isServer,
             };
 

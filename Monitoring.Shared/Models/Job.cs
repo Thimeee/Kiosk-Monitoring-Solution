@@ -33,11 +33,17 @@ namespace Monitoring.Shared.Models
         [StringLength(450)]
         public string? JobMassage { get; set; }
 
+        [Column("JobName")]
+        [StringLength(450)]
+        public string? JobName { get; set; }
+
+
         [Column("JobStatus")]
         public int? JobStatus { get; set; }
 
         [Column("JobActive")]
         public int? JobActive { get; set; }
+
 
         [Column("BranchId")]
         public int? BranchId { get; set; }

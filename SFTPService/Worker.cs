@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Monitoring.Grpc;
 using Monitoring.Shared.DTO;
+using Monitoring.Shared.Models;
 using MQTTnet;
 using MQTTnet.Protocol;
 using SFTPService.Helper;
@@ -129,40 +130,40 @@ namespace SFTPService
                                 {
                                     var job = JsonSerializer.Deserialize<BranchJobRequest<FileDetails>>(payload);
 
-                                if (job.jobRqValue != null)
-                                {
-                                    if (job.jobRqValue.branch != null)
+                                    if (job.jobRqValue != null)
                                     {
-                                        var folder = new GetFolderStructure();
-                                        var rootNode = await folder.GetFolderStructureRootAsync($"{job.jobRqValue.branch.path}/{job.jobRqValue.branch.name}");
-
-
-
-                                        if (rootNode != null)
+                                        if (job.jobRqValue.branch != null)
                                         {
-                                            var resObj = new BranchJobResponse<FolderNode>
+                                            var folder = new GetFolderStructure();
+                                            var rootNode = await folder.GetFolderStructureRootAsync($"{job.jobRqValue.branch.path}/{job.jobRqValue.branch.name}");
+
+
+
+                                            if (rootNode != null)
                                             {
-                                                jobUser = job.jobUser,
-                                                jobEndTime = DateTime.Now,
-                                                jobRsValue = rootNode
-                                            };
-                                            await _mqtt.PublishToServer(resObj, $"server/{branchId}/SFTP/FolderStucherResponse", MqttQualityOfServiceLevel.AtMostOnce);
+                                                var resObj = new BranchJobResponse<FolderNode>
+                                                {
+                                                    jobUser = job.jobUser,
+                                                    jobEndTime = DateTime.Now,
+                                                    jobRsValue = rootNode
+                                                };
+                                                await _mqtt.PublishToServer(resObj, $"server/{branchId}/SFTP/FolderStucherResponse", MqttQualityOfServiceLevel.AtMostOnce);
 
-                                            await _log.WriteLog("UploadFileToMain", "Folder structure sent successfully.");
+                                                await _log.WriteLog("UploadFileToMain", "Folder structure sent successfully.");
+                                            }
+
+                                            //await PrintFolderNode(rootNode);
+
+                                            //var options = new JsonSerializerOptions
+                                            //{
+                                            //    WriteIndented = true
+                                            //};
+                                            //string jsonMessage = JsonSerializer.Serialize(rootNode, options);
+
+                                            //await _log.WriteLog("UploadFileToMain ", $"all oky");*/
+
                                         }
-
-                                        //await PrintFolderNode(rootNode);
-
-                                        //var options = new JsonSerializerOptions
-                                        //{
-                                        //    WriteIndented = true
-                                        //};
-                                        //string jsonMessage = JsonSerializer.Serialize(rootNode, options);
-
-                                        //await _log.WriteLog("UploadFileToMain ", $"all oky");*/
-
                                     }
-                                }
                                 }
                                 catch (Exception ex)
                                 {
@@ -173,93 +174,111 @@ namespace SFTPService
                             }
                             else if (topic.EndsWith("/Upload"))
                             {
-                                try { 
-                                var job = JsonSerializer.Deserialize<BranchJobRequest<FileDetails>>(payload);
-
-                                //await _log.WriteLog("MQTT SFTPupload", $"{payload}");
-                                if (job.jobRqValue != null)
-                                {
-                                    if (job.jobRqValue.server != null && job.jobRqValue.branch != null)
-                                    {
-                                        await _log.WriteLog("UploadFileToMain ", $"UploadFileToMain Try");
-
-                                        //string remoteFile = "/upload/noVNC-1.6.0.zip"; // NOT C:/...
-                                        await _sftp.UploadFileAsync($"{job.jobRqValue.branch.path}", $"{job.jobRqValue.server.path}/{job.jobRqValue.server.name}", job.jobUser, branchId);
-
-                                        await _log.WriteLog("UploadFileToMain ", $"UploadFileToMain Done");
-
-                                        var resObj = new BranchJobResponse<JobDownloadResponse>
-                                        {
-                                            jobUser = job.jobUser,
-                                            jobEndTime = DateTime.Now,
-                                            jobRsValue = new JobDownloadResponse
-                                            {
-                                                jobMsg = "Upload Completed",
-                                                jobStatus = 1
-                                            }
-                                        };
-                                        await _mqtt.PublishToServer(resObj, $"server/{branchId}/SFTP/UploadResponse", MqttQualityOfServiceLevel.ExactlyOnce); ;
-
-                                        await _log.WriteLog("UploadFileToMain ", $"all oky");
-                                    }
-                                }
-                            }
-                                catch (Exception ex)
-                    {
-                        await _log.WriteLog("Service Error SFTP (Upload)", $"Service Error Check ExecptionLog -> (Service Exception) ");
-                        await _log.WriteLog("Service Exception (SubscribeBranchQueue) SFTP (Upload)", $"Unexpected error: {ex}", 3);
-                    }
-
-                }
-                            else if (topic.EndsWith("/Download"))
-                            {
                                 try
                                 {
                                     var job = JsonSerializer.Deserialize<BranchJobRequest<FileDetails>>(payload);
 
-
+                                    //await _log.WriteLog("MQTT SFTPupload", $"{payload}");
                                     if (job.jobRqValue != null)
                                     {
                                         if (job.jobRqValue.server != null && job.jobRqValue.branch != null)
                                         {
-                                            var progress = new Progress<double>(p =>
-                                            {
-                                                //if want write log
-                                                //Console.WriteLine($"Download Progress: {p}%");
-                                            });
+                                            await _log.WriteLog("UploadFileToMain ", $"UploadFileToMain Try");
 
+                                            //string remoteFile = "/upload/noVNC-1.6.0.zip"; // NOT C:/...
+                                            await _sftp.UploadFileAsync($"{job.jobRqValue.branch.path}", $"{job.jobRqValue.server.path}/{job.jobRqValue.server.name}", job.jobUser, branchId, job.jobId);
 
-                                            await _sftp.DownloadFileAsync($"{job.jobRqValue.server.path}", $"{job.jobRqValue.branch.path}/{job.jobRqValue.server.name}", job.jobUser, branchId, progress);
-
-                                            await _log.WriteLog("DownloadGlobalUpdate ", $"DownloadGlobalUpdate Done");
+                                            await _log.WriteLog("UploadFileToMain ", $"UploadFileToMain Done");
 
                                             var resObj = new BranchJobResponse<JobDownloadResponse>
                                             {
                                                 jobUser = job.jobUser,
                                                 jobEndTime = DateTime.Now,
+                                                jobId = job.jobId,
                                                 jobRsValue = new JobDownloadResponse
                                                 {
-                                                    jobMsg = "Download Completed",
-                                                    jobStatus = 1
+                                                    jobStatus = 2
                                                 }
                                             };
-                                            await _mqtt.PublishToServer(resObj, $"server/{branchId}/SFTP/DownloadResponse", MqttQualityOfServiceLevel.ExactlyOnce);
+                                            await _mqtt.PublishToServer(resObj, $"server/{branchId}/SFTP/UploadResponse", MqttQualityOfServiceLevel.ExactlyOnce); ;
 
-                                            await _log.WriteLog("DownloadGlobalUpdate ", $"Send RabbitMq Status Done DownloadGlobalUpdate");
+                                            await _log.WriteLog("UploadFileToMain ", $"all oky");
                                         }
                                     }
                                 }
                                 catch (Exception ex)
                                 {
+                                    await _log.WriteLog("Service Error SFTP (Upload)", $"Service Error Check ExecptionLog -> (Service Exception) ");
+                                    await _log.WriteLog("Service Exception (SubscribeBranchQueue) SFTP (Upload)", $"Unexpected error: {ex}", 3);
+                                }
+
+                            }
+                            else if (topic.EndsWith("/Download"))
+                            {
+                                BranchJobRequest<FileDetails>? job = null;
+                                BranchJobResponse<JobDownloadResponse>? resObj = null;
+                                try
+                                {
+                                    job = JsonSerializer.Deserialize<BranchJobRequest<FileDetails>>(payload);
+
+                                    if (job != null)
+                                    {
+                                        if (job.jobRqValue != null)
+                                        {
+                                            if (job.jobRqValue.server != null && job.jobRqValue.branch != null)
+                                            {
+                                                var progress = new Progress<double>(p =>
+                                                {
+                                                    //if want write log
+                                                    //Console.WriteLine($"Download Progress: {p}%");
+                                                });
+
+
+                                                await _sftp.DownloadFileAsync($"{job.jobRqValue.server.path}", $"{job.jobRqValue.branch.path}/{job.jobRqValue.server.name}", job.jobUser, branchId, job.jobId, progress);
+
+                                                await _log.WriteLog("DownloadGlobalUpdate ", $"DownloadGlobalUpdate Done");
+
+                                                resObj = new BranchJobResponse<JobDownloadResponse>
+                                                {
+                                                    jobUser = job.jobUser,
+                                                    jobEndTime = DateTime.Now,
+                                                    jobId = job.jobId,
+                                                    jobRsValue = new JobDownloadResponse
+                                                    {
+                                                        jobStatus = 2
+                                                    }
+                                                };
+                                                await _mqtt.PublishToServer(resObj, $"server/{branchId}/SFTP/DownloadResponse", MqttQualityOfServiceLevel.ExactlyOnce);
+
+                                                await _log.WriteLog("DownloadGlobalUpdate ", $"Send RabbitMq Status Done DownloadGlobalUpdate");
+                                            }
+                                        }
+                                    }
+
+
+                                }
+                                catch (Exception ex)
+                                {
+                                    if (job != null && job.jobRqValue != null)
+                                    {
+                                        if (resObj != null && resObj.jobRsValue != null)
+                                        {
+                                            resObj.jobRsValue.jobStatus = 0;
+                                            await _mqtt.PublishToServer(resObj, $"server/{branchId}/SFTP/DownloadResponse", MqttQualityOfServiceLevel.ExactlyOnce);
+                                        }
+
+                                    }
                                     await _log.WriteLog("Service Error SFTP (Download)", $"Service Error Check ExecptionLog -> (Service Exception) ");
                                     await _log.WriteLog("Service Exception (SubscribeBranchQueue) SFTP (Download)", $"Unexpected error: {ex}", 3);
                                 }
                             }
                             else if (topic.EndsWith("/Delete"))
                             {
+                                BranchJobRequest<FileDetails>? job = null;
+                                BranchJobResponse<JobDownloadResponse>? resObj = null;
                                 try
                                 {
-                                    var job = JsonSerializer.Deserialize<BranchJobRequest<FileDetails>>(payload);
+                                    job = JsonSerializer.Deserialize<BranchJobRequest<FileDetails>>(payload);
 
 
                                     if (job.jobRqValue != null)
@@ -271,15 +290,15 @@ namespace SFTPService
 
                                                 var filePath = _sftp.ConvertRealPath(job.jobRqValue.branch.path);
 
-                                                var resObj = new BranchJobResponse<JobDownloadResponse>
+                                                resObj = new BranchJobResponse<JobDownloadResponse>
                                                 {
                                                     jobUser = job.jobUser,
+                                                    jobId = job.jobId,
                                                     jobEndTime = DateTime.Now,
                                                     jobRsValue = new JobDownloadResponse()
                                                 };
 
 
-                                                resObj.jobRsValue.jobMsg = "Delete started";
                                                 resObj.jobRsValue.jobStatus = 1;
                                                 resObj.jobRsValue.jobProgress = 10;
                                                 await _mqtt.PublishToServer(resObj, $"server/{branchId}/SFTP/DeleteResponse", MqttQualityOfServiceLevel.AtMostOnce);
@@ -289,14 +308,12 @@ namespace SFTPService
                                                 if (!System.IO.File.Exists(filePath))
                                                 {
                                                     await _log.WriteLog("DeleteFile ", $"File not found");
-                                                    resObj.jobRsValue.jobMsg = "File not found";
                                                     resObj.jobRsValue.jobStatus = 0;
                                                     await _mqtt.PublishToServer(resObj, $"server/{branchId}/SFTP/DeleteResponse", MqttQualityOfServiceLevel.ExactlyOnce);
                                                     return;
                                                 }
 
-                                                resObj.jobRsValue.jobMsg = "Deleting file...";
-                                                resObj.jobRsValue.jobStatus = 0;
+                                                resObj.jobRsValue.jobStatus = 1;
                                                 resObj.jobRsValue.jobProgress = 60;
 
                                                 await _mqtt.PublishToServer(resObj, $"server/{branchId}/SFTP/DeleteResponse", MqttQualityOfServiceLevel.AtMostOnce);
@@ -304,8 +321,7 @@ namespace SFTPService
 
                                                 System.IO.File.Delete(filePath);
 
-                                                resObj.jobRsValue.jobMsg = "Delete Completed";
-                                                resObj.jobRsValue.jobStatus = 0;
+                                                resObj.jobRsValue.jobStatus = 1;
                                                 resObj.jobRsValue.jobProgress = 100;
 
                                                 await _mqtt.PublishToServer(resObj, $"server/{branchId}/SFTP/DeleteResponse", MqttQualityOfServiceLevel.AtMostOnce);
@@ -314,8 +330,7 @@ namespace SFTPService
 
                                                 await Task.Delay(300);
 
-                                                resObj.jobRsValue.jobMsg = "Delete Completed";
-                                                resObj.jobRsValue.jobStatus = 1;
+                                                resObj.jobRsValue.jobStatus = 2;
 
                                                 await _mqtt.PublishToServer(resObj, $"server/{branchId}/SFTP/DeleteResponse", MqttQualityOfServiceLevel.ExactlyOnce);
 
@@ -327,13 +342,23 @@ namespace SFTPService
                                 }
                                 catch (Exception ex)
                                 {
+                                    if (job != null && job.jobRqValue != null)
+                                    {
+                                        if (resObj != null && resObj.jobRsValue != null)
+                                        {
+                                            resObj.jobRsValue.jobStatus = 0;
+                                            await _mqtt.PublishToServer(resObj, $"server/{branchId}/SFTP/DeleteResponse", MqttQualityOfServiceLevel.ExactlyOnce);
+                                        }
+
+                                    }
+
                                     await _log.WriteLog("Service Error SFTP (Delete)", $"Service Error Check ExecptionLog -> (Service Exception) ");
                                     await _log.WriteLog("Service Exception (SubscribeBranchQueue) SFTP (Delete)", $"Unexpected error: {ex}", 3);
                                 }
-                               
+
 
                             }
-                            
+
 
                             //return;
                         }

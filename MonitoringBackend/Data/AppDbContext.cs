@@ -18,12 +18,12 @@ namespace MonitoringBackend.Data
         {
             base.OnModelCreating(modelBuilder);
 
-    //        // Job → User
-    //        modelBuilder.Entity<Job>()
-    //.HasOne<AppUser>()
-    //.WithMany()
-    //.HasForeignKey(j => j.UserId)
-    //.IsRequired(false);
+            //        // Job → User
+            //        modelBuilder.Entity<Job>()
+            //.HasOne<AppUser>()
+            //.WithMany()
+            //.HasForeignKey(j => j.UserId)
+            //.IsRequired(false);
 
             //Job → Branch(Many Jobs per Branch)
             modelBuilder.Entity<Job>()

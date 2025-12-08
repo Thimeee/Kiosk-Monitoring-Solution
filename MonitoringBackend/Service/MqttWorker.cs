@@ -1,8 +1,11 @@
 ﻿
+using System.IO;
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Monitoring.Shared.DTO;
+using Monitoring.Shared.Models;
+using MonitoringBackend.Data;
 using MonitoringBackend.Helper;
 using MonitoringBackend.SRHub;
 using MQTTnet.Protocol;
@@ -17,15 +20,19 @@ namespace MonitoringBackend.Service
         private readonly IConfiguration _config;
         private readonly LoggerService _log;
         private readonly IHubContext<BranchHub> _hubContext;
+        private readonly IServiceScopeFactory _scopeFactory;
 
-        public MqttWorker(MQTTHelper mqtt, IConfiguration config, LoggerService log, IHubContext<BranchHub> hubContext)
+
+        public MqttWorker(MQTTHelper mqtt, IConfiguration config, LoggerService log, IHubContext<BranchHub> hubContext, IServiceScopeFactory scopeFactory)
         {
             _mqtt = mqtt;
             _config = config;
             _log = log;
             _hubContext = hubContext;
+            _scopeFactory = scopeFactory;
+
         }
-        protected override async Task<Task> ExecuteAsync(CancellationToken stoppingToken)
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             bool MQTTInit = false;
 
@@ -63,7 +70,7 @@ namespace MonitoringBackend.Service
             }
 
 
-            return Task.CompletedTask;
+            //return Task.CompletedTask;
 
 
 
@@ -152,14 +159,14 @@ namespace MonitoringBackend.Service
                 case "UploadResponse":
                     //var jobResUpload = JsonSerializer.Deserialize<BranchJobResponse<FolderNode>>(payload);
 
-                    await _hubContext.Clients.Group(BranchHub.BranchGroup(branchId))
-                       .SendAsync("UploadFile", payload);
+                    await HandleUploadResponse(branchId, payload);
+
                     break;
                 case "DownloadResponse":
                     //var jobResDownload = JsonSerializer.Deserialize<BranchJobResponse<JobDownloadResponse>>(payload);
 
-                    await _hubContext.Clients.Group(BranchHub.BranchGroup(branchId))
-                      .SendAsync("DownloadFile", payload);
+
+                    await HandleDownloadResponse(branchId, payload);
                     break;
 
                 case "DownloadProgress":
@@ -179,10 +186,8 @@ namespace MonitoringBackend.Service
                     break;
                 case "DeleteResponse":
 
-                    //var jobResProgressUpload = JsonSerializer.Deserialize<BranchJobResponse<JobDownloadResponse>>(payload);
 
-                    await _hubContext.Clients.Group(BranchHub.BranchGroup(branchId))
-                      .SendAsync("DeleteResponse", payload);
+                    await HandleDeleteResponse(branchId, payload);
                     break;
 
                 default:
@@ -214,6 +219,139 @@ namespace MonitoringBackend.Service
                 return;
             }
         }
+
+        //Branch File Delete method Start 
+        private async Task HandleDeleteResponse(string branchId, string payload)
+        {
+            var res = JsonSerializer.Deserialize<BranchJobResponse<JobDownloadResponse>>(payload);
+
+
+            if (res == null || res.jobRsValue == null)
+                return;
+
+            // → Create new DbContext safely
+            using var scope = _scopeFactory.CreateScope();
+
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var job = await db.Jobs.FirstOrDefaultAsync(j => j.JobUId == res.jobId);
+
+            if (job != null)
+            {
+                if (res.jobRsValue.jobStatus == 2)
+                {
+                    job.JobStatus = 2;
+                    job.JobActive = 0;
+                    job.JobEndTime = res.jobEndTime;
+                    job.JobMassage = "File Deleted successfully";
+                }
+                else
+                {
+                    job.JobStatus = 0;
+                    job.JobActive = 0;
+                    job.JobEndTime = res.jobEndTime;
+                    job.JobMassage = "Failed to delete file";
+                }
+
+                db.Jobs.Update(job);
+                await db.SaveChangesAsync();
+            }
+
+            await _hubContext.Clients.Group(BranchHub.BranchGroup(branchId))
+                .SendAsync("DeleteResponse", payload);
+        }
+
+        //Branch File Delete method Start 
+
+
+        //Branch File Download method Start 
+        private async Task HandleDownloadResponse(string branchId, string payload)
+        {
+            var res = JsonSerializer.Deserialize<BranchJobResponse<JobDownloadResponse>>(payload);
+
+            if (res == null || res.jobRsValue == null)
+                return;
+
+            // → Create new DbContext safely
+            using var scope = _scopeFactory.CreateScope();
+
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var job = await db.Jobs.FirstOrDefaultAsync(j => j.JobUId == res.jobId);
+
+            if (job != null)
+            {
+                if (res.jobRsValue.jobStatus == 2)
+                {
+                    job.JobStatus = 2;
+                    job.JobActive = 0;
+                    job.JobEndTime = res.jobEndTime;
+                    job.JobMassage = "File Download successfully";
+                }
+                else
+                {
+                    job.JobStatus = 0;
+                    job.JobActive = 0;
+                    job.JobEndTime = res.jobEndTime;
+                    job.JobMassage = "Failed to Download file";
+                }
+
+                db.Jobs.Update(job);
+                await db.SaveChangesAsync();
+            }
+
+            await _hubContext.Clients.Group(BranchHub.BranchGroup(branchId))
+                       .SendAsync("DownloadFile", payload);
+
+        }
+
+        //Branch File Download method End 
+
+        //Branch File Upload method Start 
+        private async Task HandleUploadResponse(string branchId, string payload)
+        {
+            var res = JsonSerializer.Deserialize<BranchJobResponse<JobDownloadResponse>>(payload);
+
+            if (res == null || res.jobRsValue == null)
+                return;
+
+            // → Create new DbContext safely
+            using var scope = _scopeFactory.CreateScope();
+
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var job = await db.Jobs.FirstOrDefaultAsync(j => j.JobUId == res.jobId);
+
+            if (job != null)
+            {
+                if (res.jobRsValue.jobStatus == 2)
+                {
+                    job.JobStatus = 2;
+                    job.JobActive = 0;
+                    job.JobEndTime = res.jobEndTime;
+                    job.JobMassage = "File Upload successfully";
+                }
+                else
+                {
+                    job.JobStatus = 0;
+                    job.JobActive = 0;
+                    job.JobEndTime = res.jobEndTime;
+                    job.JobMassage = "Failed to Upload file";
+                }
+
+                db.Jobs.Update(job);
+                await db.SaveChangesAsync();
+            }
+
+            await _hubContext.Clients.Group(BranchHub.BranchGroup(branchId))
+                   .SendAsync("UploadFile", payload);
+
+        }
+
+        //Branch File Upload method End 
+
+
+
 
 
         public class BranchCommand
