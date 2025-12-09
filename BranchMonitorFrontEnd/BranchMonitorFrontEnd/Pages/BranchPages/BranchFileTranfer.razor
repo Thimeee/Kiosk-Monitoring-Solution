@@ -1130,7 +1130,7 @@
                                     // Download Button
                                     builder.OpenElement(sequence++, "button");
                                     builder.AddAttribute(sequence++, "class", "file-action-btn");
-                                    builder.AddAttribute(sequence++, "onclick", EventCallback.Factory.Create(this, () => DownloadFile(file.FullPath)));
+                                    builder.AddAttribute(sequence++, "onclick", EventCallback.Factory.Create(this, () => DownloadFileServerToClient(file.FullPath)));
                                     builder.AddAttribute(sequence++, "title", "Download");
                                     builder.AddMarkupContent(sequence++, @"<svg xmlns=""http://www.w3.org/2000/svg"" width=""14"" height=""14"" viewBox=""0 0 24 24"" fill=""none"" stroke=""currentColor"" stroke-width=""2"">
                                     <path d=""M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4""></path>
@@ -1205,7 +1205,7 @@
 
                         builder.OpenElement(sequence++, "button");
                         builder.AddAttribute(sequence++, "class", "file-action-btn");
-                        builder.AddAttribute(sequence++, "onclick", EventCallback.Factory.Create(this, () => DownloadFile(file.FullPath)));
+                        builder.AddAttribute(sequence++, "onclick", EventCallback.Factory.Create(this, () => DownloadFileServerToClient(file.FullPath)));
                         builder.AddAttribute(sequence++, "title", "Download");
                         builder.AddMarkupContent(sequence++, @"<svg xmlns=""http://www.w3.org/2000/svg"" width=""14"" height=""14"" viewBox=""0 0 24 24"" fill=""none"" stroke=""currentColor"" stroke-width=""2"">
                         <path d=""M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4""></path>
@@ -1489,18 +1489,7 @@
     }
     private void RefreshBranch() { }
 
-    private void DownloadFile(string fullpath)
-    {
-        try
-        {
 
-        }
-        catch (Exception ex)
-        {
-
-        }
-
-    }
 
     private string? deleteFilePath;
     private bool? deleteserverOrBranch;
@@ -1635,6 +1624,89 @@
 
     }
 
+    private void DownloadFileServerToClient(string fullpath)
+    {
+        try
+        {
+
+        }
+        catch (Exception ex)
+        {
+
+        }
+
+    }
+
+
+    // private async Task<bool> DownloadFileServertoClientProcess(
+    // string baseUrl,
+    // string fullpath,
+    // string jwtToken,
+    // string branchId,
+    // string userid,
+    // string saveFilePath)
+    // {
+    //     try
+    //     {
+    //         using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+    //         client.DefaultRequestHeaders.Authorization =
+    //             new AuthenticationHeaderValue("Bearer", jwtToken);
+
+    //         int chunkSize = 1024 * 1024; 1MB
+    //         int chunkIndex = 0;
+    //         int totalChunks = 1;
+    //         string jobUId = Guid.NewGuid().ToString("N");
+
+    //         using var fs = new FileStream(saveFilePath, FileMode.Create, FileAccess.Write);
+
+    //         while (chunkIndex < totalChunks)
+    //         {
+    //             var requestObj = new
+    //             {
+    //                 path = fullpath,
+    //                 userId = userid,
+    //                 branchId = branchId,
+    //                 chunkIndex = chunkIndex,
+    //                 chunkSize = chunkSize,
+    //                 jobUId = jobUId
+    //             };
+
+    //             var response = await client.PostAsJsonAsync("api/SFTPFiles/downloadChunk", requestObj);
+    //             var result = await response.Content.ReadFromJsonAsync<APIResponseSingleValue>();
+
+    //             if (!response.IsSuccessStatusCode || result?.Status != true)
+    //             {
+    //                 AlertService.ShowError("Download Error", result?.Message ?? "Server error");
+    //                 return false;
+    //             }
+
+    //             Extract values
+    //             var chunkData = result.Value.GetProperty("chunk").GetString();
+    //             byte[] buffer = Convert.FromBase64String(chunkData);
+
+    //             totalChunks = result.Value.GetProperty("totalChunks").GetInt32();
+
+    //             Append to file
+    //             await fs.WriteAsync(buffer);
+
+    //             chunkIndex++;
+
+    //             OPTIONAL: update progress
+    //             double percent = Math.Round((double)chunkIndex / totalChunks * 100, 2);
+    //             Console.WriteLine($"Downloading... {percent}%");
+    //         }
+
+    //         return true;
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         Console.WriteLine($"Error Downloading: {ex.Message}");
+    //         AlertService.ShowError("Download Failed", ex.Message);
+    //         return false;
+    //     }
+    // }
+
+
 
     // Client to Server File Upload Section
 
@@ -1652,7 +1724,7 @@
     private const long maxFileSize = 5_000L * 1024L * 1024L; // 500 MB
 
 
-    private const int ChunkSize = 10 * 1024 * 1024; // 10MB per chunk
+    private const int ChunkSize = 50 * 1024 * 1024; // 10MB per chunk
 
 
     private void FileSelector(bool isServer)
@@ -1721,11 +1793,14 @@
         await UploadFile();
 
     }
+    private CancellationTokenSource? cts;
 
     private async Task UploadFile()
     {
-        if (selectedFile == null)
-            return;
+        // if (selectedFile == null)
+        //     return;
+
+        cts = new CancellationTokenSource();
 
         try
         {
@@ -1799,16 +1874,24 @@
 
                     if (result==1)
                     {
+                         int lastReportedPercent=0;
                         uploadProgress = (int)(((chunkIndex + 1) / (double)totalChunks) * 100);
+                        if (uploadProgress - lastReportedPercent >= 1)
+                        {
+                            lastReportedPercent = uploadProgress;
+
+                            StateHasChanged();
+
+                        }
+
                     }else if(result==2)
                     {
                         FileSelectorDisable(false);
                         AlertService.ShowSuccess("File Upload", "The file has been successfully uploaded to Main.");
-
+                        StateHasChanged();
 
                       
                     }
-                    StateHasChanged();
                 }
             }         
         }

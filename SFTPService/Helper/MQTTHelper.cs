@@ -139,13 +139,13 @@ namespace SFTPService.Helper
         // PUBLISH METHODS
         // ----------------------------------------------------------------------
 
-        public async Task PublishToServer(object payload, string topic, MqttQualityOfServiceLevel level)
+        public async Task PublishToServer(object payload, string topic, MqttQualityOfServiceLevel level, CancellationToken cancellationToken)
         {
-            await PublishAsync(topic, payload, level);
+            await PublishAsync(topic, payload, level, cancellationToken);
         }
 
 
-        private async Task PublishAsync(string topic, object payload, MqttQualityOfServiceLevel level)
+        public async Task PublishAsync(string topic, object payload, MqttQualityOfServiceLevel level, CancellationToken cancellationToken)
         {
             try
             {
@@ -162,13 +162,14 @@ namespace SFTPService.Helper
                     .WithQualityOfServiceLevel(level)
                     .Build();
 
-                await _client.PublishAsync(msg);
+                await _client.PublishAsync(msg, cancellationToken);
             }
             catch (Exception ex)
             {
                 await _log.WriteLog("MQTT Publish Error", ex.ToString(), 3);
             }
         }
+
 
 
         // ----------------------------------------------------------------------

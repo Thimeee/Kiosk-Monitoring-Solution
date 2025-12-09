@@ -7,6 +7,7 @@ using Monitoring.Shared.DTO;
 using Monitoring.Shared.Models;
 using MQTTnet.Protocol;
 using Renci.SshNet;
+using Renci.SshNet.Async;
 
 namespace SFTPService.Helper
 {
@@ -19,7 +20,7 @@ namespace SFTPService.Helper
         private readonly LoggerService _log;
         private readonly MQTTHelper _mqtt;
 
-        private const int BufferSize = 1024 * 1024 * 4; // 4MB
+        private const int BufferSize = 1024 * 1024 * 10; // 4MB
         private const int MaxRetries = 5;
 
         public SftpFileService(IConfiguration config, LoggerService log, MQTTHelper mqtt)
@@ -57,252 +58,279 @@ namespace SFTPService.Helper
         }
 
 
-        public async Task DownloadFileAsync(string remotePathBefore, string localPathBefore, string userId, string branchID, string jobId, IProgress<double>? progress = null)
-
+        public async Task DownloadFileAsync(
+    string remotePathBefore,
+    string localPathBefore,
+    string userId,
+    string branchID,
+    string jobId,
+    IProgress<double>? progress = null,
+    CancellationToken cancellationToken = default)
         {
             int attempt = 0;
             bool success = false;
 
-
+            var remotePath = ConvertRealPath(remotePathBefore);
+            var localPath = ConvertRealPath(localPathBefore);
 
             while (attempt < MaxRetries && !success)
             {
                 attempt++;
                 try
                 {
-                    var remotePath = ConvertRealPath(remotePathBefore);
-                    var localPath = ConvertRealPath(localPathBefore);
-
                     using var sftp = new SftpClient(_host, _port, _user, _pass);
                     sftp.Connect();
 
                     var remoteFileSize = sftp.GetAttributes(remotePath).Size;
-                    long offset = 0;
+                    long offset = File.Exists(localPath) ? new FileInfo(localPath).Length : 0;
 
-                    // Resume partial download
-                    if (File.Exists(localPath))
+                    if (offset > remoteFileSize) offset = 0;
+                    if (offset == remoteFileSize)
                     {
-                        offset = new System.IO.FileInfo(localPath).Length;
-                        if (offset > remoteFileSize) offset = 0;
-                        if (offset == remoteFileSize)
+                        await _mqtt.PublishToServer(new BranchJobResponse<JobDownloadResponse>
                         {
-                            var progressObj = new BranchJobResponse<JobDownloadResponse>
-                            {
-                                jobUser = userId,
-                                jobEndTime = DateTime.Now,
-                                jobId = jobId,
-                                jobRsValue = new JobDownloadResponse
-                                {
-                                    jobMsg = $"AllReady",
-                                    jobStatus = 0,
-                                }
-                            };
-
-                            await _mqtt.PublishToServer(
-                                progressObj,
-                                $"server/{branchID}/SFTP/DownloadResponse",
-                                MqttQualityOfServiceLevel.ExactlyOnce);
-
-                            return;
-                        }
+                            jobUser = userId,
+                            jobEndTime = DateTime.Now,
+                            jobId = jobId,
+                            jobRsValue = new JobDownloadResponse { jobMsg = "AlreadyDownloaded", jobStatus = 0 }
+                        }, $"server/{branchID}/SFTP/DownloadResponse", MqttQualityOfServiceLevel.ExactlyOnce, cancellationToken);
+                        return;
                     }
 
                     using var fs = new FileStream(localPath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None, BufferSize, true);
                     fs.Seek(offset, SeekOrigin.Begin);
 
+                    double lastReportedPercent = 0;
+
+                    using var remoteStream = sftp.OpenRead(remotePath);
+                    remoteStream.Seek(offset, SeekOrigin.Begin);
+
                     byte[] buffer = new byte[BufferSize];
+                    int bytesRead;
+
                     while (offset < remoteFileSize)
                     {
-                        int bytesRead = sftp.DownloadFileChunk(remotePath, buffer, offset);
-                        if (bytesRead <= 0) break;
+                        cancellationToken.ThrowIfCancellationRequested();
 
-                        await fs.WriteAsync(buffer.AsMemory(0, bytesRead));
-                        offset += bytesRead;
+                        int chunkAttempt = 0;
+                        bool chunkSuccess = false;
 
-                        double percent = Math.Round((double)offset / remoteFileSize * 100, 2);
-                        progress?.Report(percent);
-
-                        var progressObj = new BranchJobResponse<JobDownloadResponse>
+                        while (chunkAttempt < MaxRetries && !chunkSuccess)
                         {
-                            jobUser = userId,
-                            jobEndTime = DateTime.Now,
-                            jobId = jobId,
-                            jobRsValue = new JobDownloadResponse
+                            chunkAttempt++;
+                            try
                             {
-                                jobStatus = 1,
-                                jobProgress = percent,
-                                jobTotalBytes = remoteFileSize,
-                                jobDownloadedBytes = offset
-                            }
-                        };
+                                bytesRead = await remoteStream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
+                                if (bytesRead <= 0) break;
 
-                        await _mqtt.PublishToServer(
-                            progressObj,
-                            $"server/{branchID}/SFTP/DownloadProgress",
-                            MqttQualityOfServiceLevel.AtMostOnce);
+                                await fs.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+                                offset += bytesRead;
+                                chunkSuccess = true;
+
+                                // Report progress
+                                double percent = Math.Round((double)offset / remoteFileSize * 100, 2);
+                                if (percent - lastReportedPercent >= 2)
+                                {
+                                    lastReportedPercent = percent;
+                                    //progress?.Report(percent);
+
+                                    var progressObj = new BranchJobResponse<JobDownloadResponse>
+                                    {
+                                        jobUser = userId,
+                                        jobEndTime = DateTime.Now,
+                                        jobId = jobId,
+                                        jobRsValue = new JobDownloadResponse
+                                        {
+                                            jobStatus = 1,
+                                            jobProgress = percent,
+                                            jobTotalBytes = remoteFileSize,
+                                            jobDownloadedBytes = offset
+                                        }
+                                    };
+
+                                    await _mqtt.PublishToServer(progressObj, $"server/{branchID}/SFTP/DownloadProgress", MqttQualityOfServiceLevel.AtMostOnce, cancellationToken);
+                                }
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                throw;
+                            }
+                            catch
+                            {
+                                if (chunkAttempt >= MaxRetries) throw;
+                                await Task.Delay(500, cancellationToken); // retry delay
+                            }
+                        }
                     }
 
                     sftp.Disconnect();
                     success = true;
                     await _log.WriteLog("SFTP Success", $"Downloaded '{remotePath}' to '{localPath}' successfully.");
                 }
+                catch (OperationCanceledException)
+                {
+                    await _log.WriteLog("SFTP Download", "Download cancelled by user.");
+                    throw;
+                }
                 catch (Exception ex)
                 {
                     await _log.WriteLog("SFTP Error", $"Download attempt {attempt} failed for {remotePathBefore}");
                     await _log.WriteLog("SFTP Exception", ex.ToString(), 3);
-
-                    if (attempt == 5)
+                    if (attempt >= MaxRetries)
                     {
-                        var progressObj = new BranchJobResponse<JobDownloadResponse>
+                        await _mqtt.PublishToServer(new BranchJobResponse<JobDownloadResponse>
                         {
                             jobUser = userId,
                             jobEndTime = DateTime.Now,
                             jobId = jobId,
                             jobRsValue = new JobDownloadResponse
                             {
-                                jobStatus = 0,
+                                jobStatus = 0
                             }
-                        };
+                        }, $"server/{branchID}/SFTP/DownloadResponse", MqttQualityOfServiceLevel.ExactlyOnce, cancellationToken);
 
-                        await _mqtt.PublishToServer(
-                            progressObj,
-                            $"server/{branchID}/SFTP/DownloadResponse",
-                            MqttQualityOfServiceLevel.ExactlyOnce);
+                        return;
                     }
-                    if (attempt >= MaxRetries) throw;
+
                 }
             }
         }
 
-        public async Task UploadFileAsync(string localPathBefore, string remotePathBefore, string userId, string branchID, string jobId, IProgress<double>? progress = null)
+
+        public async Task UploadFileAsync(
+     string localPathBefore,
+     string remotePathBefore,
+     string userId,
+     string branchID,
+     string jobId,
+     IProgress<double>? progress = null,
+     CancellationToken cancellationToken = default)
         {
             int attempt = 0;
             bool success = false;
 
-
+            var localPath = ConvertRealPath(localPathBefore);
+            var remotePath = ConvertRealPath(remotePathBefore);
 
             while (attempt < MaxRetries && !success)
             {
                 attempt++;
                 try
                 {
-                    var remotePath = ConvertRealPath(remotePathBefore);
-                    var localPath = ConvertRealPath(localPathBefore);
-
                     using var sftp = new SftpClient(_host, _port, _user, _pass);
                     sftp.Connect();
 
-                    long localFileSize = new System.IO.FileInfo(localPath).Length;
-                    long offset = 0;
+                    long localFileSize = new FileInfo(localPath).Length;
+                    long offset = sftp.Exists(remotePath) ? sftp.GetAttributes(remotePath).Size : 0;
+                    if (offset > localFileSize) offset = 0;
 
-                    if (sftp.Exists(remotePath))
+                    if (offset == localFileSize)
                     {
-                        offset = sftp.GetAttributes(remotePath).Size;
-                        if (offset > localFileSize) offset = 0;
-
-                        if (offset == localFileSize)
+                        await _mqtt.PublishToServer(new BranchJobResponse<JobDownloadResponse>
                         {
-                            var progressObj = new BranchJobResponse<JobDownloadResponse>
-                            {
-                                jobUser = userId,
-                                jobEndTime = DateTime.Now,
-                                jobId = jobId,
-                                jobRsValue = new JobDownloadResponse
-                                {
-                                    jobMsg = $"AllReady",
-                                    jobStatus = 0,
-                                }
-                            };
-
-                            await _mqtt.PublishToServer(
-                                progressObj,
-                                $"server/{branchID}/SFTP/UploadResponse",
-                                MqttQualityOfServiceLevel.AtMostOnce);
-
-                            return;
-                        }
+                            jobUser = userId,
+                            jobEndTime = DateTime.Now,
+                            jobId = jobId,
+                            jobRsValue = new JobDownloadResponse { jobMsg = "AlreadyUploaded", jobStatus = 0 }
+                        }, $"server/{branchID}/SFTP/UploadResponse", MqttQualityOfServiceLevel.AtMostOnce, cancellationToken);
+                        return;
                     }
 
                     using var fs = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize, true);
                     fs.Seek(offset, SeekOrigin.Begin);
 
+                    using var remoteStream = sftp.Open(remotePath, FileMode.OpenOrCreate, FileAccess.Write);
+                    remoteStream.Seek(offset, SeekOrigin.Begin);
+
                     byte[] buffer = new byte[BufferSize];
                     int bytesRead;
-                    while ((bytesRead = await fs.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                    double lastReportedPercent = 0;
+
+                    while ((bytesRead = await fs.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)) > 0)
                     {
-                        using var remoteStream = sftp.Open(remotePath, FileMode.OpenOrCreate, FileAccess.Write);
-                        remoteStream.Seek(offset, SeekOrigin.Begin);
-                        await remoteStream.WriteAsync(buffer.AsMemory(0, bytesRead));
-                        offset += bytesRead;
+                        cancellationToken.ThrowIfCancellationRequested();
 
-                        double percent = Math.Round((double)offset / localFileSize * 100, 2);
-                        progress?.Report(percent);
+                        int chunkAttempt = 0;
+                        bool chunkSuccess = false;
 
-
-                        //progress?.Report((double)offset / localFileSize * 100);
-
-                        var progressObj = new BranchJobResponse<JobDownloadResponse>
+                        while (chunkAttempt < MaxRetries && !chunkSuccess)
                         {
-                            jobUser = userId,
-                            jobEndTime = DateTime.Now,
-                            jobId = jobId,
-                            jobRsValue = new JobDownloadResponse
+                            chunkAttempt++;
+                            try
                             {
-                                jobStatus = 1,
-                                jobProgress = percent,
-                                jobTotalBytes = localFileSize,
-                                jobDownloadedBytes = offset
-                            }
-                        };
+                                await remoteStream.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken);
+                                offset += bytesRead;
+                                chunkSuccess = true;
 
-                        await _mqtt.PublishToServer(
-                            progressObj,
-                            $"server/{branchID}/SFTP/UploadProgress",
-                            MqttQualityOfServiceLevel.AtMostOnce);
+                                double percent = Math.Round((double)offset / localFileSize * 100, 2);
+                                if (percent - lastReportedPercent >= 2)
+                                {
+                                    lastReportedPercent = percent;
+                                    //progress?.Report(percent);
+
+                                    var progressObj = new BranchJobResponse<JobDownloadResponse>
+                                    {
+                                        jobUser = userId,
+                                        jobEndTime = DateTime.Now,
+                                        jobId = jobId,
+                                        jobRsValue = new JobDownloadResponse
+                                        {
+                                            jobStatus = 1,
+                                            jobProgress = percent,
+                                            jobTotalBytes = localFileSize,
+                                            jobDownloadedBytes = offset
+                                        }
+                                    };
+
+                                    await _mqtt.PublishToServer(progressObj, $"server/{branchID}/SFTP/UploadProgress", MqttQualityOfServiceLevel.AtMostOnce, cancellationToken);
+                                }
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                throw;
+                            }
+                            catch
+                            {
+                                if (chunkAttempt >= MaxRetries) throw;
+                                await Task.Delay(500, cancellationToken); // retry delay
+                            }
+                        }
                     }
 
                     sftp.Disconnect();
                     success = true;
                     await _log.WriteLog("SFTP Success", $"Uploaded '{localPath}' to '{remotePath}' successfully.");
                 }
+                catch (OperationCanceledException)
+                {
+                    await _log.WriteLog("SFTP Upload", "Upload cancelled by user.");
+                    throw;
+                }
                 catch (Exception ex)
                 {
                     await _log.WriteLog("SFTP Error", $"Upload attempt {attempt} failed for {localPathBefore}");
                     await _log.WriteLog("SFTP Exception", ex.ToString(), 3);
-
-                    if (attempt == 5)
+                    if (attempt >= MaxRetries)
                     {
-                        var progressObj = new BranchJobResponse<JobDownloadResponse>
+                        await _mqtt.PublishToServer(new BranchJobResponse<JobDownloadResponse>
                         {
                             jobUser = userId,
                             jobEndTime = DateTime.Now,
                             jobId = jobId,
                             jobRsValue = new JobDownloadResponse
                             {
-                                jobStatus = 0,
+                                jobStatus = 0
                             }
-                        };
+                        }, $"server/{branchID}/SFTP/UploadResponse", MqttQualityOfServiceLevel.ExactlyOnce, cancellationToken);
 
-                        await _mqtt.PublishToServer(
-                            progressObj,
-                            $"server/{branchID}/SFTP/UploadResponse",
-                            MqttQualityOfServiceLevel.ExactlyOnce);
+                        return;
                     }
-
-                    if (attempt >= MaxRetries) throw;
                 }
             }
         }
 
 
+
     }
-    public static class SftpClientExtensions
-    {
-        public static int DownloadFileChunk(this SftpClient client, string remotePath, byte[] buffer, long offset)
-        {
-            using var remoteStream = client.OpenRead(remotePath);
-            remoteStream.Seek(offset, SeekOrigin.Begin);
-            return remoteStream.Read(buffer, 0, buffer.Length);
-        }
-    }
+
 }

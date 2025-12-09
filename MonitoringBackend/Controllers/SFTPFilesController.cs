@@ -604,6 +604,124 @@ namespace MonitoringBackend.Controllers
         //Delete to selected file branch and server Both Methods End
 
 
+
+
+
+
+
+        ////Download to selected server Methods Start
+
+        //[HttpPost("downloadFileServer")]
+        //public async Task<IActionResult> downloadFileServer([FromBody] JsonElement data)
+        //{
+        //    var responseDTO = new APIResponseSingleValue();
+        //    var jobId = string.Empty;
+        //    try
+        //    {
+        //        string? path = data.TryGetProperty("path", out var pathElement) ? pathElement.GetString() : null;
+        //        string? userId = data.TryGetProperty("userId", out var userIdElement) ? userIdElement.GetString() : null;
+        //        string? branchId = data.TryGetProperty("branchId", out var branchIdElement) ? branchIdElement.GetString() : null;
+
+        //        if (string.IsNullOrEmpty(path))
+        //        {
+        //            responseDTO.Status = false;
+        //            responseDTO.StatusCode = 1;
+        //            responseDTO.Message = " Path are required.";
+        //            return BadRequest(responseDTO);
+        //        }
+
+        //        var list = new List<string>() {
+
+        //            branchId, userId
+
+        //        };
+
+        //        jobId = new CreateUniqId().GenarateUniqID(list);
+        //        int branchIdInt = int.Parse(branchId);
+
+        //        if (jobId == null)
+        //        {
+        //            responseDTO.Status = false;
+        //            responseDTO.StatusCode = 1;
+        //            responseDTO.Message = " Server Error.";
+        //            return NotFound(responseDTO);
+
+        //        }
+        //        if (isServer != null)
+        //        {
+        //            if ((bool)isServer)
+        //            {
+
+        //                if (!System.IO.File.Exists(path))
+        //                {
+        //                    responseDTO.Status = false;
+        //                    responseDTO.StatusCode = 1;
+        //                    responseDTO.Message = "Server File not found";
+        //                    return NotFound(responseDTO);
+        //                }
+
+        //                System.IO.File.Delete(path);
+
+        //                var jobLog = new Job
+        //                {
+        //                    BranchId = branchIdInt,
+        //                    UserId = userId,
+        //                    JTId = 2,
+        //                    JobUId = jobId,
+        //                    JobDate = DateTime.Now,
+        //                    JobStartTime = DateTime.Now,
+        //                    JobEndTime = DateTime.Now,
+        //                    JobStatus = 2, // In Progress
+        //                    JobName = $"File deleted successfully Server: {path} ",
+        //                    JobMassage = $"File deleted successfully: {path}",
+        //                    JobActive = 0
+        //                };
+
+
+        //                await _db.Jobs.AddAsync(jobLog);
+        //                await _db.SaveChangesAsync();
+
+        //                responseDTO.Status = true;
+        //                responseDTO.StatusCode = 2;
+        //                responseDTO.Message = "operation Success";
+        //                responseDTO.Value = "server";
+
+        //            }
+        //        }
+        //        return Ok(responseDTO);
+
+        //    }
+
+        //    catch (Exception ex)
+        //    {
+        //        // Log the exception (optional)
+        //        Console.WriteLine($"Error during registration: {ex.Message}");
+        //        if (!string.IsNullOrEmpty(jobId))
+        //        {
+        //            var job = await _db.Jobs.FirstOrDefaultAsync(j => j.JobUId == jobId);
+        //            if (job != null)
+        //            {
+        //                job.JobStatus = 0; // Failed
+        //                job.JobActive = 0;
+        //                job.JobEndTime = DateTime.Now;
+        //                job.JobMassage = $"File deleting failed";
+
+        //                _db.Jobs.Update(job);
+        //                await _db.SaveChangesAsync();
+        //            }
+
+        //        }
+        //        // Return a generic error response
+        //        responseDTO.Status = false;
+        //        responseDTO.StatusCode = 0;
+        //        responseDTO.Message = "File deleting failed";
+        //        responseDTO.Ex = ex.Message;
+        //        return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
+        //    }
+        //}
+        ////Download to selected server  Methods End
+
+
         //Client UploadFile Serve Methods Start
 
         [RequestSizeLimit(long.MaxValue)]
