@@ -27,7 +27,7 @@ namespace SFTPService.Helper
                 try
                 {
                     // Get all files in this folder
-                    foreach (var filePath in Directory.GetFiles(path))
+                    foreach (var filePath in Directory.GetFiles(path).OrderByDescending(f => File.GetCreationTime(f)))
                     {
                         var fileInfo = new FileInfo(filePath);
                         node.Files.Add(new FileNode
@@ -39,7 +39,7 @@ namespace SFTPService.Helper
                     }
 
                     // Recursively process subfolders
-                    foreach (var dir in Directory.GetDirectories(path))
+                    foreach (var dir in Directory.GetDirectories(path).OrderByDescending(d => Directory.GetCreationTime(d)))
                     {
                         var childNode = await BuildFolderNodeAsync(dir); // default collapsed
                         node.SubFolders.Add(childNode);

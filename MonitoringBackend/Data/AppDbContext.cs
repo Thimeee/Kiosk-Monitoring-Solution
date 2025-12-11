@@ -12,6 +12,9 @@ namespace MonitoringBackend.Data
         public DbSet<SFTPFolderPath> SFTPFolders { get; set; }
         public DbSet<Job> Jobs { get; set; }
         public DbSet<JobType> JobTypes { get; set; }
+        public DbSet<PatchScript> PatchScripts { get; set; }
+        public DbSet<PatchType> PatchTypes { get; set; }
+        public DbSet<NewPatch> NewPatches { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -41,12 +44,25 @@ namespace MonitoringBackend.Data
 
 
 
+
             //Job → JobType
             //modelBuilder.Entity<Job>()
             //    .HasOne(j => j.JobType)
             //    .WithMany(jt => jt.JTId)
             //    .HasForeignKey(j => j.JTId)
             //    .OnDelete(DeleteBehavior.Restrict);
+
+            // PatchScript → PatchType (one to many) 
+            modelBuilder.Entity<PatchScript>()
+    .HasOne(r => r.PatchType)
+    .WithMany(b => b.PatchScripts)
+    .HasForeignKey(r => r.PTId);
+
+            modelBuilder.Entity<NewPatch>()
+   .HasOne(r => r.PatchType)
+   .WithMany(b => b.NewPatches)
+   .HasForeignKey(r => r.PTId);
+
 
 
         }

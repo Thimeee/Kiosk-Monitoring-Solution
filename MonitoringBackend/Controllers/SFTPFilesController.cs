@@ -811,16 +811,20 @@ namespace MonitoringBackend.Controllers
 
                 mergedFile = Path.Combine(finalFolder, fileName);
 
-                using (var output = new FileStream(mergedFile, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
+                using (var output = new FileStream(mergedFile, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
                     for (int i = 0; i < totalChunks; i++)
                     {
                         string part = Path.Combine(chunksFolder, $"{i}.chunk");
-                        using (var input = new FileStream(part, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, true))
+                        //if (!File.Exists(part))
+                        //    throw new FileNotFoundException($"Chunk {i} not found in {chunksFolder}");
+
+                        using (var input = new FileStream(part, FileMode.Open, FileAccess.Read, FileShare.Read))
                         {
                             await input.CopyToAsync(output);
                         }
                     }
+                    await output.FlushAsync();
                 }
 
                 // ⭐ CLEANUP: remove chunk folder

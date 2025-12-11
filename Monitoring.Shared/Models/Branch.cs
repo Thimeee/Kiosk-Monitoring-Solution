@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
 
 namespace Monitoring.Shared.Models
 {
@@ -49,7 +50,9 @@ namespace Monitoring.Shared.Models
 
 
         //// Navigation
+        [JsonIgnore]
         public virtual ICollection<Job> Jobs { get; set; } = new List<Job>();
+        [JsonIgnore]
         public virtual ICollection<BranchRemot> Remotes { get; set; } = new List<BranchRemot>();
     }
 }
