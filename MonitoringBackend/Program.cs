@@ -106,9 +106,7 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddControllers();
 builder.Services.AddAuthorization();
 
-builder.Services.AddGrpc();
 builder.Services.AddSignalR();
-builder.Services.AddSingleton<RabbitHelper>();
 builder.Services.AddSingleton<SftpStorageService>();
 builder.Services.AddSingleton<LoggerService>();
 builder.Services.AddSingleton<MQTTHelper>();

@@ -1824,7 +1824,7 @@
                 if (user == null)
                     user = await getUserDetails();
 
-                string jobUId = $"{branchId.BranchID}_{user.UserId}_{DateTime.Now:yyyyMMdd_HHmmssfff}_{Guid.NewGuid():N}";
+                string jobUId = $"{user.UserId}_{DateTime.Now:yyyyMMdd_HHmmssfff}_{Guid.NewGuid():N}";
 
                 for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++)
                 {

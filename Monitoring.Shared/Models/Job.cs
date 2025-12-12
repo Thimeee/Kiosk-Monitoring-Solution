@@ -1,10 +1,10 @@
-﻿
-using System;
+﻿using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
+
 namespace Monitoring.Shared.Models
 {
-
     [Table("Jobs")]
     public class Job
     {
@@ -19,6 +19,11 @@ namespace Monitoring.Shared.Models
 
         [Column("JobUId")]
         public string? JobUId { get; set; }
+
+
+        [Column("JobMainStatus")]
+        public int? JobMainStatus { get; set; }  // FK to JobStatus table
+
 
         [Column("JobDate")]
         public DateTime? JobDate { get; set; }
@@ -37,34 +42,27 @@ namespace Monitoring.Shared.Models
         [StringLength(450)]
         public string? JobName { get; set; }
 
-
-        [Column("JobStatus")]
-        public int? JobStatus { get; set; }
+        [Column("JSId")]
+        public int? JSId { get; set; }  // FK to JobStatus table
 
         [Column("JobActive")]
         public int? JobActive { get; set; }
 
-
-        [Column("BranchId")]
-        public int? BranchId { get; set; }
-
         [Column("JTId")]
-        public int? JTId { get; set; }
+        public int? JTId { get; set; }  // FK to JobType table
 
         // 🔗 Navigation properties
+
+        [ForeignKey("JSId")]
+        public virtual JobStatus? JobStatus { get; set; }
 
         [ForeignKey("JTId")]
         public virtual JobType? JobType { get; set; }
 
-        [ForeignKey("BranchId")]
-        public virtual Branch? Branch { get; set; }
+        [JsonIgnore]
+        public virtual ICollection<JobAssignBranch> JobAssignBranches { get; set; } = new List<JobAssignBranch>();
 
-
+        //[ForeignKey("UserId")]
+        //public virtual ApplicationUser? User { get; set; }
     }
-
 }
-
-
-
-
-

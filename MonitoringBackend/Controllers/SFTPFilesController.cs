@@ -247,6 +247,8 @@ namespace MonitoringBackend.Controllers
         public async Task<IActionResult> downloadAndUploadFileBoth([FromBody] JsonElement data)
         {
             var responseDTO = new APIResponseSingleValue();
+            var jobId = string.Empty;
+
             try
             {
                 string? path = data.TryGetProperty("path", out var pathElement) ? pathElement.GetString() : null;
@@ -298,10 +300,10 @@ namespace MonitoringBackend.Controllers
                 {
                     var list = new List<string>() {
 
-                    branchId, userId
+                     userId
 
                 };
-                    var jobId = new CreateUniqId().GenarateUniqID(list);
+                    jobId = new CreateUniqId().GenarateUniqID(list);
 
                     if (type == "branch")
                     {
@@ -332,14 +334,13 @@ namespace MonitoringBackend.Controllers
 
                         jobLog = new Job
                         {
-                            BranchId = branchIdInt,
                             UserId = userId,
                             JTId = 2,
                             JobUId = jobId,
+                            JobMainStatus = 1,
                             JobDate = DateTime.Now,
                             JobStartTime = DateTime.Now,
-                            JobEndTime = DateTime.Now,
-                            JobStatus = 1, // In Progress
+                            JSId = 1, // In Started
                             JobName = $"Download File to Branch: {path} ",
                             JobMassage = $"File Download Start",
                             JobActive = 1
@@ -375,14 +376,13 @@ namespace MonitoringBackend.Controllers
 
                         jobLog = new Job
                         {
-                            BranchId = branchIdInt,
                             UserId = userId,
                             JTId = 4,
                             JobUId = jobId,
+                            JobMainStatus = 1,
                             JobDate = DateTime.Now,
                             JobStartTime = DateTime.Now,
-                            JobEndTime = DateTime.Now,
-                            JobStatus = 1, // In Progress
+                            JSId = 1, // In Started
                             JobName = $"Upload File to Server: {path} ",
                             JobMassage = $"Upload File Start",
                             JobActive = 1
@@ -392,6 +392,17 @@ namespace MonitoringBackend.Controllers
                     {
 
                         await _db.Jobs.AddAsync(jobLog);
+                        await _db.SaveChangesAsync();
+
+
+                        await _db.jobAssignBranches.AddAsync(new JobAssignBranch
+                        {
+                            Id = branchIdInt,
+                            JId = jobLog.JId,
+                            IsPatch = false,
+                            ProcessLevel = 0,
+
+                        });
                         await _db.SaveChangesAsync();
 
                         await _mqtt.PublishToServer(job, topic, MqttQualityOfServiceLevel.ExactlyOnce);
@@ -420,6 +431,22 @@ namespace MonitoringBackend.Controllers
                 // Log the exception (optional)
                 Console.WriteLine($"Error during File sharing: {ex.Message}");
 
+                if (!string.IsNullOrEmpty(jobId))
+                {
+                    var job = await _db.Jobs.FirstOrDefaultAsync(j => j.JobUId == jobId);
+                    if (job != null)
+                    {
+                        job.JSId = 4; // Failed
+                        job.JobActive = 2;
+                        job.JobEndTime = DateTime.Now;
+                        job.JobMassage = $"Branch Upload Or Download Failed To Main Server ";
+
+                        _db.Jobs.Update(job);
+                        await _db.SaveChangesAsync();
+
+                    }
+
+                }
                 // Return a generic error response
                 responseDTO.Status = false;
                 responseDTO.StatusCode = 0;
@@ -427,6 +454,7 @@ namespace MonitoringBackend.Controllers
                 responseDTO.Ex = ex.Message;
                 return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
             }
+
         }
         //Upload and Download branch and server Both Methods End
 
@@ -463,7 +491,7 @@ namespace MonitoringBackend.Controllers
 
                 var list = new List<string>() {
 
-                    branchId, userId
+                    userId
 
                 };
 
@@ -495,21 +523,30 @@ namespace MonitoringBackend.Controllers
 
                         var jobLog = new Job
                         {
-                            BranchId = branchIdInt,
                             UserId = userId,
                             JTId = 2,
                             JobUId = jobId,
+                            JobMainStatus = 1,
                             JobDate = DateTime.Now,
                             JobStartTime = DateTime.Now,
                             JobEndTime = DateTime.Now,
-                            JobStatus = 2, // In Progress
+                            JSId = 3, // In Progress
                             JobName = $"File deleted successfully Server: {path} ",
                             JobMassage = $"File deleted successfully: {path}",
-                            JobActive = 0
+                            JobActive = 2
                         };
 
 
                         await _db.Jobs.AddAsync(jobLog);
+                        await _db.SaveChangesAsync();
+
+                        await _db.jobAssignBranches.AddAsync(new JobAssignBranch
+                        {
+                            Id = branchIdInt,
+                            JId = jobLog.JId,
+                            IsPatch = false,
+                            ProcessLevel = 0,
+                        });
                         await _db.SaveChangesAsync();
 
                         responseDTO.Status = true;
@@ -546,13 +583,13 @@ namespace MonitoringBackend.Controllers
 
                         var jobLog = new Job
                         {
-                            BranchId = branchIdInt,
                             UserId = userId,
                             JTId = 2,
                             JobUId = jobId,
+                            JobMainStatus = 1,
                             JobDate = DateTime.Now,
                             JobStartTime = DateTime.Now,
-                            JobStatus = 1, // In Progress
+                            JSId = 1, // In Progress
                             JobName = $"Deleting Branch this file: {path}",
                             JobMassage = $"Start Deleting file",
                             JobActive = 1
@@ -560,6 +597,15 @@ namespace MonitoringBackend.Controllers
 
 
                         await _db.Jobs.AddAsync(jobLog);
+                        await _db.SaveChangesAsync();
+
+                        await _db.jobAssignBranches.AddAsync(new JobAssignBranch
+                        {
+                            Id = branchIdInt,
+                            JId = jobLog.JId,
+                            IsPatch = false,
+                            ProcessLevel = 0,
+                        });
                         await _db.SaveChangesAsync();
 
                         responseDTO.Status = true;
@@ -583,10 +629,10 @@ namespace MonitoringBackend.Controllers
                     var job = await _db.Jobs.FirstOrDefaultAsync(j => j.JobUId == jobId);
                     if (job != null)
                     {
-                        job.JobStatus = 0; // Failed
-                        job.JobActive = 0;
+                        job.JSId = 4; // Failed
+                        job.JobActive = 2;
                         job.JobEndTime = DateTime.Now;
-                        job.JobMassage = $"File deleting failed";
+                        job.JobMassage = $"File deleting Failed To Main Server";
 
                         _db.Jobs.Update(job);
                         await _db.SaveChangesAsync();
@@ -596,7 +642,7 @@ namespace MonitoringBackend.Controllers
                 // Return a generic error response
                 responseDTO.Status = false;
                 responseDTO.StatusCode = 0;
-                responseDTO.Message = "File deleting failed";
+                responseDTO.Message = "File deleting Failed To Main Server";
                 responseDTO.Ex = ex.Message;
                 return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
             }
@@ -774,19 +820,29 @@ namespace MonitoringBackend.Controllers
 
                     var job = new Job
                     {
-                        BranchId = branchIdInt,
+                        //BranchId = branchIdInt,
                         UserId = userId,
                         JTId = 1,
                         JobUId = jobUId,
+                        JobMainStatus = 1,
                         JobDate = DateTime.Now,
                         JobStartTime = DateTime.Now,
-                        JobStatus = 1, // In Progress
+                        JId = 2, // In Progress
                         JobName = $"Upload file: {fileName} Server",
                         JobMassage = $"Start Uploading",
                         JobActive = 1
                     };
 
                     await _db.Jobs.AddAsync(job);
+                    await _db.SaveChangesAsync();
+
+                    await _db.jobAssignBranches.AddAsync(new JobAssignBranch
+                    {
+                        Id = branchIdInt,
+                        JId = job.JId,
+                        IsPatch = false,
+                        ProcessLevel = 0,
+                    });
                     await _db.SaveChangesAsync();
                 }
 
@@ -834,8 +890,8 @@ namespace MonitoringBackend.Controllers
                 if (jobUId != null)
                 {
                     var job = await _db.Jobs.FirstOrDefaultAsync(j => j.JobUId == jobUId);
-                    job.JobStatus = 2;
-                    job.JobActive = 0;
+                    job.JSId = 3;
+                    job.JobActive = 2;
                     job.JobEndTime = DateTime.Now;
                     job.JobMassage = $"File uploaded successfully";
 
@@ -864,8 +920,8 @@ namespace MonitoringBackend.Controllers
                         var job = await _db.Jobs.FirstOrDefaultAsync(j => j.JobUId == jobUId);
                         if (job != null)
                         {
-                            job.JobStatus = 0; // Failed
-                            job.JobActive = 0;
+                            job.JSId = 4; // Failed
+                            job.JobActive = 2;
                             job.JobEndTime = DateTime.Now;
                             job.JobMassage = $"File upload failed";
 
@@ -909,8 +965,8 @@ namespace MonitoringBackend.Controllers
                 var job = await _db.Jobs.FirstOrDefaultAsync(j => j.JobUId == jobUId);
                 if (job != null)
                 {
-                    job.JobStatus = 3; // Failed
-                    job.JobActive = 0;
+                    job.JSId = 4; // Failed
+                    job.JobActive = 2;
                     job.JobEndTime = DateTime.Now;
                     job.JobMassage = $"file upload was cancelled by the user";
 

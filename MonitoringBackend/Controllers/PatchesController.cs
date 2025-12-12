@@ -189,13 +189,13 @@ namespace MonitoringBackend.Controllers
                     int branchIdInt = int.Parse(branchId);
                     var job = new Job
                     {
-                        BranchId = branchIdInt,
                         UserId = userId,
                         JTId = 1,
                         JobUId = jobUId,
                         JobDate = DateTime.Now,
                         JobStartTime = DateTime.Now,
-                        JobStatus = 1,
+                        JSId = 2,
+                        JobMainStatus = 2,
                         JobName = $"Upload file: {fileName} Server",
                         JobMassage = $"Start Uploading",
                         JobActive = 1
@@ -208,6 +208,8 @@ namespace MonitoringBackend.Controllers
                 // If NOT last chunk -> return "Chunk" status
                 if (chunkIndex != totalChunks - 1)
                     return Ok(new APIResponseSingleValue { Status = true, StatusCode = 2, Message = "Chunk" });
+
+
 
 
                 string dateString = DateTime.Now.ToString("yyyyMMdd");
@@ -299,8 +301,8 @@ namespace MonitoringBackend.Controllers
                     var job = await _db.Jobs.FirstOrDefaultAsync(j => j.JobUId == jobUId);
                     if (job != null)
                     {
-                        job.JobStatus = 2;
-                        job.JobActive = 0;
+                        job.JSId = 3;
+                        job.JobActive = 2;
                         job.JobEndTime = DateTime.Now;
                         job.JobMassage = $"File uploaded and zipped successfully";
 
@@ -339,8 +341,8 @@ namespace MonitoringBackend.Controllers
                         var job = await _db.Jobs.FirstOrDefaultAsync(j => j.JobUId == jobUId);
                         if (job != null)
                         {
-                            job.JobStatus = 0;
-                            job.JobActive = 0;
+                            job.JSId = 4;
+                            job.JobActive = 2;
                             job.JobEndTime = DateTime.Now;
                             job.JobMassage = $"File upload failed";
 
@@ -384,7 +386,7 @@ namespace MonitoringBackend.Controllers
                 var job = await _db.Jobs.FirstOrDefaultAsync(j => j.JobUId == jobUId);
                 if (job != null)
                 {
-                    job.JobStatus = 3; // Failed
+                    //job.JobStatus = 3; // Failed
                     job.JobActive = 0;
                     job.JobEndTime = DateTime.Now;
                     job.JobMassage = $"file upload was cancelled by the user";

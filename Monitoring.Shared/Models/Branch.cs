@@ -49,9 +49,9 @@ namespace Monitoring.Shared.Models
         public int? BranchLicenseStatus { get; set; }
 
 
-        //// Navigation
+        ////// Navigation
         [JsonIgnore]
-        public virtual ICollection<Job> Jobs { get; set; } = new List<Job>();
+        public virtual ICollection<JobAssignBranch> JobAssignBranches { get; set; } = new List<JobAssignBranch>();
         [JsonIgnore]
         public virtual ICollection<BranchRemot> Remotes { get; set; } = new List<BranchRemot>();
     }

@@ -119,25 +119,49 @@ namespace MonitoringBackend.Service
                 string source = parts[2]; // e.g., SFTP, Hardware
                 string subTopic = string.Join('/', parts.Skip(3));
 
+
+                //Branch Events process Start 
+
                 // Route by source type
                 switch (source)
                 {
+                    case "MAINSERVERPATHPROCESS":
+                        // Handle branch commands if needed
+                        break;
                     case "SFTP":
                         await HandleSFTP(branchId, subTopic, payload);
                         break;
                     case "HEALTH":
-                        if (subTopic == "PerformanceRespo")
-                        {
-                            await _hubContext.Clients.Group(BranchHub.BranchGroup(branchId))
-                                .SendAsync("PerformanceUpdate", payload);
-                        }
+                        //if (subTopic == "PerformanceRespo")
+                        //{
+                        await _hubContext.Clients.Group(BranchHub.BranchGroup(branchId))
+                            .SendAsync("PerformanceUpdate", payload);
+                        //}
 
                         //await HandleHardware(branchId, subTopic, payload);
                         break;
                     default:
-                        await _log.WriteLog("MQTT Unknown Source", $"Branch: {branchId}, Source: {source}, SubTopic: {subTopic}, Payload: {payload}");
+                        await _log.WriteLog("MQTT Unknown Source Branche", $"Branch: {branchId}, Source: {source}, SubTopic: {subTopic}, Payload: {payload}");
                         break;
                 }
+                //Branch Events process End 
+
+
+                //Main Server backGround process Start
+                if (branchId == "MAINSERVER")
+                {
+                    switch (source)
+                    {
+                        case "PATCHPROCESS":
+                            break;
+
+                        default:
+                            await _log.WriteLog("MQTT Unknown Source Main Server", $"Branch: {branchId}, Source: {source}, SubTopic: {subTopic}, Payload: {payload}");
+                            break;
+                    }
+                }
+                //Main Server backGround process End 
+
             }
             catch (Exception ex)
             {
@@ -240,15 +264,15 @@ namespace MonitoringBackend.Service
             {
                 if (res.jobRsValue.jobStatus == 2)
                 {
-                    job.JobStatus = 2;
-                    job.JobActive = 0;
+                    job.JSId = 3;
+                    job.JobActive = 2;
                     job.JobEndTime = res.jobEndTime;
                     job.JobMassage = "File Deleted successfully";
                 }
                 else
                 {
-                    job.JobStatus = 0;
-                    job.JobActive = 0;
+                    job.JSId = 4;
+                    job.JobActive = 2;
                     job.JobEndTime = res.jobEndTime;
                     job.JobMassage = "Failed to delete file";
                 }
@@ -283,15 +307,20 @@ namespace MonitoringBackend.Service
             {
                 if (res.jobRsValue.jobStatus == 2)
                 {
-                    job.JobStatus = 2;
-                    job.JobActive = 0;
+                    job.JSId = 3;
+                    job.JobActive = 2;
                     job.JobEndTime = res.jobEndTime;
                     job.JobMassage = "File Download successfully";
                 }
+                else if (res.jobRsValue.jobStatus == 1)
+                {
+                    job.JSId = 2;
+                    job.JobMassage = "File Download Start Now";
+                }
                 else
                 {
-                    job.JobStatus = 0;
-                    job.JobActive = 0;
+                    job.JSId = 4;
+                    job.JobActive = 2;
                     job.JobEndTime = res.jobEndTime;
                     job.JobMassage = "Failed to Download file";
                 }
@@ -326,15 +355,20 @@ namespace MonitoringBackend.Service
             {
                 if (res.jobRsValue.jobStatus == 2)
                 {
-                    job.JobStatus = 2;
-                    job.JobActive = 0;
+                    job.JSId = 3;
+                    job.JobActive = 2;
                     job.JobEndTime = res.jobEndTime;
                     job.JobMassage = "File Upload successfully";
                 }
+                else if (res.jobRsValue.jobStatus == 1)
+                {
+                    job.JSId = 2;
+                    job.JobMassage = "File Upload Start Now";
+                }
                 else
                 {
-                    job.JobStatus = 0;
-                    job.JobActive = 0;
+                    job.JSId = 4;
+                    job.JobActive = 2;
                     job.JobEndTime = res.jobEndTime;
                     job.JobMassage = "Failed to Upload file";
                 }

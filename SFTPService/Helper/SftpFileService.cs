@@ -20,7 +20,7 @@ namespace SFTPService.Helper
         private readonly LoggerService _log;
         private readonly MQTTHelper _mqtt;
 
-        private const int BufferSize = 1024 * 1024 * 10; // 4MB
+        private const int BufferSize = 1024 * 1024 * 4; // 4MB this can change set to db or application.json
         private const int MaxRetries = 5;
 
         public SftpFileService(IConfiguration config, LoggerService log, MQTTHelper mqtt)
@@ -100,6 +100,7 @@ namespace SFTPService.Helper
                     using var fs = new FileStream(localPath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None, BufferSize, true);
                     fs.Seek(offset, SeekOrigin.Begin);
 
+                    var lastPublish = DateTime.MinValue;
                     double lastReportedPercent = 0;
 
                     using var remoteStream = sftp.OpenRead(remotePath);
@@ -127,11 +128,23 @@ namespace SFTPService.Helper
                                 offset += bytesRead;
                                 chunkSuccess = true;
 
+                                if (chunkAttempt == 1)
+                                {
+                                    await _mqtt.PublishToServer(new BranchJobResponse<JobDownloadResponse>
+                                    {
+                                        jobUser = userId,
+                                        jobEndTime = DateTime.Now,
+                                        jobId = jobId,
+                                        jobRsValue = new JobDownloadResponse { jobMsg = "FirstChunk", jobStatus = 1 }
+                                    }, $"server/{branchID}/SFTP/DownloadResponse", MqttQualityOfServiceLevel.ExactlyOnce, cancellationToken);
+                                }
+
                                 // Report progress
                                 double percent = Math.Round((double)offset / remoteFileSize * 100, 2);
-                                if (percent - lastReportedPercent >= 2)
+                                if ((DateTime.Now - lastPublish).TotalMilliseconds >= 1000 && percent - lastReportedPercent >= 5)
                                 {
                                     lastReportedPercent = percent;
+                                    lastPublish = DateTime.Now;
                                     //progress?.Report(percent);
 
                                     var progressObj = new BranchJobResponse<JobDownloadResponse>
@@ -232,7 +245,7 @@ namespace SFTPService.Helper
                             jobEndTime = DateTime.Now,
                             jobId = jobId,
                             jobRsValue = new JobDownloadResponse { jobMsg = "AlreadyUploaded", jobStatus = 0 }
-                        }, $"server/{branchID}/SFTP/UploadResponse", MqttQualityOfServiceLevel.AtMostOnce, cancellationToken);
+                        }, $"server/{branchID}/SFTP/UploadResponse", MqttQualityOfServiceLevel.ExactlyOnce, cancellationToken);
                         return;
                     }
 
@@ -244,6 +257,8 @@ namespace SFTPService.Helper
 
                     byte[] buffer = new byte[BufferSize];
                     int bytesRead;
+
+                    var lastPublish = DateTime.MinValue;
                     double lastReportedPercent = 0;
 
                     while ((bytesRead = await fs.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)) > 0)
@@ -262,10 +277,23 @@ namespace SFTPService.Helper
                                 offset += bytesRead;
                                 chunkSuccess = true;
 
+                                if (chunkAttempt == 1)
+                                {
+                                    await _mqtt.PublishToServer(new BranchJobResponse<JobDownloadResponse>
+                                    {
+                                        jobUser = userId,
+                                        jobEndTime = DateTime.Now,
+                                        jobId = jobId,
+                                        jobRsValue = new JobDownloadResponse { jobMsg = "FirstChunk", jobStatus = 1 }
+                                    }, $"server/{branchID}/SFTP/UploadResponse", MqttQualityOfServiceLevel.ExactlyOnce, cancellationToken);
+                                }
+
                                 double percent = Math.Round((double)offset / localFileSize * 100, 2);
-                                if (percent - lastReportedPercent >= 2)
+                                if ((DateTime.Now - lastPublish).TotalMilliseconds >= 1000 && percent - lastReportedPercent >= 5)
+
                                 {
                                     lastReportedPercent = percent;
+                                    lastPublish = DateTime.Now;
                                     //progress?.Report(percent);
 
                                     var progressObj = new BranchJobResponse<JobDownloadResponse>
