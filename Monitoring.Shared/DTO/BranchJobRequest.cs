@@ -43,4 +43,12 @@ namespace Monitoring.Shared.DTO
         public string? name { get; set; }
         public long? size { get; set; }
     }
+
+    public class ServerPatch
+    {
+        public string? ChunksPath { get; set; }
+        public string? ZipName { get; set; }
+        public string? ChunksFileName { get; set; }
+
+    }
 }

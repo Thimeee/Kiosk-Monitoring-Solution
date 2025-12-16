@@ -1,8 +1,11 @@
 ﻿
 using System.IO;
+using System.IO.Compression;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Monitoring.Shared.DTO;
 using Monitoring.Shared.Models;
 using MonitoringBackend.Data;
@@ -125,9 +128,7 @@ namespace MonitoringBackend.Service
                 // Route by source type
                 switch (source)
                 {
-                    case "MAINSERVERPATHPROCESS":
-                        // Handle branch commands if needed
-                        break;
+
                     case "SFTP":
                         await HandleSFTP(branchId, subTopic, payload);
                         break;
@@ -148,11 +149,13 @@ namespace MonitoringBackend.Service
 
 
                 //Main Server backGround process Start
-                if (branchId == "MAINSERVER")
+                if (branchId == "mainServer")
                 {
                     switch (source)
                     {
                         case "PATCHPROCESS":
+                            await ServerPatchProcess(payload);
+
                             break;
 
                         default:
@@ -385,15 +388,240 @@ namespace MonitoringBackend.Service
         //Branch File Upload method End 
 
 
+        //Server Patch Process  
 
-
-
-        public class BranchCommand
+        private async Task ServerPatchProcess(string payload)
         {
-            public string BranchId { get; set; }
-            public string Action { get; set; }
-            public string Payload { get; set; }
+            var res = JsonSerializer.Deserialize<BranchJobRequest<ServerPatch>>(payload);
+
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            NewPatch? newPatches;
+            string? mergedFileFolder = null;
+            string? zipFile = null;
+
+            if (res == null)
+                return;
+
+            int newPatchId = int.TryParse(res.jobUser, out var id) ? id : 0;
+
+
+            newPatches = await db.NewPatches.FirstOrDefaultAsync(j => j.PId == newPatchId);
+
+
+
+            if (newPatches == null) return;
+
+            try
+            {
+                var job = await db.Jobs.FirstOrDefaultAsync(j => j.JobUId == res.jobId);
+
+
+
+
+
+                string PatchesFolder = Path.Combine("C:\\Branches\\MCS\\Patches\\AllNewPatches");
+                if (!Directory.Exists(PatchesFolder))
+                    Directory.CreateDirectory(PatchesFolder);
+
+                mergedFileFolder = Path.Combine(PatchesFolder, res.jobRqValue.ZipName);
+
+                if (!Directory.Exists(mergedFileFolder))
+                    Directory.CreateDirectory(mergedFileFolder);
+
+                var ApplicationFolder = Path.Combine(mergedFileFolder, "Application");
+                var ScriptsFolder = Path.Combine(mergedFileFolder, "Scripts");
+                var ReleaseFolder = Path.Combine(mergedFileFolder, "Release");
+
+                if (!Directory.Exists(ApplicationFolder))
+                    Directory.CreateDirectory(ApplicationFolder);
+                if (!Directory.Exists(ScriptsFolder))
+                    Directory.CreateDirectory(ScriptsFolder);
+                if (!Directory.Exists(ReleaseFolder))
+                    Directory.CreateDirectory(ReleaseFolder);
+
+                var mergedFile = Path.Combine(ApplicationFolder, res.jobRqValue.ChunksFileName);
+
+                //newPath table update 
+
+                //job table update 
+                if (job != null && newPatches != null)
+                {
+                    newPatches.PatchProcessLevel = 2;
+                    job.JSId = 2;
+
+                    db.Jobs.Update(job);
+                    db.NewPatches.Update(newPatches);
+                    await db.SaveChangesAsync();
+
+                }
+
+
+                //await _hubContext.Clients.Group(BranchHub.BranchGroup("mainServer"))
+                //   .SendAsync("PatchCompleted", res.jobId);
+
+
+
+                using (var outFs = new FileStream(mergedFile, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    foreach (var chunkFile in Directory.GetFiles(res.jobRqValue.ChunksPath).OrderBy(f => int.Parse(Path.GetFileNameWithoutExtension(f))))
+                    {
+                        using (var inFs = new FileStream(chunkFile, FileMode.Open, FileAccess.Read))
+                        {
+                            byte[] buffer = new byte[1024 * 1024]; // 1 MB buffer
+                            int read;
+                            while ((read = await inFs.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                            {
+                                await outFs.WriteAsync(buffer, 0, read);
+                            }
+                        }
+                    }
+
+                }
+
+                //merged scripts to Folders 
+
+                var scripts = await db.PatchScripts
+    .Where(s => s.PTId == newPatches.PTId && s.ScriptActiveStatus == 1)
+    .OrderBy(s => s.SId)
+    .ToListAsync();
+
+                if (scripts != null)
+                {
+
+                    foreach (var script in scripts)
+                    {
+                        if (string.IsNullOrWhiteSpace(script.ScriptContenct))
+                            continue;
+
+                        // Safe file name
+
+                        var scriptPath = Path.Combine(ScriptsFolder, script.ScriptName);
+
+                        await System.IO.File.WriteAllTextAsync(
+                            scriptPath,
+                            script.ScriptContenct,
+                            Encoding.UTF8
+                        );
+                    }
+                }
+
+
+                //Create To zip 
+
+                zipFile = Path.Combine(PatchesFolder, res.jobRqValue.ZipName + ".zip");
+                if (System.IO.File.Exists(zipFile))
+                    System.IO.File.Delete(zipFile);
+
+                using var zip = ZipFile.Open(zipFile, ZipArchiveMode.Create);
+
+                foreach (var file1 in Directory.GetFiles(mergedFileFolder, "*", SearchOption.AllDirectories))
+                {
+                    var entryName = Path.GetRelativePath(mergedFileFolder, file1).Replace('\\', '/');
+                    var entry = zip.CreateEntry(entryName, CompressionLevel.Optimal);
+
+                    using var entryStream = entry.Open();
+                    using var fs = new FileStream(file1, FileMode.Open, FileAccess.Read);
+                    byte[] buffer = new byte[1024 * 1024];
+                    int read;
+                    while ((read = await fs.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                    {
+                        await entryStream.WriteAsync(buffer, 0, read);
+                    }
+                }
+
+                var dirToDelete = Directory.GetParent(res.jobRqValue.ChunksPath)?.Parent;
+
+                if (dirToDelete != null && dirToDelete.Exists)
+                {
+                    Directory.Delete(dirToDelete.FullName, true);
+                }
+
+
+                if (Directory.Exists(mergedFileFolder))
+                {
+                    Directory.Delete(mergedFileFolder, true);
+                }
+
+
+
+                // Update Job
+
+                if (job != null && newPatches != null)
+                {
+                    newPatches.PatchZipPath = zipFile;
+                    newPatches.PatchProcessLevel = 3;
+                    newPatches.PatchActiveStatus = 2;
+
+                    job.JSId = 3;
+                    job.JobActive = 2;
+                    job.JobEndTime = DateTime.Now;
+                    job.JobMassage = $"File uploaded and zipped successfully";
+
+                    db.Jobs.Update(job);
+                    db.NewPatches.Update(newPatches);
+                    await db.SaveChangesAsync();
+                }
+
+                // 1️⃣ Paths
+
+                // 6️⃣ Notify
+
+            }
+            catch (Exception ex)
+            { // Cleanup on failure
+                try
+                {
+                    if (Directory.Exists(res.jobRqValue.ChunksPath))
+                        Directory.Delete(res.jobRqValue.ChunksPath, true);
+
+                    if (mergedFileFolder != null)
+                    {
+                        if (Directory.Exists(mergedFileFolder))
+                        {
+                            Directory.Delete(mergedFileFolder, true);
+                        }
+                    }
+
+                    if (zipFile != null)
+                    {
+                        if (System.IO.File.Exists(zipFile))
+                            System.IO.File.Delete(zipFile);
+                    }
+
+
+
+                    if (!string.IsNullOrEmpty(res.jobId) && newPatches != null)
+                    {
+                        var job = await db.Jobs.FirstOrDefaultAsync(j => j.JobUId == res.jobId);
+                        if (job != null)
+                        {
+                            job.JSId = 4;
+                            job.JobActive = 2;
+                            job.JobEndTime = DateTime.Now;
+                            job.JobMassage = $"File upload failed";
+
+                            db.Jobs.Update(job);
+                            await db.SaveChangesAsync();
+                        }
+                    }
+                }
+                catch { }
+                //await _log.WriteLog("PatchProcess Error", ex.ToString(), 3);
+            }
+
+
+
+
+
+
         }
+
+        //Server Patch Process  
+
+
+
+
 
     }
 }

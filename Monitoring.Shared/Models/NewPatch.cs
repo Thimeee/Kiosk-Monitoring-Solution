@@ -9,9 +9,11 @@ using System.Threading.Tasks;
 
 namespace Monitoring.Shared.Models
 {
+    [Table("NewPatch")]
     public class NewPatch
     {
         [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int PId { get; set; }
 
         [MaxLength(100)]
@@ -19,7 +21,6 @@ namespace Monitoring.Shared.Models
 
         public DateTime? CreateDate { get; set; }
 
-        // Foreign Key
         public int? PTId { get; set; }
 
         public string? Remark { get; set; }
@@ -40,8 +41,11 @@ namespace Monitoring.Shared.Models
 
         public int? PatchProcessLevel { get; set; }
 
-        // Navigation Property
-        [ForeignKey("PTId")]
-        public PatchType? PatchTypes { get; set; }
+        public int? ServerSendChunks { get; set; }
+
+        public int? ServerArrivingChunks { get; set; }
+
+        [ForeignKey(nameof(PTId))]
+        public PatchType? PatchType { get; set; }
     }
 }
