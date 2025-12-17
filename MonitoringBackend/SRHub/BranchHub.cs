@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using Microsoft.AspNetCore.SignalR;
+using Monitoring.Shared.Models;
 
 namespace MonitoringBackend.SRHub
 {
@@ -30,6 +31,8 @@ namespace MonitoringBackend.SRHub
 
             }
 
+            //await Clients.All.SendAsync("UserConnected", object);
+
 
             ConnectionMap[Context.ConnectionId] = (branchId, userId);
 
@@ -39,6 +42,7 @@ namespace MonitoringBackend.SRHub
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
             ConnectionMap.TryRemove(Context.ConnectionId, out _);
+            await Clients.All.SendAsync("UserDisconnected", Context.ConnectionId);
             await base.OnDisconnectedAsync(exception);
         }
 

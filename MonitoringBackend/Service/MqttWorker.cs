@@ -399,6 +399,7 @@ namespace MonitoringBackend.Service
             NewPatch? newPatches;
             string? mergedFileFolder = null;
             string? zipFile = null;
+            Job? jobs;
 
             if (res == null)
                 return;
@@ -414,7 +415,7 @@ namespace MonitoringBackend.Service
 
             try
             {
-                var job = await db.Jobs.FirstOrDefaultAsync(j => j.JobUId == res.jobId);
+                jobs = await db.Jobs.FirstOrDefaultAsync(j => j.JobUId == res.jobId);
 
 
 
@@ -445,14 +446,17 @@ namespace MonitoringBackend.Service
                 //newPath table update 
 
                 //job table update 
-                if (job != null && newPatches != null)
+                if (jobs != null && newPatches != null)
                 {
                     newPatches.PatchProcessLevel = 2;
-                    job.JSId = 2;
+                    jobs.JSId = 2;
 
-                    db.Jobs.Update(job);
+                    db.Jobs.Update(jobs);
                     db.NewPatches.Update(newPatches);
                     await db.SaveChangesAsync();
+
+                    //notify client
+
 
                 }
 
@@ -478,6 +482,8 @@ namespace MonitoringBackend.Service
                     }
 
                 }
+
+                await _hubContext.Clients.All.SendAsync("PatchDeploymentStart", newPatches.PId);
 
                 //merged scripts to Folders 
 
@@ -547,20 +553,23 @@ namespace MonitoringBackend.Service
 
                 // Update Job
 
-                if (job != null && newPatches != null)
+                if (jobs != null && newPatches != null)
                 {
                     newPatches.PatchZipPath = zipFile;
                     newPatches.PatchProcessLevel = 3;
                     newPatches.PatchActiveStatus = 2;
 
-                    job.JSId = 3;
-                    job.JobActive = 2;
-                    job.JobEndTime = DateTime.Now;
-                    job.JobMassage = $"File uploaded and zipped successfully";
+                    jobs.JSId = 3;
+                    jobs.JobActive = 2;
+                    jobs.JobEndTime = DateTime.Now;
+                    jobs.JobMassage = $"File uploaded and zipped successfully";
 
-                    db.Jobs.Update(job);
+                    db.Jobs.Update(jobs);
                     db.NewPatches.Update(newPatches);
                     await db.SaveChangesAsync();
+
+                    //notify client
+                    await _hubContext.Clients.All.SendAsync("PatchDeploymentComplete", newPatches.PId);
                 }
 
                 // 1️⃣ Paths
@@ -593,18 +602,28 @@ namespace MonitoringBackend.Service
 
                     if (!string.IsNullOrEmpty(res.jobId) && newPatches != null)
                     {
-                        var job = await db.Jobs.FirstOrDefaultAsync(j => j.JobUId == res.jobId);
-                        if (job != null)
-                        {
-                            job.JSId = 4;
-                            job.JobActive = 2;
-                            job.JobEndTime = DateTime.Now;
-                            job.JobMassage = $"File upload failed";
+                        jobs = await db.Jobs.FirstOrDefaultAsync(j => j.JobUId == res.jobId);
 
-                            db.Jobs.Update(job);
+                        if (jobs != null)
+                        {
+                            newPatches.PatchProcessLevel = 4;
+                            newPatches.PatchActiveStatus = 2;
+
+                            jobs.JSId = 4;
+                            jobs.JobActive = 2;
+                            jobs.JobEndTime = DateTime.Now;
+                            jobs.JobMassage = "File upload failed";
+
+                            db.Jobs.Update(jobs);
+                            db.NewPatches.Update(newPatches);
+
                             await db.SaveChangesAsync();
+
+                            await _hubContext.Clients.All
+                                .SendAsync("PatchDeploymentFailed", newPatches.PId);
                         }
                     }
+
                 }
                 catch { }
                 //await _log.WriteLog("PatchProcess Error", ex.ToString(), 3);

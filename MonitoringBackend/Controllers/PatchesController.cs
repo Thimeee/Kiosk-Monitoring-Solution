@@ -152,7 +152,7 @@ namespace MonitoringBackend.Controllers
                     var NewPatches = await _db.NewPatches
          .Where(p => p.PatchProcessLevel == 1 || p.PatchProcessLevel == 2 || p.PatchProcessLevel == 3 || p.PatchProcessLevel == 4)
          .OrderByDescending(p => p.PId)
-         .Take(10)
+         .Take(5)
          .ToListAsync();
 
 
@@ -194,7 +194,7 @@ namespace MonitoringBackend.Controllers
             string zipFile = string.Empty;
             string jobUId = string.Empty;
             string mergedFileFolder = string.Empty;
-
+            string patchID = string.Empty;
             try
             {
                 var form = await Request.ReadFormAsync();
@@ -202,7 +202,6 @@ namespace MonitoringBackend.Controllers
                 var file = form.Files["chunk"];
                 string fileName = form["fileName"];
                 string userId = form["userId"];
-                string branchId = form["branchId"];
                 int chunkIndex = int.Parse(form["chunkIndex"]);
                 int totalChunks = int.Parse(form["totalChunks"]);
                 bool firstChunkStatus = bool.TryParse(form["firstChunkStatus"], out var result) && result;
@@ -232,7 +231,6 @@ namespace MonitoringBackend.Controllers
                 // Start Job for first chunk
                 if (firstChunkStatus)
                 {
-                    int branchIdInt = int.Parse(branchId);
                     var newjob = new Job
                     {
                         UserId = userId,
@@ -282,6 +280,8 @@ namespace MonitoringBackend.Controllers
 
                 await _db.NewPatches.AddAsync(patch);
                 await _db.SaveChangesAsync();
+
+                patchID = patch.PId.ToString();
 
                 var topic = $"server/mainServer/PATCHPROCESS";
 
@@ -427,6 +427,18 @@ namespace MonitoringBackend.Controllers
                             job.JobActive = 2;
                             job.JobEndTime = DateTime.Now;
                             job.JobMassage = $"File upload failed";
+
+                            if (!string.IsNullOrEmpty(patchID))
+                            {
+                                var patch = new NewPatch
+                                {
+                                    PatchActiveStatus = 1,
+                                    PatchProcessLevel = 4,
+                                };
+                                _db.NewPatches.Update(patch);
+
+                            }
+
 
                             _db.Jobs.Update(job);
                             await _db.SaveChangesAsync();
