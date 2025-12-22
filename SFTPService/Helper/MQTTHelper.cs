@@ -86,51 +86,80 @@ namespace SFTPService.Helper
 
         private async Task TryReconnectAsync()
         {
-            if (!await _reconnectLock.WaitAsync(0))
-            {
-                return;
-            }
-
+            await _reconnectLock.WaitAsync();
             try
             {
+                // Cancel any previous reconnect attempts
                 _reconnectCts?.Cancel();
                 _reconnectCts = new CancellationTokenSource();
                 var token = _reconnectCts.Token;
 
                 const int maxRetry = 50;
-                int delay = 1000;
+                int delay = 1000; // initial delay in ms
 
                 for (int i = 1; i <= maxRetry; i++)
                 {
-                    if (_disposed || token.IsCancellationRequested) break;
+                    if (_disposed || token.IsCancellationRequested)
+                    {
+                        await SafeLog("MQTT", "Reconnect canceled or disposed");
+                        break;
+                    }
 
                     try
                     {
-                        await _log.WriteLog("MQTT", $"Reconnect attempt {i}");
+                        await SafeLog("MQTT", $"Reconnect attempt {i}");
 
-                        if (_client!.IsConnected)
+                        if (_client != null && _client.IsConnected)
                         {
-                            await _log.WriteLog("MQTT", "Already reconnected");
+                            await SafeLog("MQTT", "Already connected");
+                            if (OnReconnectedMQTT != null) await OnReconnectedMQTT.Invoke();
                             return;
                         }
 
-                        await _client.ConnectAsync(_options!, token);
+                        if (_client != null && _options != null)
+                        {
+                            await _client.ConnectAsync(_options, token);
+                            await SafeLog("MQTT", "Reconnected successfully");
 
-                        await _log.WriteLog("MQTT", "Reconnected");
-
-                        if (OnReconnectedMQTT != null) await OnReconnectedMQTT.Invoke();
-
-                        return;
+                            if (OnReconnectedMQTT != null) await OnReconnectedMQTT.Invoke();
+                            return;
+                        }
                     }
-                    catch { }
+                    catch (OperationCanceledException)
+                    {
+                        await SafeLog("MQTT", "Reconnect attempt canceled");
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        await SafeLog("MQTT Error", $"Reconnect attempt {i} failed: {ex.Message}", 3);
+                    }
 
-                    await Task.Delay(delay + Random.Shared.Next(500), token);
-                    delay = Math.Min(delay * 2, 30000);
+                    // Exponential backoff with jitter
+                    int waitTime = delay + Random.Shared.Next(500);
+                    await Task.Delay(waitTime, token);
+                    delay = Math.Min(delay * 2, 30000); // cap at 30s
                 }
+
+                await SafeLog("MQTT", "Max reconnect attempts reached");
             }
             finally
             {
                 _reconnectLock.Release();
+            }
+        }
+
+        // Helper to ensure logging never throws
+        private async Task SafeLog(string category, string message, int level = 1)
+        {
+            try
+            {
+                if (_log != null)
+                    await _log.WriteLog(category, message, level);
+            }
+            catch
+            {
+
             }
         }
 
@@ -207,7 +236,6 @@ namespace SFTPService.Helper
                 }
             };
 
-                await _log.WriteLog("MQTT", "Global handler set to receive all MQTT messages");
             }
             _eventsBound = true; // stays TRUE forever while client exists
         }

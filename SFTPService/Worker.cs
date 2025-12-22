@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -65,11 +66,12 @@ namespace SFTPService
 
             while (!MQTTInit && !stoppingToken.IsCancellationRequested)
             {
-                await _log.WriteLog("MQTT Init ", $"MQTTHelperInit try");
+                //await _log.WriteLog("MQTT Init ", $"MQTTHelperInit try");
 
                 //MQTTInit = await _mqtt.InitAsync("127.0.0.1", "MQTTUser", "Thimi@1234", 1883);
                 MQTTInit = await _mqtt.InitAsync(MQTTHost, MQTTUserName, MQTTPW, MQTTPortInt);
-                await _log.WriteLog("MQTT Init ", $"MQTTHelperInit Oky");
+
+                await _log.WriteLog("MQTT Init ", $"MQTTHelperInit try");
 
                 if (!MQTTInit)
                 {
@@ -98,8 +100,7 @@ namespace SFTPService
             try
             {
 
-                await _log.WriteLog("MQTT Init ", $"MQTTHelperInit Oky 2");
-
+                await _log.WriteLog("MQTT Init ", $"MQTTHelperInit All Oky");
 
                 var branchTopic = $"branch/{branchId}/#";
 
@@ -111,6 +112,8 @@ namespace SFTPService
 
                     try
                     {
+                        await _log.WriteLog("MQTT", "MQTT messages receive Event Oky");
+
 
                         if (topic.Contains("/SFTP/"))
                         {
@@ -382,13 +385,43 @@ namespace SFTPService
                                         await Task.Delay(1000, token);
                                     }
 
-                                    await _log.WriteLog("sendhelth", "Send health loop ended (auto or canceled)");
+                                    await _log.WriteLog("sendHealth", "Send health loop ended (auto or canceled)");
                                 }
                                 catch (TaskCanceledException)
                                 {
-                                    await _log.WriteLog("sendhelth", "Send health loop canceled by new request");
+                                    await _log.WriteLog("sendHealth", "Send health loop canceled by new request");
                                 }
                             });
+                        }
+                        else if (topic.Contains("/PATCH/Application"))
+                        {
+                            await _log.WriteLog("sendHealth", "start before loop");
+
+                            string scriptPath = @"C:\Branches\MCS\Patches\AllNewPatches\Scripts\update.ps1";
+
+                            ProcessStartInfo psi = new ProcessStartInfo()
+                            {
+                                FileName = "powershell.exe",
+                                Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"",
+                                RedirectStandardOutput = true,
+                                RedirectStandardError = true,
+                                UseShellExecute = false,
+                                CreateNoWindow = true
+                            };
+
+                            using (Process process = Process.Start(psi))
+                            {
+                                string output = process.StandardOutput.ReadToEnd();
+                                string error = process.StandardError.ReadToEnd();
+                                process.WaitForExit();
+
+                                await _log.WriteLog("Patch Error ", $"{output}");
+                                if (!string.IsNullOrEmpty(error))
+                                    await _log.WriteLog("Patch Error ", $"{error}");
+
+                                //Console.WriteLine("Error:\n" + error);
+                            }
+
                         }
 
 
@@ -422,11 +455,11 @@ namespace SFTPService
 
 
 
-            await _log.WriteLog("Service Warning (DealyLog/ExecptionLog)", $"Initialization failed. Attempt {attempt}/{maxRetries}", 2);
+            await _log.WriteLog("Service Warning (DailyLog/ExecptionLog)", $"Initialization failed. Attempt {attempt}/{maxRetries}", 2);
 
             if (attempt >= maxRetries)
             {
-                await _log.WriteLog("Service Error (DealyLog/ExecptionLog)", "Max retries reached. Service cannot continue.", 2);
+                await _log.WriteLog("Service Error (DailyLog/ExecptionLog)", "Max retries reached. Service cannot continue.", 2);
                 //return;
                 //attempt = 0;
             }
