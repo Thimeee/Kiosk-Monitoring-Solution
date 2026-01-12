@@ -1,15 +1,16 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using MQTTnet;
+using MQTTnet.LowLevelClient;
 using MQTTnet.Protocol;
 
 namespace SFTPService.Helper
 {
-    public class MQTTHelper : IDisposable
+    public class MQTTHelper : IAsyncDisposable
     {
         private readonly LoggerService _log;
         private readonly IConfiguration _config;
@@ -20,24 +21,22 @@ namespace SFTPService.Helper
 
         private CancellationTokenSource? _reconnectCts;
         private readonly SemaphoreSlim _reconnectLock = new(1, 1);
+        private readonly SemaphoreSlim _publishLock = new(50, 50); // Limit concurrent publishes
 
-        // MQTT “exchanges” → using topic patterns
-        public const string TOPIC_BROADCAST = "branch/all/patch";
-        public const string TOPIC_DIRECT = "branch/{0}/patch";
-        public const string TOPIC_STATUS = "branch/status/patch";
-        public const string TOPIC_STATUS_ALL = "branch/status/allpatch";
+        private readonly ConcurrentDictionary<string, Func<string, string, Task>> _subscriptions = new();
 
         public event Func<Task>? OnReconnectedMQTT;
+
+        private const int PublishTimeoutMs = 5000;
+        private const int MaxReconnectAttempts = 50;
+        private const int InitialRetryDelayMs = 1000;
+        private const int MaxRetryDelayMs = 30000;
 
         public MQTTHelper(LoggerService log, IConfiguration config)
         {
             _log = log;
             _config = config;
         }
-
-        // ----------------------------------------------------------------------
-        // INIT CONNECTION
-        // ----------------------------------------------------------------------
 
         public async Task<bool> InitAsync(string host, string user, string pass, int port = 1883)
         {
@@ -52,96 +51,96 @@ namespace SFTPService.Helper
                     .WithTcpServer(host, port)
                     .WithCredentials(user, pass)
                     .WithKeepAlivePeriod(TimeSpan.FromSeconds(30))
-                    .WithCleanSession(true)
+                    .WithCleanSession(false) // ✅ Persist sessions
+                    .WithTimeout(TimeSpan.FromSeconds(10))
                     .Build();
 
-                _client.DisconnectedAsync += HandleDisconnect;
+                // Attach event handlers ONCE
+                _client.DisconnectedAsync += HandleDisconnectAsync;
+                _client.ApplicationMessageReceivedAsync += HandleMessageReceivedAsync;
 
                 await _client.ConnectAsync(_options);
-
                 await _log.WriteLog("MQTT", "Connected to MQTT broker");
 
                 return true;
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("MQTT Init Error", ex.ToString(), 3);
+                await _log.WriteLog("MQTT Init Error", $"Failed: {ex.Message}", 3);
                 return false;
             }
         }
 
-        // ----------------------------------------------------------------------
-        // AUTO RECONNECT
-        // ----------------------------------------------------------------------
-
-        private async Task HandleDisconnect(MqttClientDisconnectedEventArgs e)
+        private async Task HandleDisconnectAsync(MqttClientDisconnectedEventArgs e)
         {
             if (_disposed) return;
 
-            await _log.WriteLog("MQTT", $"Disconnected: {e.ReasonString}");
+            await _log.WriteLog("MQTT", $"Disconnected: {e.Reason}");
 
             if (e.ClientWasConnected)
+            {
                 _ = Task.Run(async () => await TryReconnectAsync());
+            }
         }
 
         private async Task TryReconnectAsync()
         {
-            await _reconnectLock.WaitAsync();
+            // Non-blocking check
+            if (!await _reconnectLock.WaitAsync(0))
+            {
+                return;
+            }
+
             try
             {
-                // Cancel any previous reconnect attempts
                 _reconnectCts?.Cancel();
+                _reconnectCts?.Dispose();
                 _reconnectCts = new CancellationTokenSource();
                 var token = _reconnectCts.Token;
 
-                const int maxRetry = 50;
-                int delay = 1000; // initial delay in ms
+                int delay = InitialRetryDelayMs;
 
-                for (int i = 1; i <= maxRetry; i++)
+                for (int i = 1; i <= MaxReconnectAttempts; i++)
                 {
                     if (_disposed || token.IsCancellationRequested)
-                    {
-                        await SafeLog("MQTT", "Reconnect canceled or disposed");
                         break;
-                    }
 
                     try
                     {
-                        await SafeLog("MQTT", $"Reconnect attempt {i}");
-
-                        if (_client != null && _client.IsConnected)
+                        if (_client?.IsConnected == true)
                         {
-                            await SafeLog("MQTT", "Already connected");
-                            if (OnReconnectedMQTT != null) await OnReconnectedMQTT.Invoke();
+                            await _log.WriteLog("MQTT", "Already reconnected");
+                            await ResubscribeAllAsync();
+                            if (OnReconnectedMQTT != null)
+                                await OnReconnectedMQTT.Invoke();
                             return;
                         }
 
-                        if (_client != null && _options != null)
-                        {
-                            await _client.ConnectAsync(_options, token);
-                            await SafeLog("MQTT", "Reconnected successfully");
+                        await _log.WriteLog("MQTT", $"Reconnect attempt {i}/{MaxReconnectAttempts}");
 
-                            if (OnReconnectedMQTT != null) await OnReconnectedMQTT.Invoke();
-                            return;
-                        }
+                        await _client!.ConnectAsync(_options!, token);
+                        await _log.WriteLog("MQTT", "Reconnected successfully");
+
+                        await ResubscribeAllAsync();
+                        if (OnReconnectedMQTT != null)
+                            await OnReconnectedMQTT.Invoke();
+                        return;
                     }
                     catch (OperationCanceledException)
                     {
-                        await SafeLog("MQTT", "Reconnect attempt canceled");
                         break;
                     }
                     catch (Exception ex)
                     {
-                        await SafeLog("MQTT Error", $"Reconnect attempt {i} failed: {ex.Message}", 3);
+                        if (i == MaxReconnectAttempts)
+                        {
+                            await _log.WriteLog("MQTT Error", $"Reconnect failed after {i} attempts: {ex.Message}", 3);
+                        }
                     }
 
-                    // Exponential backoff with jitter
-                    int waitTime = delay + Random.Shared.Next(500);
-                    await Task.Delay(waitTime, token);
-                    delay = Math.Min(delay * 2, 30000); // cap at 30s
+                    await Task.Delay(delay + Random.Shared.Next(500), token);
+                    delay = Math.Min(delay * 2, MaxRetryDelayMs);
                 }
-
-                await SafeLog("MQTT", "Max reconnect attempts reached");
             }
             finally
             {
@@ -149,105 +148,142 @@ namespace SFTPService.Helper
             }
         }
 
-        // Helper to ensure logging never throws
-        private async Task SafeLog(string category, string message, int level = 1)
+        private async Task ResubscribeAllAsync()
         {
-            try
+            foreach (var topic in _subscriptions.Keys)
             {
-                if (_log != null)
-                    await _log.WriteLog(category, message, level);
-            }
-            catch
-            {
-
+                try
+                {
+                    await _client!.SubscribeAsync(topic);
+                }
+                catch (Exception ex)
+                {
+                    await _log.WriteLog("MQTT Resubscribe Error", $"Topic: {topic}, Error: {ex.Message}", 3);
+                }
             }
         }
-
-
-        // ----------------------------------------------------------------------
-        // PUBLISH METHODS
-        // ----------------------------------------------------------------------
 
         public async Task PublishToServer(object payload, string topic, MqttQualityOfServiceLevel level, CancellationToken cancellationToken)
         {
             await PublishAsync(topic, payload, level, cancellationToken);
         }
 
-
         public async Task PublishAsync(string topic, object payload, MqttQualityOfServiceLevel level, CancellationToken cancellationToken)
         {
+            if (_client == null || !_client.IsConnected)
+            {
+                return; // Silent fail
+            }
+
+            await _publishLock.WaitAsync(cancellationToken);
             try
             {
-                if (_client == null || !_client.IsConnected)
-                {
-                    await _log.WriteLog("MQTT Publish", "Client not connected");
-                    return;
-                }
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(PublishTimeoutMs);
+
                 var body = JsonSerializer.SerializeToUtf8Bytes(payload);
 
                 var msg = new MqttApplicationMessageBuilder()
                     .WithTopic(topic)
                     .WithPayload(body)
                     .WithQualityOfServiceLevel(level)
+                    .WithRetainFlag(false)
                     .Build();
 
-                await _client.PublishAsync(msg, cancellationToken);
+                await _client.PublishAsync(msg, cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Timeout or cancellation - don't log every one
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("MQTT Publish Error", ex.ToString(), 3);
+                await _log.WriteLog("MQTT Publish Error", $"Topic: {topic}, Error: {ex.Message}", 3);
+            }
+            finally
+            {
+                _publishLock.Release();
             }
         }
 
-
-
-        // ----------------------------------------------------------------------
-        // SUBSCRIBE
-        // ----------------------------------------------------------------------
-
-        private bool _eventsBound = false;
         public async Task SubscribeAsync(string topic, Func<string, string, Task> handler)
         {
             if (_client == null) return;
 
-            // Subscribe to all topics using a wildcard if needed
-            await _client.SubscribeAsync(topic); // "#" subscribes to all topics
+            // Store handler for resubscription
+            _subscriptions[topic] = handler;
 
-            if (!_eventsBound)
+            try
             {
-                // Attach a single event handler
-                _client.ApplicationMessageReceivedAsync += async e =>
-            {
-                //await _log.WriteLog("MQTT", "hi");
-
-                string topic = e.ApplicationMessage.Topic;
-                string payload = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
-
-                try
-                {
-                    if (handler != null)
-                    {
-                        await handler(payload, topic); // pass both payload and topic
-                    }
-                }
-                catch (Exception ex)
-                {
-                    await _log.WriteLog("MQTT Error", $"Global handler exception for topic {topic}: {ex}", 3);
-                }
-            };
-
+                await _client.SubscribeAsync(topic);
+                await _log.WriteLog("MQTT", $"Subscribed to: {topic}");
             }
-            _eventsBound = true; // stays TRUE forever while client exists
+            catch (Exception ex)
+            {
+                await _log.WriteLog("MQTT Subscribe Error", $"Topic: {topic}, Error: {ex.Message}", 3);
+            }
         }
 
-        // ----------------------------------------------------------------------
-        public async Task CleanupAsync()
+        private async Task HandleMessageReceivedAsync(MqttApplicationMessageReceivedEventArgs e)
+        {
+            string topic = e.ApplicationMessage.Topic;
+            string payload = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
+
+            foreach (var sub in _subscriptions)
+            {
+                if (TopicMatches(sub.Key, topic))
+                {
+                    try
+                    {
+                        await sub.Value(payload, topic);
+                    }
+                    catch (Exception ex)
+                    {
+                        await _log.WriteLog("MQTT Handler Error", $"Topic: {topic}, Error: {ex.Message}", 3);
+                    }
+                }
+            }
+        }
+
+        private bool TopicMatches(string pattern, string topic)
+        {
+            if (pattern == topic) return true;
+            if (pattern.EndsWith("#"))
+            {
+                var prefix = pattern.Substring(0, pattern.Length - 1);
+                return topic.StartsWith(prefix);
+            }
+            if (pattern.Contains("+"))
+            {
+                var parts = pattern.Split('/');
+                var topicParts = topic.Split('/');
+                if (parts.Length != topicParts.Length) return false;
+                for (int i = 0; i < parts.Length; i++)
+                {
+                    if (parts[i] != "+" && parts[i] != topicParts[i])
+                        return false;
+                }
+                return true;
+            }
+            return false;
+        }
+
+        private async Task CleanupAsync()
         {
             try
             {
                 if (_client != null)
                 {
-                    await _client.DisconnectAsync();
+                    _client.DisconnectedAsync -= HandleDisconnectAsync;
+                    _client.ApplicationMessageReceivedAsync -= HandleMessageReceivedAsync;
+
+                    if (_client.IsConnected)
+                    {
+                        await _client.DisconnectAsync();
+                    }
+
+                    _client.Dispose();
+                    _client = null;
                 }
             }
             catch { }
@@ -255,14 +291,21 @@ namespace SFTPService.Helper
 
         public void Dispose()
         {
-            DisposeAsync().GetAwaiter().GetResult();
+            DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
 
         public async ValueTask DisposeAsync()
         {
+            if (_disposed) return;
             _disposed = true;
+
             _reconnectCts?.Cancel();
+            _reconnectCts?.Dispose();
+
             await CleanupAsync();
+
+            _reconnectLock?.Dispose();
+            _publishLock?.Dispose();
         }
     }
 }

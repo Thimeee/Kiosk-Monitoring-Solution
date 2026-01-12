@@ -63,6 +63,20 @@ builder.Services.AddCors(options =>
 //});
 //use production level 
 
+
+// Kestrel Configuration for 500+ branches
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxConcurrentConnections = 1000; // 500 branches × 2
+    options.Limits.MaxConcurrentUpgradedConnections = 1000;
+    options.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(2);
+    options.Limits.RequestHeadersTimeout = TimeSpan.FromSeconds(30);
+    options.Limits.Http2.MaxStreamsPerConnection = 100;
+});
+
+
+
+
 builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = long.MaxValue; // Allow very large uploads
@@ -106,7 +120,20 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddControllers();
 builder.Services.AddAuthorization();
 
-builder.Services.AddSignalR();
+
+// SignalR Configuration for 500+ branches
+//builder.Services.AddSignalR();
+
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = false; // Disable in production
+    options.MaximumReceiveMessageSize = 102400; // 100KB
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
+    options.HandshakeTimeout = TimeSpan.FromSeconds(15);
+    options.StreamBufferCapacity = 10;
+});
+
 builder.Services.AddSingleton<SftpStorageService>();
 builder.Services.AddSingleton<LoggerService>();
 builder.Services.AddSingleton<MQTTHelper>();

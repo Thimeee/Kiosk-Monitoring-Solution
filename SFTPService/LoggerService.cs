@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Monitoring.Shared.DTO;
 using Renci.SshNet;
 using Renci.SshNet.Sftp;
 
@@ -26,6 +27,11 @@ namespace SFTPService
                 string logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{logType}] {message}{Environment.NewLine}";
                 await Task.Run(() => File.AppendAllTextAsync(logFilePath, logEntry));
             }
+        }
+
+        internal async Task WriteLog(string v, BranchJobResponse<PerformanceInfo> resObj)
+        {
+            throw new NotImplementedException();
         }
 
         private string GetDailyLogFilePath(int LogWritenType)
