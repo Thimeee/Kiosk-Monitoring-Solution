@@ -1,5 +1,6 @@
 ﻿using System.IO;
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Unicode;
 using Microsoft.AspNetCore.Authorization;
@@ -519,6 +520,65 @@ namespace MonitoringBackend.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
                 //return StatusCode(500, new { Error = "An unexpected error occurred." });
             }
+        }
+
+        private static string CalculateFileChecksum(string filePath)
+        {
+            using var sha256 = SHA256.Create();
+            using var stream = System.IO.File.OpenRead(filePath); // Use fully qualified name to avoid ambiguity
+            var hash = sha256.ComputeHash(stream);
+            return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+        }
+
+        [HttpGet("deploy")]
+        public async Task<IActionResult> DeployPatchGet([FromQuery] Guid? patchId, [FromQuery] string? branchId)
+        {
+            try
+            {
+                var jobId = Guid.NewGuid().ToString();
+                string patchZipPath = @"C:\Branches\Appliction\project\appliction.zip";
+                string checksum = CalculateFileChecksum(patchZipPath);
+
+                var payload = new PatchDeploymentRequest
+                {
+                    JobId = jobId,
+                    PatchId = patchId?.ToString() ?? "",
+                    PatchZipPath = patchZipPath,
+                    ExpectedChecksum = checksum
+                };
+
+                await _mqtt.PublishToServer(
+                    payload,
+                    $"branch/{branchId ?? "BRANCH002"}/PATCH/Application",
+                    MqttQualityOfServiceLevel.ExactlyOnce
+                );
+
+                return Ok(new APIResponseObjectValue<object>
+                {
+                    Status = true,
+                    StatusCode = 2,
+                    Message = "Patch deployment initiated",
+                    Value = payload
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new APIResponseObjectValue<object>
+                {
+                    Status = false,
+                    StatusCode = 0,
+                    Message = "Patch deployment failed",
+                    Value = null
+                });
+            }
+        }
+
+
+
+        public class PatchDeployRequest
+        {
+            public int PatchId { get; set; }
+            public string BranchId { get; set; } // null = all branches
         }
 
         //Client UploadFile Serve Methods End

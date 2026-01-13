@@ -1,5 +1,6 @@
 ﻿using SFTPService;
 using SFTPService.Helper;
+//using SFTPService.Services;
 
 var builder = Host.CreateDefaultBuilder(args)
     .ConfigureServices((context, services) =>
@@ -9,6 +10,7 @@ var builder = Host.CreateDefaultBuilder(args)
         services.AddSingleton<LoggerService>();
         services.AddSingleton<MQTTHelper>();
         services.AddSingleton<IPerformanceService, PerformanceService>();
+        services.AddSingleton<IPatchService, PatchService>();
         services.AddHostedService<Worker>();
     })
     .UseWindowsService(); // ✅ FIXED: Call on IHostBuilder, not ConfigureHostBuilder

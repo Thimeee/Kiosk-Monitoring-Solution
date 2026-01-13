@@ -189,7 +189,7 @@
                                                 <div class="col-4 ">
                                                     <div>
                                                             
-                                                            <button class="btn-upload w-100 mt-3" style="background: linear-gradient(135deg, #953e3f 0%, #b04e4f 100%);">
+                                                            <button class="btn-upload w-100 mt-3" style="background: linear-gradient(135deg, #953e3f 0%, #b04e4f 100%);" @onclick="() => UploadAsync_Get()">
                                                                 Push Branch
                                                             </button>
                                                     </div>
@@ -329,7 +329,92 @@
 </div>
 <AlertContainer />
 
+@code{
 
+    private async Task<string?> GetJwtToken()
+    {
+        try
+        {
+            var getJWT = new getJWTTokens(JS);
+            return await getJWT.GetJWTLoggedInBranchAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"JWT Error: {ex.Message}");
+            return null;
+        }
+    }
+
+    private async Task<LoggedInUser> getUserDetails()
+    {
+        return await _auth.getLogginUserDetiles();
+    }
+    private async Task<LogInBranchDeties> getBranchDetails()
+    {
+        return await _auth.getLogginBranchDetiles();
+    }
+    public class PatchDeployRequest
+    {
+        public int PatchId { get; set; }
+        public string BranchId { get; set; } // null = all branches
+    }
+    private async Task UploadAsync_Get()
+    {
+        try
+        {
+            var token = await GetJwtToken();
+
+            var patchId = Guid.NewGuid();      // for testing
+            var branchId = "BRANCH002";        // optional
+
+            using var client = new HttpClient { BaseAddress = new Uri(Settings.MainApiBaseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            // Build query string
+            var url = $"api/Patches/deploy?patchId={patchId}&branchId={branchId}";
+
+            var response = await client.GetAsync(url);
+
+            APIResponseObjectValue<object>? result = null;
+
+            if (response.Content.Headers.ContentLength > 0)
+            {
+                var options = new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                };
+
+                result = await response.Content.ReadFromJsonAsync<APIResponseObjectValue<object>>(options);
+            }
+
+            if (result != null)
+            {
+                if (result.Status)
+                {
+                    Console.WriteLine("SUCCESS: Patch deployment initiated (GET)");
+                    Console.WriteLine($"Message: {result.Message}");
+                    Console.WriteLine($"Payload: {System.Text.Json.JsonSerializer.Serialize(result.Value)}");
+                }
+                else
+                {
+                    Console.WriteLine($"FAILED: {result.Message}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("No content returned from API");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception: {ex}");
+            AlertService.ShowError("Client Error", ex.Message);
+        }
+    }
+
+
+
+}
 
 <style>
 

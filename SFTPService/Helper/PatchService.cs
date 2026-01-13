@@ -1,0 +1,666 @@
+﻿using System;
+using System.Diagnostics;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Threading;
+using System.Threading.Tasks;
+using Monitoring.Shared.DTO;
+using MQTTnet.Protocol;
+using SFTPService.Helper;
+//using SFTPService.Models;
+
+namespace SFTPService.Helper
+{
+    public interface IPatchService
+    {
+        Task<bool> ApplyPatchAsync(PatchDeploymentRequest request, string branchId, CancellationToken cancellationToken);
+    }
+
+
+    public class PatchService : IPatchService
+    {
+        private readonly LoggerService _log;
+        private readonly MQTTHelper _mqtt;
+        private readonly SftpFileService _sftp;
+        private readonly IConfiguration _config;
+
+        // Configuration paths
+        private readonly string _appName;
+        private readonly string _appFolder;
+        private readonly string _backupRoot;
+        private readonly string _updateRoot;
+        private readonly string _downloadsPath;
+        private readonly string _processName;
+        private readonly int _maxBackupsToKeep;
+
+        public PatchService(
+            LoggerService log,
+            MQTTHelper mqtt,
+            SftpFileService sftp,
+            IConfiguration config)
+        {
+            _log = log;
+            _mqtt = mqtt;
+            _sftp = sftp;
+            _config = config;
+
+            // Load configuration
+            _appName = config["Patch:AppName"] ?? "Bank_Cheque_printer.exe";
+            _appFolder = config["Patch:AppFolder"] ?? @"C:\Branches\Appliction\App";
+            _backupRoot = config["Patch:BackupRoot"] ?? @"C:\Branches\Appliction\Backups";
+            _updateRoot = config["Patch:UpdateRoot"] ?? @"C:\Branches\Appliction\Updates\NewVersion";
+            _downloadsPath = config["Patch:DownloadsPath"] ?? @"C:\Branches\Appliction\Downloads";
+            _maxBackupsToKeep = int.TryParse(config["Patch:MaxBackupsToKeep"], out var max) ? max : 5;
+
+            _processName = Path.GetFileNameWithoutExtension(_appName);
+        }
+
+        public async Task<bool> ApplyPatchAsync(
+            PatchDeploymentRequest request,
+            string branchId,
+            CancellationToken cancellationToken)
+        {
+            string backupPath = null;
+
+            try
+            {
+                await _log.WriteLog("Patch", $"Starting patch deployment: JobId={request.JobId}");
+
+                // PHASE 1: DOWNLOAD (0-15%)
+                await PublishStatusAsync(request.JobId, branchId, PatchStatus.IN_PROGRESS,
+                    PatchStep.DOWNLOAD, "Downloading patch file", 5, cancellationToken);
+
+                string downloadedZip = await DownloadPatchAsync(request, branchId, cancellationToken);
+                if (downloadedZip == null)
+                {
+                    await PublishStatusAsync(request.JobId, branchId, PatchStatus.FAILED,
+                        PatchStep.DOWNLOAD, "Failed to download patch", 5, cancellationToken);
+                    return false;
+                }
+
+                // PHASE 2: VALIDATE (15-20%)
+                await PublishStatusAsync(request.JobId, branchId, PatchStatus.IN_PROGRESS,
+                    PatchStep.VALIDATE, "Validating checksum", 15, cancellationToken);
+
+                if (!await ValidateChecksumAsync(downloadedZip, request.ExpectedChecksum))
+                {
+                    await PublishStatusAsync(request.JobId, branchId, PatchStatus.FAILED,
+                        PatchStep.VALIDATE, "Checksum validation failed", 15, cancellationToken);
+                    return false;
+                }
+
+                // PHASE 3: EXTRACT (20-30%)
+                await PublishStatusAsync(request.JobId, branchId, PatchStatus.IN_PROGRESS,
+                    PatchStep.EXTRACT, "Extracting patch files", 20, cancellationToken);
+
+                if (!await ExtractPatchAsync(downloadedZip, cancellationToken))
+                {
+                    await PublishStatusAsync(request.JobId, branchId, PatchStatus.FAILED,
+                        PatchStep.EXTRACT, "Failed to extract patch", 20, cancellationToken);
+                    return false;
+                }
+
+                await PublishStatusAsync(request.JobId, branchId, PatchStatus.IN_PROGRESS,
+                    PatchStep.EXTRACT, "Patch extracted successfully", 30, cancellationToken);
+
+                // PHASE 4: STOP APPLICATION (30-40%)
+                await PublishStatusAsync(request.JobId, branchId, PatchStatus.IN_PROGRESS,
+                    PatchStep.STOP_APP, "Stopping application", 35, cancellationToken);
+
+                if (!await StopApplicationAsync())
+                {
+                    await PublishStatusAsync(request.JobId, branchId, PatchStatus.FAILED,
+                        PatchStep.STOP_APP, "Failed to stop application", 35, cancellationToken);
+                    return false;
+                }
+
+                await PublishStatusAsync(request.JobId, branchId, PatchStatus.IN_PROGRESS,
+                    PatchStep.STOP_APP, "Application stopped successfully", 40, cancellationToken);
+
+                // PHASE 5: BACKUP (40-55%)
+                await PublishStatusAsync(request.JobId, branchId, PatchStatus.IN_PROGRESS,
+                    PatchStep.BACKUP, "Creating backup", 45, cancellationToken);
+
+                backupPath = await CreateBackupAsync(cancellationToken);
+                if (string.IsNullOrEmpty(backupPath))
+                {
+                    await PublishStatusAsync(request.JobId, branchId, PatchStatus.FAILED,
+                        PatchStep.BACKUP, "Backup creation failed", 45, cancellationToken);
+
+                    // Try to restart app even if backup failed
+                    await StartApplicationAsync(cancellationToken);
+                    return false;
+                }
+
+                await PublishStatusAsync(request.JobId, branchId, PatchStatus.IN_PROGRESS,
+                    PatchStep.BACKUP, $"Backup created: {Path.GetFileName(backupPath)}", 55, cancellationToken);
+
+                // PHASE 6: APPLY UPDATE (55-75%)
+                await PublishStatusAsync(request.JobId, branchId, PatchStatus.IN_PROGRESS,
+                    PatchStep.UPDATE, "Applying update", 60, cancellationToken);
+
+                if (!await ApplyUpdateAsync(cancellationToken))
+                {
+                    await PublishStatusAsync(request.JobId, branchId, PatchStatus.IN_PROGRESS,
+                        PatchStep.ROLLBACK, "Update failed - starting rollback", 65, cancellationToken);
+
+                    await RollbackAsync(backupPath, cancellationToken);
+
+                    await PublishStatusAsync(request.JobId, branchId, PatchStatus.ROLLBACK,
+                        PatchStep.COMPLETE, "Rollback completed", 100, cancellationToken);
+                    return false;
+                }
+
+                await PublishStatusAsync(request.JobId, branchId, PatchStatus.IN_PROGRESS,
+                    PatchStep.UPDATE, "Update applied successfully", 75, cancellationToken);
+
+                // PHASE 7: START APPLICATION (75-90%)
+                await PublishStatusAsync(request.JobId, branchId, PatchStatus.IN_PROGRESS,
+                    PatchStep.START_APP, "Starting application", 80, cancellationToken);
+
+                if (!await StartApplicationAsync(cancellationToken))
+                {
+                    await PublishStatusAsync(request.JobId, branchId, PatchStatus.IN_PROGRESS,
+                        PatchStep.ROLLBACK, "Application failed to start - rolling back", 85, cancellationToken);
+
+                    await RollbackAsync(backupPath, cancellationToken);
+
+                    await PublishStatusAsync(request.JobId, branchId, PatchStatus.ROLLBACK,
+                        PatchStep.COMPLETE, "Rollback completed", 100, cancellationToken);
+                    return false;
+                }
+
+                // PHASE 8: VERIFY (90-95%)
+                await PublishStatusAsync(request.JobId, branchId, PatchStatus.IN_PROGRESS,
+                    PatchStep.VERIFY, "Verifying application", 90, cancellationToken);
+
+                if (!await VerifyApplicationAsync(cancellationToken))
+                {
+                    await PublishStatusAsync(request.JobId, branchId, PatchStatus.IN_PROGRESS,
+                        PatchStep.ROLLBACK, "Verification failed - rolling back", 92, cancellationToken);
+
+                    await RollbackAsync(backupPath, cancellationToken);
+
+                    await PublishStatusAsync(request.JobId, branchId, PatchStatus.ROLLBACK,
+                        PatchStep.COMPLETE, "Rollback completed", 100, cancellationToken);
+                    return false;
+                }
+
+                await PublishStatusAsync(request.JobId, branchId, PatchStatus.IN_PROGRESS,
+                    PatchStep.VERIFY, "Application verified successfully", 95, cancellationToken);
+
+                // PHASE 9: CLEANUP (95-100%)
+                await PublishStatusAsync(request.JobId, branchId, PatchStatus.IN_PROGRESS,
+                    PatchStep.CLEANUP, "Cleaning up", 97, cancellationToken);
+
+                await CleanupAsync(downloadedZip);
+
+                await PublishStatusAsync(request.JobId, branchId, PatchStatus.SUCCESS,
+                    PatchStep.COMPLETE, "Patch applied successfully", 100, cancellationToken);
+
+                await _log.WriteLog("Patch", $"Patch completed successfully: JobId={request.JobId}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                await _log.WriteLog("Patch Error", $"JobId={request.JobId}, Error: {ex.Message}", 3);
+
+                await PublishStatusAsync(request.JobId, branchId, PatchStatus.FAILED,
+                    PatchStep.ERROR, $"Unexpected error: {ex.Message}", 0, cancellationToken);
+
+                // Attempt rollback if we have a backup
+                if (!string.IsNullOrEmpty(backupPath))
+                {
+                    try
+                    {
+                        await RollbackAsync(backupPath, cancellationToken);
+                    }
+                    catch (Exception rollbackEx)
+                    {
+                        await _log.WriteLog("Rollback Error", rollbackEx.Message, 3);
+                    }
+                }
+
+                return false;
+            }
+        }
+
+        private async Task<string> DownloadPatchAsync(
+            PatchDeploymentRequest request,
+            string branchId,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                // Create downloads directory if not exists
+                Directory.CreateDirectory(_downloadsPath);
+
+                string localPath = Path.Combine(_downloadsPath, $"patch_{request.JobId}.zip");
+
+                await _log.WriteLog("Patch Download", $"Downloading from: {request.PatchZipPath}");
+
+                await _sftp.DownloadFileAsync(
+                    request.PatchZipPath,
+                    localPath,
+                    "system",
+                    branchId,
+                    request.JobId,
+                    null,
+                    cancellationToken);
+
+                await _log.WriteLog("Patch Download", $"Downloaded to: {localPath}");
+                return localPath;
+            }
+            catch (Exception ex)
+            {
+                await _log.WriteLog("Patch Download Error", ex.Message, 3);
+                return null;
+            }
+        }
+
+        private async Task<bool> ValidateChecksumAsync(string filePath, string expectedChecksum)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(expectedChecksum))
+                {
+                    await _log.WriteLog("Patch Validate", "No checksum provided - skipping validation", 2);
+                    return true;
+                }
+
+                await _log.WriteLog("Patch Validate", "Computing SHA256 checksum");
+
+                using var sha256 = SHA256.Create();
+                using var stream = File.OpenRead(filePath);
+                var hash = await sha256.ComputeHashAsync(stream);
+                var actualChecksum = BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+
+                var isValid = actualChecksum.Equals(expectedChecksum.ToLowerInvariant(), StringComparison.OrdinalIgnoreCase);
+
+                if (isValid)
+                {
+                    await _log.WriteLog("Patch Validate", "Checksum valid");
+                }
+                else
+                {
+                    await _log.WriteLog("Patch Validate Error",
+                        $"Checksum mismatch - Expected: {expectedChecksum}, Got: {actualChecksum}", 3);
+                }
+
+                return isValid;
+            }
+            catch (Exception ex)
+            {
+                await _log.WriteLog("Patch Validate Error", ex.Message, 3);
+                return false;
+            }
+        }
+
+        private async Task<bool> ExtractPatchAsync(string zipPath, CancellationToken cancellationToken)
+        {
+            try
+            {
+                // Clean update folder
+                if (Directory.Exists(_updateRoot))
+                {
+                    await _log.WriteLog("Patch Extract", "Cleaning update folder");
+                    Directory.Delete(_updateRoot, true);
+                }
+
+                Directory.CreateDirectory(_updateRoot);
+
+                await _log.WriteLog("Patch Extract", $"Extracting to: {_updateRoot}");
+
+                // Extract ZIP
+                await Task.Run(() => ZipFile.ExtractToDirectory(zipPath, _updateRoot), cancellationToken);
+
+                // Verify extraction
+                var fileCount = Directory.GetFiles(_updateRoot, "*", SearchOption.AllDirectories).Length;
+                await _log.WriteLog("Patch Extract", $"Extracted {fileCount} files");
+
+                return fileCount > 0;
+            }
+            catch (Exception ex)
+            {
+                await _log.WriteLog("Patch Extract Error", ex.Message, 3);
+                return false;
+            }
+        }
+
+        private async Task<bool> StopApplicationAsync()
+        {
+            try
+            {
+                var processes = Process.GetProcessesByName(_processName);
+
+                if (processes.Length == 0)
+                {
+                    await _log.WriteLog("Patch Stop", "Application not running");
+                    return true;
+                }
+
+                await _log.WriteLog("Patch Stop", $"Stopping {processes.Length} process(es)");
+
+                foreach (var process in processes)
+                {
+                    try
+                    {
+                        process.Kill();
+                        await process.WaitForExitAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        await _log.WriteLog("Patch Stop Warning", $"Failed to stop PID {process.Id}: {ex.Message}", 2);
+                    }
+                    finally
+                    {
+                        process.Dispose();
+                    }
+                }
+
+                // Wait for clean shutdown
+                await Task.Delay(2000);
+
+                // Verify stopped
+                var remainingProcesses = Process.GetProcessesByName(_processName);
+                if (remainingProcesses.Length > 0)
+                {
+                    await _log.WriteLog("Patch Stop Error", $"{remainingProcesses.Length} process(es) still running", 3);
+                    return false;
+                }
+
+                await _log.WriteLog("Patch Stop", "Application stopped successfully");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                await _log.WriteLog("Patch Stop Error", ex.Message, 3);
+                return false;
+            }
+        }
+
+        private async Task<string> CreateBackupAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                Directory.CreateDirectory(_backupRoot);
+
+                string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                string backupFolder = Path.Combine(_backupRoot, $"Backup_{timestamp}");
+
+                await _log.WriteLog("Patch Backup", $"Creating backup: {backupFolder}");
+
+                Directory.CreateDirectory(backupFolder);
+
+                // Copy all files recursively
+                await CopyDirectoryAsync(_appFolder, backupFolder, cancellationToken);
+
+                var fileCount = Directory.GetFiles(backupFolder, "*", SearchOption.AllDirectories).Length;
+                await _log.WriteLog("Patch Backup", $"Backed up {fileCount} files");
+
+                return backupFolder;
+            }
+            catch (Exception ex)
+            {
+                await _log.WriteLog("Patch Backup Error", ex.Message, 3);
+                return null;
+            }
+        }
+
+        private async Task<bool> ApplyUpdateAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                await _log.WriteLog("Patch Update", "Removing old files");
+
+                // Delete all files and subdirectories
+                var files = Directory.GetFiles(_appFolder, "*", SearchOption.AllDirectories);
+                foreach (var file in files)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    File.Delete(file);
+                }
+
+                var directories = Directory.GetDirectories(_appFolder);
+                foreach (var dir in directories)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    Directory.Delete(dir, true);
+                }
+
+                await _log.WriteLog("Patch Update", "Copying new files");
+
+                // Copy new files
+                await CopyDirectoryAsync(_updateRoot, _appFolder, cancellationToken);
+
+                var newFileCount = Directory.GetFiles(_appFolder, "*", SearchOption.AllDirectories).Length;
+                await _log.WriteLog("Patch Update", $"Copied {newFileCount} files");
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                await _log.WriteLog("Patch Update Error", ex.Message, 3);
+                return false;
+            }
+        }
+
+        private async Task<bool> StartApplicationAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                string appPath = Path.Combine(_appFolder, _appName);
+
+                if (!File.Exists(appPath))
+                {
+                    await _log.WriteLog("Patch Start Error", $"Application not found: {appPath}", 3);
+                    return false;
+                }
+
+                await _log.WriteLog("Patch Start", $"Starting application: {appPath}");
+
+                var psi = new ProcessStartInfo
+                {
+                    FileName = appPath,
+                    WorkingDirectory = _appFolder,
+                    UseShellExecute = true
+                };
+
+                Process.Start(psi);
+
+                // Wait for startup
+                await Task.Delay(3000, cancellationToken);
+
+                // Check if running
+                var isRunning = Process.GetProcessesByName(_processName).Length > 0;
+
+                if (isRunning)
+                {
+                    await _log.WriteLog("Patch Start", "Application started successfully");
+                    return true;
+                }
+                else
+                {
+                    await _log.WriteLog("Patch Start Error", "Application failed to start", 3);
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                await _log.WriteLog("Patch Start Error", ex.Message, 3);
+                return false;
+            }
+        }
+
+        private async Task<bool> VerifyApplicationAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                // Wait a bit more to ensure app is stable
+                await Task.Delay(2000, cancellationToken);
+
+                var processes = Process.GetProcessesByName(_processName);
+
+                if (processes.Length == 0)
+                {
+                    await _log.WriteLog("Patch Verify Error", "Application not running", 3);
+                    return false;
+                }
+
+                // Check if process is responsive (not crashed/hung)
+                var process = processes[0];
+                if (process.Responding)
+                {
+                    await _log.WriteLog("Patch Verify", "Application verified and responsive");
+                    return true;
+                }
+                else
+                {
+                    await _log.WriteLog("Patch Verify Error", "Application not responding", 3);
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                await _log.WriteLog("Patch Verify Error", ex.Message, 3);
+                return false;
+            }
+        }
+
+        private async Task RollbackAsync(string backupPath, CancellationToken cancellationToken)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(backupPath) || !Directory.Exists(backupPath))
+                {
+                    await _log.WriteLog("Patch Rollback Error", "No backup available", 3);
+                    return;
+                }
+
+                await _log.WriteLog("Patch Rollback", $"Rolling back from: {backupPath}");
+
+                // Stop application
+                await StopApplicationAsync();
+
+                // Delete current files
+                var files = Directory.GetFiles(_appFolder, "*", SearchOption.AllDirectories);
+                foreach (var file in files)
+                {
+                    File.Delete(file);
+                }
+
+                var directories = Directory.GetDirectories(_appFolder);
+                foreach (var dir in directories)
+                {
+                    Directory.Delete(dir, true);
+                }
+
+                // Restore from backup
+                await CopyDirectoryAsync(backupPath, _appFolder, cancellationToken);
+
+                // Start application
+                await StartApplicationAsync(cancellationToken);
+
+                await _log.WriteLog("Patch Rollback", "Rollback completed");
+            }
+            catch (Exception ex)
+            {
+                await _log.WriteLog("Patch Rollback Error", ex.Message, 3);
+            }
+        }
+
+        private async Task CleanupAsync(string downloadedZip)
+        {
+            try
+            {
+                // Delete downloaded ZIP
+                if (File.Exists(downloadedZip))
+                {
+                    File.Delete(downloadedZip);
+                    await _log.WriteLog("Patch Cleanup", "Deleted downloaded ZIP");
+                }
+
+                // Clean old backups (keep last N)
+                if (Directory.Exists(_backupRoot))
+                {
+                    var backups = new DirectoryInfo(_backupRoot)
+                        .GetDirectories()
+                        .OrderByDescending(d => d.LastWriteTime)
+                        .Skip(_maxBackupsToKeep)
+                        .ToList();
+
+                    foreach (var backup in backups)
+                    {
+                        backup.Delete(true);
+                    }
+
+                    if (backups.Count > 0)
+                    {
+                        await _log.WriteLog("Patch Cleanup", $"Removed {backups.Count} old backup(s)");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                await _log.WriteLog("Patch Cleanup Error", ex.Message, 2);
+            }
+        }
+
+        private async Task CopyDirectoryAsync(string sourceDir, string destDir, CancellationToken cancellationToken)
+        {
+            Directory.CreateDirectory(destDir);
+
+            // Copy files
+            foreach (var file in Directory.GetFiles(sourceDir))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                string destFile = Path.Combine(destDir, Path.GetFileName(file));
+                File.Copy(file, destFile, true);
+            }
+
+            // Copy subdirectories
+            foreach (var dir in Directory.GetDirectories(sourceDir))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                string destSubDir = Path.Combine(destDir, Path.GetFileName(dir));
+                await CopyDirectoryAsync(dir, destSubDir, cancellationToken);
+            }
+        }
+
+        private async Task PublishStatusAsync(
+            string jobId,
+            string branchId,
+            PatchStatus status,
+            PatchStep step,
+            string message,
+            int progress,
+            CancellationToken cancellationToken)
+        {
+            var payload = new PatchStatusUpdate
+            {
+                JobId = jobId,
+                BranchId = branchId,
+                Status = status,
+                Step = step,
+                Message = message,
+                Progress = progress,
+                Timestamp = DateTime.UtcNow
+            };
+
+            try
+            {
+                await _mqtt.PublishToServer(
+                    payload,
+                    $"server/{branchId}/PATCH/Status",
+                    MqttQualityOfServiceLevel.AtLeastOnce,
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                await _log.WriteLog("MQTT Publish Error", ex.Message, 3);
+            }
+        }
+    }
+}

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Monitoring.Shared.DTO;
 using MQTTnet.Protocol;
 using SFTPService.Helper;
+//using SFTPService.Services;
 
 namespace SFTPService
 {
@@ -17,19 +18,23 @@ namespace SFTPService
         private readonly IPerformanceService _performance;
         private CancellationTokenSource _healthLoopCts;
         private readonly SemaphoreSlim _healthLoopLock = new SemaphoreSlim(1, 1);
+        private readonly IPatchService _patchService; // 
 
         public Worker(
             SftpFileService sftpMonitor,
             MQTTHelper mqtt,
             IConfiguration config,
             LoggerService log,
-            IPerformanceService performance)
+            IPerformanceService performance,
+            IPatchService patchService
+           )
         {
             _sftp = sftpMonitor;
             _mqtt = mqtt;
             _config = config;
             _log = log;
             _performance = performance;
+            _patchService = patchService;
         }
 
         protected override async Task<Task> ExecuteAsync(CancellationToken stoppingToken)
@@ -123,9 +128,9 @@ namespace SFTPService
                 {
                     await HandleHealthRequest(branchId, stoppingToken);
                 }
-                else if (topic.Contains("/PATCH/Application"))
+                else if (topic.Contains("/PATCH/Application")) // ✅ NEW
                 {
-                    await HandlePatchApplication();
+                    await HandlePatchApplication(payload, branchId, stoppingToken);
                 }
             }
             catch (Exception ex)
@@ -333,6 +338,7 @@ namespace SFTPService
         {
             // Prevent race condition with lock
             await _healthLoopLock.WaitAsync(stoppingToken);
+            await _log.WriteLog("Health Loop ", "start helth");
 
             try
             {
@@ -362,12 +368,14 @@ namespace SFTPService
                                 jobEndTime = DateTime.Now,
                                 jobRsValue = perf
                             };
+                            await _log.WriteLog("Health Loop ", "send strt");
 
                             await _mqtt.PublishToServer(
                                 response,
                                 $"server/{branchId}/HEALTH/PerformanceRespo",
                                 MqttQualityOfServiceLevel.AtMostOnce,
                                 stoppingToken);
+                            await _log.WriteLog("Health Loop ", "send Oky");
 
                             await Task.Delay(1000, token);
                         }
@@ -388,36 +396,34 @@ namespace SFTPService
             }
         }
 
-        private async Task HandlePatchApplication()
+        private async Task HandlePatchApplication(string payload, string branchId, CancellationToken stoppingToken)
         {
             try
             {
-                string scriptPath = @"C:\Branches\MCS\Patches\AllNewPatches\Scripts\update.ps1";
-
-                var psi = new ProcessStartInfo
+                var request = JsonSerializer.Deserialize<PatchDeploymentRequest>(payload);
+                if (request == null)
                 {
-                    FileName = "powershell.exe",
-                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -File \"{scriptPath}\"",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
+                    await _log.WriteLog("Patch Handler", "Invalid payload received", 3);
+                    return;
+                }
 
-                using var process = Process.Start(psi);
-                string output = await process.StandardOutput.ReadToEndAsync();
-                string error = await process.StandardError.ReadToEndAsync();
-                await process.WaitForExitAsync();
+                await _log.WriteLog("Patch", $"Received patch request - JobId: {request.JobId}, PatchId: {request.PatchId}");
 
-                if (!string.IsNullOrEmpty(output))
-                    await _log.WriteLog("Patch Output", output);
+                // Execute patch deployment
+                bool success = await _patchService.ApplyPatchAsync(request, branchId, stoppingToken);
 
-                if (!string.IsNullOrEmpty(error))
-                    await _log.WriteLog("Patch Error", error, 3);
+                if (success)
+                {
+                    await _log.WriteLog("Patch", $"Patch applied successfully - JobId: {request.JobId}");
+                }
+                else
+                {
+                    await _log.WriteLog("Patch", $"Patch failed - JobId: {request.JobId}", 3);
+                }
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Application Error", ex.Message, 3);
+                await _log.WriteLog("Patch Handler Error", ex.Message, 3);
             }
         }
 
