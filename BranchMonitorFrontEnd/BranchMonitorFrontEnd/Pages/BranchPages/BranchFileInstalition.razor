@@ -365,7 +365,7 @@
             var token = await GetJwtToken();
 
             var patchId = Guid.NewGuid();      // for testing
-            var branchId = "BRANCH002";        // optional
+            var branchId = "BRANCH003";        // optional
 
             using var client = new HttpClient { BaseAddress = new Uri(Settings.MainApiBaseUrl) };
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);

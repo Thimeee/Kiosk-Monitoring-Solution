@@ -447,12 +447,28 @@ namespace SFTPService
             }
         }
 
-        public override void Dispose()
+        public override async Task StopAsync(CancellationToken cancellationToken)
         {
-            _healthLoopCts?.Cancel();
-            _healthLoopCts?.Dispose();
-            _healthLoopLock?.Dispose();
-            base.Dispose();
+            try
+            {
+                await _log.WriteLog("Worker", "Service stopping gracefully...");
+
+                // top health loop
+                _healthLoopCts?.Cancel();
+                _healthLoopCts?.Dispose();
+                _healthLoopLock?.Dispose();
+
+                // Gracefully shutdown MQTT
+                await _mqtt.ShutdownAsync();
+
+                await _log.WriteLog("Worker", "Service stopped cleanly");
+            }
+            catch (Exception ex)
+            {
+                await _log.WriteLog("Worker Error", $"Stop error: {ex.Message}", 3);
+            }
+
+            await base.StopAsync(cancellationToken);
         }
     }
 }

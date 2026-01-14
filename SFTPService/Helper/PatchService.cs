@@ -28,11 +28,13 @@ namespace SFTPService.Helper
 
         // Configuration paths
         private readonly string _appName;
+        private readonly string _secAppName;
         private readonly string _appFolder;
         private readonly string _backupRoot;
         private readonly string _updateRoot;
         private readonly string _downloadsPath;
         private readonly string _processName;
+        private readonly string _SecprocessName;
         private readonly int _maxBackupsToKeep;
 
         public PatchService(
@@ -47,7 +49,8 @@ namespace SFTPService.Helper
             _config = config;
 
             // Load configuration
-            _appName = config["Patch:AppName"] ?? "Bank_Cheque_printer.exe";
+            _appName = config["Patch:MainAppName"] ?? "Bank_Cheque_printer.exe";
+            _secAppName = config["Patch:SecondAppName"] ?? "Bank_Cheque_printer.exe";
             _appFolder = config["Patch:AppFolder"] ?? @"C:\Branches\Appliction\App";
             _backupRoot = config["Patch:BackupRoot"] ?? @"C:\Branches\Appliction\Backups";
             _updateRoot = config["Patch:UpdateRoot"] ?? @"C:\Branches\Appliction\Updates\NewVersion";
@@ -55,6 +58,7 @@ namespace SFTPService.Helper
             _maxBackupsToKeep = int.TryParse(config["Patch:MaxBackupsToKeep"], out var max) ? max : 5;
 
             _processName = Path.GetFileNameWithoutExtension(_appName);
+            _SecprocessName = Path.GetFileNameWithoutExtension(_secAppName);
         }
 
         public async Task<bool> ApplyPatchAsync(
@@ -109,7 +113,14 @@ namespace SFTPService.Helper
                 await PublishStatusAsync(request.JobId, branchId, PatchStatus.IN_PROGRESS,
                     PatchStep.STOP_APP, "Stopping application", 35, cancellationToken);
 
-                if (!await StopApplicationAsync())
+                if (!await StopApplicationAsync(_processName))
+                {
+                    await PublishStatusAsync(request.JobId, branchId, PatchStatus.FAILED,
+                        PatchStep.STOP_APP, "Failed to stop application", 35, cancellationToken);
+                    return false;
+                }
+
+                if (!await StopApplicationAsync(_SecprocessName))
                 {
                     await PublishStatusAsync(request.JobId, branchId, PatchStatus.FAILED,
                         PatchStep.STOP_APP, "Failed to stop application", 35, cancellationToken);
@@ -205,7 +216,7 @@ namespace SFTPService.Helper
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Error", $"JobId={request.JobId}, Error: {ex.Message}", 3);
+                await _log.WriteLog("Patch Error", $"JobId={request.JobId}, Error: {ex}", 3);
 
                 await PublishStatusAsync(request.JobId, branchId, PatchStatus.FAILED,
                     PatchStep.ERROR, $"Unexpected error: {ex.Message}", 0, cancellationToken);
@@ -219,7 +230,7 @@ namespace SFTPService.Helper
                     }
                     catch (Exception rollbackEx)
                     {
-                        await _log.WriteLog("Rollback Error", rollbackEx.Message, 3);
+                        await _log.WriteLog("Rollback Error", $"{rollbackEx}", 3);
                     }
                 }
 
@@ -255,7 +266,9 @@ namespace SFTPService.Helper
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Download Error", ex.Message, 3);
+                // Replace this line:
+                await _log.WriteLog("Patch Download Error", $"{ex}", 3);
+
                 return null;
             }
         }
@@ -293,7 +306,7 @@ namespace SFTPService.Helper
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Validate Error", ex.Message, 3);
+                await _log.WriteLog("Patch Validate Error", $"{ex}", 3);
                 return false;
             }
         }
@@ -324,24 +337,24 @@ namespace SFTPService.Helper
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Extract Error", ex.Message, 3);
+                await _log.WriteLog("Patch Extract Error", $"{ex}", 3);
                 return false;
             }
         }
 
-        private async Task<bool> StopApplicationAsync()
+        private async Task<bool> StopApplicationAsync(string processName)
         {
             try
             {
-                var processes = Process.GetProcessesByName(_processName);
+                var processes = Process.GetProcessesByName(processName);
 
                 if (processes.Length == 0)
                 {
-                    await _log.WriteLog("Patch Stop", "Application not running");
+                    await _log.WriteLog("Patch Stop", $"Application {processName} not running");
                     return true;
                 }
 
-                await _log.WriteLog("Patch Stop", $"Stopping {processes.Length} process(es)");
+                await _log.WriteLog("Patch Stop", $"Stopping {processes.Length} instance(s) of {processName}");
 
                 foreach (var process in processes)
                 {
@@ -363,20 +376,20 @@ namespace SFTPService.Helper
                 // Wait for clean shutdown
                 await Task.Delay(2000);
 
-                // Verify stopped
-                var remainingProcesses = Process.GetProcessesByName(_processName);
+                //  FIX: Verify stopped - check the CORRECT process name
+                var remainingProcesses = Process.GetProcessesByName(processName);
                 if (remainingProcesses.Length > 0)
                 {
-                    await _log.WriteLog("Patch Stop Error", $"{remainingProcesses.Length} process(es) still running", 3);
+                    await _log.WriteLog("Patch Stop Error", $"{remainingProcesses.Length} process(es) of {processName} still running", 3);
                     return false;
                 }
 
-                await _log.WriteLog("Patch Stop", "Application stopped successfully");
+                await _log.WriteLog("Patch Stop", $"Application {processName} stopped successfully");
                 return true;
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Stop Error", ex.Message, 3);
+                await _log.WriteLog("Patch Stop Error", $"{ex}", 3);
                 return false;
             }
         }
@@ -404,49 +417,236 @@ namespace SFTPService.Helper
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Backup Error", ex.Message, 3);
+                await _log.WriteLog("Patch Backup Error", $"{ex}", 3);
                 return null;
             }
         }
+
+        //private async Task<bool> ApplyUpdateAsync(CancellationToken cancellationToken)
+        //{
+        //    try
+        //    {
+        //        await _log.WriteLog("Patch Update", "Removing old files");
+
+        //        // Delete all files and subdirectories
+        //        var files = Directory.GetFiles(_appFolder, "*", SearchOption.AllDirectories);
+        //        foreach (var file in files)
+        //        {
+        //            cancellationToken.ThrowIfCancellationRequested();
+        //            File.Delete(file);
+        //        }
+
+        //        var directories = Directory.GetDirectories(_appFolder);
+        //        foreach (var dir in directories)
+        //        {
+        //            cancellationToken.ThrowIfCancellationRequested();
+        //            Directory.Delete(dir, true);
+        //        }
+
+        //        await _log.WriteLog("Patch Update", "Copying new files");
+
+        //        // Copy new files
+        //        await CopyDirectoryAsync(_updateRoot, _appFolder, cancellationToken);
+
+        //        var newFileCount = Directory.GetFiles(_appFolder, "*", SearchOption.AllDirectories).Length;
+        //        await _log.WriteLog("Patch Update", $"Copied {newFileCount} files");
+
+        //        return true;
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        await _log.WriteLog("Patch Update Error", $"{ex}", 3);
+        //        return false;
+        //    }
+        //}
+
+        //private async Task<bool> StartApplicationAsync(CancellationToken cancellationToken)
+        //{
+        //    try
+        //    {
+        //        string appPath = Path.Combine(_appFolder, _appName);
+
+        //        if (!File.Exists(appPath))
+        //        {
+        //            await _log.WriteLog("Patch Start Error", $"Application not found: {appPath}", 3);
+        //            return false;
+        //        }
+
+        //        await _log.WriteLog("Patch Start", $"Starting application: {appPath}");
+
+        //        var psi = new ProcessStartInfo
+        //        {
+        //            FileName = appPath,
+        //            WorkingDirectory = _appFolder,
+        //            UseShellExecute = true
+        //        };
+
+        //        Process.Start(psi);
+
+        //        // Wait for startup
+        //        await Task.Delay(3000, cancellationToken);
+
+        //        // Check if running
+        //        var isRunning = Process.GetProcessesByName(_processName).Length > 0;
+
+        //        if (isRunning)
+        //        {
+        //            await _log.WriteLog("Patch Start", "Application started successfully");
+        //            return true;
+        //        }
+        //        else
+        //        {
+        //            await _log.WriteLog("Patch Start Error", "Application failed to start", 3);
+        //            return false;
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        await _log.WriteLog("Patch Start Error", ex.Message, 3);
+        //        return false;
+        //    }
+        //}
+
+        //private async Task<bool> VerifyApplicationAsync(CancellationToken cancellationToken)
+        //{
+        //    try
+        //    {
+        //        // Wait a bit more to ensure app is stable
+        //        await Task.Delay(2000, cancellationToken);
+
+        //        var processes = Process.GetProcessesByName(_processName);
+
+        //        if (processes.Length == 0)
+        //        {
+        //            await _log.WriteLog("Patch Verify Error", "Application not running", 3);
+        //            return false;
+        //        }
+
+        //        // Check if process is responsive (not crashed/hung)
+        //        var process = processes[0];
+        //        if (process.Responding)
+        //        {
+        //            await _log.WriteLog("Patch Verify", "Application verified and responsive");
+        //            return true;
+        //        }
+        //        else
+        //        {
+        //            await _log.WriteLog("Patch Verify Error", "Application not responding", 3);
+        //            return false;
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        await _log.WriteLog("Patch Verify Error", ex.Message, 3);
+        //        return false;
+        //    }
+        //}
+
+
+        //private async Task RollbackAsync(string backupPath, CancellationToken cancellationToken)
+        //{
+        //    try
+        //    {
+        //        if (string.IsNullOrEmpty(backupPath) || !Directory.Exists(backupPath))
+        //        {
+        //            await _log.WriteLog("Patch Rollback Error", "No backup available", 3);
+        //            return;
+        //        }
+
+        //        await _log.WriteLog("Patch Rollback", $"Rolling back from: {backupPath}");
+
+        //        // Stop application
+        //        await StopApplicationAsync();
+
+        //        // Delete current files
+        //        var files = Directory.GetFiles(_appFolder, "*", SearchOption.AllDirectories);
+        //        foreach (var file in files)
+        //        {
+        //            File.Delete(file);
+        //        }
+
+        //        var directories = Directory.GetDirectories(_appFolder);
+        //        foreach (var dir in directories)
+        //        {
+        //            Directory.Delete(dir, true);
+        //        }
+
+        //        // Restore from backup
+        //        await CopyDirectoryAsync(backupPath, _appFolder, cancellationToken);
+
+        //        // Start application
+        //        await StartApplicationAsync(cancellationToken);
+
+        //        await _log.WriteLog("Patch Rollback", "Rollback completed");
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        await _log.WriteLog("Patch Rollback Error", ex.Message, 3);
+        //    }
+        //}
 
         private async Task<bool> ApplyUpdateAsync(CancellationToken cancellationToken)
         {
             try
             {
-                await _log.WriteLog("Patch Update", "Removing old files");
+                await _log.WriteLog("Patch Update", "Starting smart file replacement");
 
-                // Delete all files and subdirectories
-                var files = Directory.GetFiles(_appFolder, "*", SearchOption.AllDirectories);
-                foreach (var file in files)
+                int filesReplaced = 0;
+                int filesAdded = 0;
+                int filesDeleted = 0;
+
+                // Get all files from update package
+                var updateFiles = Directory.GetFiles(_updateRoot, "*", SearchOption.AllDirectories)
+                    .Select(f => new
+                    {
+                        FullPath = f,
+                        RelativePath = Path.GetRelativePath(_updateRoot, f)
+                    })
+                    .ToList();
+
+                await _log.WriteLog("Patch Update", $"Found {updateFiles.Count} files in update package");
+
+                // Copy/Replace files from update package
+                foreach (var updateFile in updateFiles)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    File.Delete(file);
+
+                    string destPath = Path.Combine(_appFolder, updateFile.RelativePath);
+                    string destDir = Path.GetDirectoryName(destPath);
+
+                    // Create directory if needed
+                    if (!Directory.Exists(destDir))
+                    {
+                        Directory.CreateDirectory(destDir);
+                    }
+
+                    // Check if file exists
+                    bool fileExists = File.Exists(destPath);
+
+                    // Copy file (overwrite if exists)
+                    File.Copy(updateFile.FullPath, destPath, overwrite: true);
+
+                    if (fileExists)
+                    {
+                        filesReplaced++;
+                    }
+                    else
+                    {
+                        filesAdded++;
+                    }
                 }
 
-                var directories = Directory.GetDirectories(_appFolder);
-                foreach (var dir in directories)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    Directory.Delete(dir, true);
-                }
-
-                await _log.WriteLog("Patch Update", "Copying new files");
-
-                // Copy new files
-                await CopyDirectoryAsync(_updateRoot, _appFolder, cancellationToken);
-
-                var newFileCount = Directory.GetFiles(_appFolder, "*", SearchOption.AllDirectories).Length;
-                await _log.WriteLog("Patch Update", $"Copied {newFileCount} files");
+                await _log.WriteLog("Patch Update",
+                    $"Update completed: {filesReplaced} replaced, {filesAdded} added, {filesDeleted} deleted");
 
                 return true;
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Update Error", ex.Message, 3);
+                await _log.WriteLog("Patch Update Error", $"{ex}", 3);
                 return false;
             }
         }
-
         private async Task<bool> StartApplicationAsync(CancellationToken cancellationToken)
         {
             try
@@ -459,72 +659,73 @@ namespace SFTPService.Helper
                     return false;
                 }
 
-                await _log.WriteLog("Patch Start", $"Starting application: {appPath}");
+                await _log.WriteLog("Patch Start", $"Application updated: {appPath}");
 
+                // CREATE POWERSHELL SCRIPT TO STOP SERVICE AND RESTART
+                string scriptPath = Path.Combine(Path.GetTempPath(), "restart_after_patch.ps1");
+
+                string serviceName = _config["ServiceName"] ?? "MCS_BranchService";
+
+                string scriptContent = $@"
+# Stop the service gracefully
+Write-Output 'Stopping service: {serviceName}'
+Stop-Service -Name '{serviceName}' -Force -ErrorAction SilentlyContinue
+
+# Wait for service to stop
+Start-Sleep -Seconds 3
+
+# Restart computer
+Write-Output 'Restarting computer in 5 seconds...'
+shutdown.exe /r /t 5 /c 'Application update completed. Restarting...'
+";
+
+                await File.WriteAllTextAsync(scriptPath, scriptContent, cancellationToken);
+
+                await _log.WriteLog("Patch Start", "Executing graceful service stop + restart...");
+
+                // Execute PowerShell script in background (detached)
                 var psi = new ProcessStartInfo
                 {
-                    FileName = appPath,
-                    WorkingDirectory = _appFolder,
-                    UseShellExecute = true
+                    FileName = "powershell.exe",
+                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
                 };
 
                 Process.Start(psi);
 
-                // Wait for startup
-                await Task.Delay(3000, cancellationToken);
+                await _log.WriteLog("Patch Start", "Service stop + restart initiated");
 
-                // Check if running
-                var isRunning = Process.GetProcessesByName(_processName).Length > 0;
-
-                if (isRunning)
-                {
-                    await _log.WriteLog("Patch Start", "Application started successfully");
-                    return true;
-                }
-                else
-                {
-                    await _log.WriteLog("Patch Start Error", "Application failed to start", 3);
-                    return false;
-                }
+                return true;
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Start Error", ex.Message, 3);
+                await _log.WriteLog("Patch Start Error", $"{ex}", 3);
                 return false;
             }
         }
-
         private async Task<bool> VerifyApplicationAsync(CancellationToken cancellationToken)
         {
             try
             {
-                // Wait a bit more to ensure app is stable
-                await Task.Delay(2000, cancellationToken);
+                // Just verify the file exists (can't verify running since we're restarting)
+                string appPath = Path.Combine(_appFolder, _appName);
 
-                var processes = Process.GetProcessesByName(_processName);
-
-                if (processes.Length == 0)
+                if (File.Exists(appPath))
                 {
-                    await _log.WriteLog("Patch Verify Error", "Application not running", 3);
-                    return false;
-                }
-
-                // Check if process is responsive (not crashed/hung)
-                var process = processes[0];
-                if (process.Responding)
-                {
-                    await _log.WriteLog("Patch Verify", "Application verified and responsive");
+                    await _log.WriteLog("Patch Verify", $"✓ Application file verified: {_appName}");
+                    await _log.WriteLog("Patch Verify", "System will restart - user must start application manually");
                     return true;
                 }
                 else
                 {
-                    await _log.WriteLog("Patch Verify Error", "Application not responding", 3);
+                    await _log.WriteLog("Patch Verify Error", $"Application file not found: {appPath}", 3);
                     return false;
                 }
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Verify Error", ex.Message, 3);
+                await _log.WriteLog("Patch Verify Error", $"{ex}", 3);
                 return false;
             }
         }
@@ -541,8 +742,9 @@ namespace SFTPService.Helper
 
                 await _log.WriteLog("Patch Rollback", $"Rolling back from: {backupPath}");
 
-                // Stop application
-                await StopApplicationAsync();
+                // Stop application (if running)
+                await StopApplicationAsync(_processName);
+                await StopApplicationAsync(_SecprocessName);
 
                 // Delete current files
                 var files = Directory.GetFiles(_appFolder, "*", SearchOption.AllDirectories);
@@ -560,16 +762,49 @@ namespace SFTPService.Helper
                 // Restore from backup
                 await CopyDirectoryAsync(backupPath, _appFolder, cancellationToken);
 
-                // Start application
-                await StartApplicationAsync(cancellationToken);
+                await _log.WriteLog("Patch Rollback", "Rollback completed - forcing system restart...");
 
-                await _log.WriteLog("Patch Rollback", "Rollback completed");
+                // ✅ CREATE POWERSHELL SCRIPT TO STOP SERVICE AND RESTART
+                string scriptPath = Path.Combine(Path.GetTempPath(), "restart_after_rollback.ps1");
+                string serviceName = _config["ServiceName"] ?? "MCS_BranchService";
+
+                string scriptContent = $@"
+# Stop the service gracefully
+Write-Output 'Stopping service: {serviceName}'
+Stop-Service -Name '{serviceName}' -Force -ErrorAction SilentlyContinue
+
+# Wait for service to stop
+Start-Sleep -Seconds 3
+
+# Restart computer
+Write-Output 'Restarting computer after rollback...'
+shutdown.exe /r /t 5 /c 'Application rollback completed. Restarting...'
+";
+
+                await File.WriteAllTextAsync(scriptPath, scriptContent, cancellationToken);
+
+                await _log.WriteLog("Patch Rollback", "Executing graceful service stop + restart...");
+
+                // Execute PowerShell script
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                Process.Start(psi);
+
+                await _log.WriteLog("Patch Rollback", "Service stop + restart initiated");
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Rollback Error", ex.Message, 3);
+                await _log.WriteLog("Patch Rollback Error", $"{ex}", 3);
             }
         }
+
+
 
         private async Task CleanupAsync(string downloadedZip)
         {
@@ -604,7 +839,7 @@ namespace SFTPService.Helper
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Cleanup Error", ex.Message, 2);
+                await _log.WriteLog("Patch Cleanup Error", $"{ex}", 2);
             }
         }
 
@@ -659,7 +894,7 @@ namespace SFTPService.Helper
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("MQTT Publish Error", ex.Message, 3);
+                await _log.WriteLog("MQTT Publish Error", $"{ex}", 3);
             }
         }
     }

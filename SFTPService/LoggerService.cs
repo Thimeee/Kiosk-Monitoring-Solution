@@ -29,7 +29,7 @@ namespace SFTPService
             }
         }
 
-        internal async Task WriteLog(string v, BranchJobResponse<PerformanceInfo> resObj)
+        internal async Task WriteLog(string v, Exception ex, BranchJobResponse<PerformanceInfo> resObj)
         {
             throw new NotImplementedException();
         }

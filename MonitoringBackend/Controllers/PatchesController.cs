@@ -222,7 +222,7 @@ namespace MonitoringBackend.Controllers
                     });
 
                 // Store chunks in temp folder
-                chunksFolder = Path.Combine($"C:\\Branches\\MCS\\Patches\\Chunks\\{jobUId}_{fileName}\\Chunks", fileName);
+                chunksFolder = Path.Combine($"C:\\Branches\\MCS\\Patches\\Chunks\\",$"{jobUId}_{fileName}");
                 Directory.CreateDirectory(chunksFolder);
 
                 string chunkPath = Path.Combine(chunksFolder, $"{chunkIndex}.chunk");
@@ -549,7 +549,7 @@ namespace MonitoringBackend.Controllers
 
                 await _mqtt.PublishToServer(
                     payload,
-                    $"branch/{branchId ?? "BRANCH002"}/PATCH/Application",
+                    $"branch/{branchId ?? "BRANCH003"}/PATCH/Application",
                     MqttQualityOfServiceLevel.ExactlyOnce
                 );
 

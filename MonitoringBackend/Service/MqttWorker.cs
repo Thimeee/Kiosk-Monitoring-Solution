@@ -83,6 +83,26 @@ namespace MonitoringBackend.Service
             }
         }
 
+
+        public override async Task StopAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                await _log.WriteLog("MqttWorker", "Service stopping gracefully...");
+
+                // Shutdown MQTT gracefully
+                await _mqtt.ShutdownAsync();
+
+                await _log.WriteLog("MqttWorker", "Service stopped cleanly");
+            }
+            catch (Exception ex)
+            {
+                await _log.WriteLog("MqttWorker Error", $"Stop error: {ex.Message}", 3);
+            }
+
+            await base.StopAsync(cancellationToken);
+        }
+
         private async Task StartMQTTEvent(CancellationToken stoppingToken)
         {
             try
@@ -367,8 +387,7 @@ namespace MonitoringBackend.Service
                 if (newPatch == null) return;
 
                 Job job = null;
-                string mergedFileFolder = null;
-                string zipFile = null;
+            
 
                 try
                 {
@@ -377,18 +396,7 @@ namespace MonitoringBackend.Service
                     string patchesFolder = Path.Combine("C:\\Branches\\MCS\\Patches\\AllNewPatches");
                     Directory.CreateDirectory(patchesFolder);
 
-                    mergedFileFolder = Path.Combine(patchesFolder, res.jobRqValue.ZipName);
-                    Directory.CreateDirectory(mergedFileFolder);
-
-                    var applicationFolder = Path.Combine(mergedFileFolder, "Application");
-                    var scriptsFolder = Path.Combine(mergedFileFolder, "Scripts");
-                    var releaseFolder = Path.Combine(mergedFileFolder, "Release");
-
-                    Directory.CreateDirectory(applicationFolder);
-                    Directory.CreateDirectory(scriptsFolder);
-                    Directory.CreateDirectory(releaseFolder);
-
-                    var mergedFile = Path.Combine(applicationFolder, res.jobRqValue.ChunksFileName);
+              
 
                     // Update status
                     if (job != null)
@@ -398,33 +406,27 @@ namespace MonitoringBackend.Service
                         await db.SaveChangesAsync();
                     }
 
+                    // Decide merged file name
+                    string mergedFilePath = Path.Combine(
+                        patchesFolder,
+                        res.jobRqValue.ChunksFileName
+                    );
                     // Merge chunks
-                    await MergeChunks(res.jobRqValue.ChunksPath, mergedFile);
+                    await MergeChunks(res.jobRqValue.ChunksPath, mergedFilePath);
 
                     await _hubContext.Clients.All.SendAsync("PatchDeploymentStart", newPatch.PId);
 
-                    // Merge scripts
-                    await MergeScripts(db, newPatch.PTId, scriptsFolder);
+                 
 
-                    // Create ZIP
-                    zipFile = await CreatePatchZip(patchesFolder, mergedFileFolder, res.jobRqValue.ZipName);
-
-                    // Cleanup
-                    var dirToDelete = Directory.GetParent(res.jobRqValue.ChunksPath)?.Parent;
-                    if (dirToDelete?.Exists == true)
+                    if (Directory.Exists(res.jobRqValue.ChunksPath))
                     {
-                        Directory.Delete(dirToDelete.FullName, true);
-                    }
-
-                    if (Directory.Exists(mergedFileFolder))
-                    {
-                        Directory.Delete(mergedFileFolder, true);
+                        Directory.Delete(res.jobRqValue.ChunksPath, true);
                     }
 
                     // Final update
                     if (job != null)
                     {
-                        newPatch.PatchZipPath = zipFile;
+                        newPatch.PatchZipPath = patchesFolder;
                         newPatch.PatchProcessLevel = 3;
                         newPatch.PatchActiveStatus = 2;
 
@@ -439,7 +441,7 @@ namespace MonitoringBackend.Service
                 }
                 catch (Exception ex)
                 {
-                    await CleanupFailedPatch(res, newPatch, job, mergedFileFolder, zipFile, db);
+                    //await CleanupFailedPatch(res, newPatch, job, mergedFileFolder, zipFile, db);
                     await _log.WriteLog("PatchProcess Error", ex.ToString(), 3);
                 }
             }
@@ -451,95 +453,111 @@ namespace MonitoringBackend.Service
 
         private async Task MergeChunks(string chunksPath, string outputFile)
         {
-            using var outFs = new FileStream(outputFile, FileMode.Create, FileAccess.Write, FileShare.None);
-
-            var chunkFiles = Directory.GetFiles(chunksPath)
-                .OrderBy(f => int.Parse(Path.GetFileNameWithoutExtension(f)));
-
-            foreach (var chunkFile in chunkFiles)
-            {
-                using var inFs = new FileStream(chunkFile, FileMode.Open, FileAccess.Read);
-                await inFs.CopyToAsync(outFs);
-            }
-        }
-
-        private async Task MergeScripts(AppDbContext db, int? patchTypeId, string scriptsFolder)
-        {
-            var scripts = await db.PatchScripts
-                .Where(s => s.PTId == patchTypeId && s.ScriptActiveStatus == 1)
-                .OrderBy(s => s.SId)
-                .ToListAsync();
-
-            foreach (var script in scripts)
-            {
-                if (string.IsNullOrWhiteSpace(script.ScriptContenct))
-                    continue;
-
-                var scriptPath = Path.Combine(scriptsFolder, script.ScriptName);
-                await File.WriteAllTextAsync(scriptPath, script.ScriptContenct, Encoding.UTF8);
-            }
-        }
-
-        private async Task<string> CreatePatchZip(string patchesFolder, string sourceFolder, string zipName)
-        {
-            string zipFile = Path.Combine(patchesFolder, $"{zipName}.zip");
-
-            if (File.Exists(zipFile))
-                File.Delete(zipFile);
-
-            using var zip = ZipFile.Open(zipFile, ZipArchiveMode.Create);
-
-            foreach (var file in Directory.GetFiles(sourceFolder, "*", SearchOption.AllDirectories))
-            {
-                var entryName = Path.GetRelativePath(sourceFolder, file).Replace('\\', '/');
-                var entry = zip.CreateEntry(entryName, CompressionLevel.Optimal);
-
-                using var entryStream = entry.Open();
-                using var fs = new FileStream(file, FileMode.Open, FileAccess.Read);
-                await fs.CopyToAsync(entryStream);
-            }
-
-            return zipFile;
-        }
-
-        private async Task CleanupFailedPatch(
-            BranchJobRequest<ServerPatch> request,
-            NewPatch patch,
-            Job job,
-            string mergedFolder,
-            string zipFile,
-            AppDbContext db)
-        {
             try
             {
-                if (Directory.Exists(request.jobRqValue.ChunksPath))
-                    Directory.Delete(request.jobRqValue.ChunksPath, true);
+                Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
 
-                if (mergedFolder != null && Directory.Exists(mergedFolder))
-                    Directory.Delete(mergedFolder, true);
+                using var outFs = new FileStream(
+                    outputFile,
+                    FileMode.Create,
+                    FileAccess.Write,
+                    FileShare.None
+                );
 
-                if (zipFile != null && File.Exists(zipFile))
-                    File.Delete(zipFile);
+                var chunkFiles = Directory.GetFiles(chunksPath)
+                    .OrderBy(f => int.Parse(Path.GetFileNameWithoutExtension(f)));
 
-                if (job != null)
+                foreach (var chunkFile in chunkFiles)
                 {
-                    patch.PatchProcessLevel = 4;
-                    patch.PatchActiveStatus = 2;
-
-                    job.JSId = 4;
-                    job.JobActive = 2;
-                    job.JobEndTime = DateTime.Now;
-                    job.JobMassage = "File upload failed";
-
-                    await db.SaveChangesAsync();
-                    await _hubContext.Clients.All.SendAsync("PatchDeploymentFailed", patch.PId);
+                    using var inFs = new FileStream(chunkFile, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    await inFs.CopyToAsync(outFs);
                 }
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Cleanup Error", ex.Message, 3);
+                await _log.WriteLog("MergeChunks Error", ex.ToString(), 3);
+                throw;
             }
         }
+
+
+        //private async Task MergeScripts(AppDbContext db, int? patchTypeId, string scriptsFolder)
+        //{
+        //    var scripts = await db.PatchScripts
+        //        .Where(s => s.PTId == patchTypeId && s.ScriptActiveStatus == 1)
+        //        .OrderBy(s => s.SId)
+        //        .ToListAsync();
+
+        //    foreach (var script in scripts)
+        //    {
+        //        if (string.IsNullOrWhiteSpace(script.ScriptContenct))
+        //            continue;
+
+        //        var scriptPath = Path.Combine(scriptsFolder, script.ScriptName);
+        //        await File.WriteAllTextAsync(scriptPath, script.ScriptContenct, Encoding.UTF8);
+        //    }
+        //}
+
+        //private async Task<string> CreatePatchZip(string patchesFolder, string sourceFolder, string zipName)
+        //{
+        //    string zipFile = Path.Combine(patchesFolder, $"{zipName}.zip");
+
+        //    if (File.Exists(zipFile))
+        //        File.Delete(zipFile);
+
+        //    using var zip = ZipFile.Open(zipFile, ZipArchiveMode.Create);
+
+        //    foreach (var file in Directory.GetFiles(sourceFolder, "*", SearchOption.AllDirectories))
+        //    {
+        //        var entryName = Path.GetRelativePath(sourceFolder, file).Replace('\\', '/');
+        //        var entry = zip.CreateEntry(entryName, CompressionLevel.Optimal);
+
+        //        using var entryStream = entry.Open();
+        //        using var fs = new FileStream(file, FileMode.Open, FileAccess.Read);
+        //        await fs.CopyToAsync(entryStream);
+        //    }
+
+        //    return zipFile;
+        //}
+
+        //private async Task CleanupFailedPatch(
+        //    BranchJobRequest<ServerPatch> request,
+        //    NewPatch patch,
+        //    Job job,
+        //    string mergedFolder,
+        //    string zipFile,
+        //    AppDbContext db)
+        //{
+        //    try
+        //    {
+        //        if (Directory.Exists(request.jobRqValue.ChunksPath))
+        //            Directory.Delete(request.jobRqValue.ChunksPath, true);
+
+        //        if (mergedFolder != null && Directory.Exists(mergedFolder))
+        //            Directory.Delete(mergedFolder, true);
+
+        //        if (zipFile != null && File.Exists(zipFile))
+        //            File.Delete(zipFile);
+
+        //        if (job != null)
+        //        {
+        //            patch.PatchProcessLevel = 4;
+        //            patch.PatchActiveStatus = 2;
+
+        //            job.JSId = 4;
+        //            job.JobActive = 2;
+        //            job.JobEndTime = DateTime.Now;
+        //            job.JobMassage = "File upload failed";
+
+        //            await db.SaveChangesAsync();
+        //            await _hubContext.Clients.All.SendAsync("PatchDeploymentFailed", patch.PId);
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        await _log.WriteLog("Cleanup Error", ex.Message, 3);
+        //    }
+        //}
 
         private async Task RetryConnectionAsync(int attempt, int maxRetries, int retryDelayMs, CancellationToken stoppingToken)
         {

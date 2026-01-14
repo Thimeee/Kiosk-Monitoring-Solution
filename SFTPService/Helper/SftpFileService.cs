@@ -199,7 +199,7 @@ namespace SFTPService.Helper
             catch (Exception ex)
             {
                 await _log.WriteLog("SFTP Error", $"Download failed: {remotePathBefore}", 3);
-                await _log.WriteLog("SFTP Exception", ex.Message, 3);
+                await _log.WriteLog("SFTP Exception", $"{ex}", 3);
                 await PublishJobResponse(userId, jobId, branchID, "DownloadResponse", 0, "Failed");
                 throw;
             }
@@ -375,7 +375,7 @@ namespace SFTPService.Helper
             catch (Exception ex)
             {
                 await _log.WriteLog("SFTP Error", $"Upload failed: {localPathBefore}", 3);
-                await _log.WriteLog("SFTP Exception", ex.Message, 3);
+                await _log.WriteLog("SFTP Exception", $"{ex}", 3);
                 await PublishJobResponse(userId, jobId, branchID, "UploadResponse", 0, "Failed");
                 throw;
             }
@@ -520,7 +520,7 @@ namespace SFTPService.Helper
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("MQTT Publish Error", $"Failed to publish {responseType}: {ex.Message}", 3);
+                await _log.WriteLog("MQTT Publish Error", $"Failed to publish {responseType}: {ex}", 3);
             }
         }
 
@@ -555,7 +555,7 @@ namespace SFTPService.Helper
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("MQTT Progress Error", $"Failed to publish progress: {ex.Message}", 3);
+                await _log.WriteLog("MQTT Progress Error", $"Failed to publish progress: {ex}", 3);
             }
         }
 
