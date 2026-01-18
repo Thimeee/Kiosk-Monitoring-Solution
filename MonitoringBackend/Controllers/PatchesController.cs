@@ -1,5 +1,7 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using System.IO.Compression;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Unicode;
@@ -7,11 +9,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Monitoring.Shared.DTO;
+using Monitoring.Shared.DTO.PatchsDto;
+using Monitoring.Shared.Enum;
 using Monitoring.Shared.Models;
 using MonitoringBackend.Data;
 using MonitoringBackend.Helper;
 using MQTTnet.Protocol;
 using SFTPService.Helper;
+using static Monitoring.Shared.DTO.PatchsDto.SelectedPatch;
 
 namespace MonitoringBackend.Controllers
 {
@@ -34,6 +39,264 @@ namespace MonitoringBackend.Controllers
             _mqtt = mqtt;
 
         }
+
+
+
+
+
+        [HttpGet("getPatchesTypes")]
+        public async Task<IActionResult> getPatchesTypes()
+        {
+            var responseDTO = new APIResponseCoustomizeList<SelectedAnyDropDownOrSamllData, SelectedAnyDropDownOrSamllData> { };
+            try
+            {
+
+                if (_db != null)
+                {
+                    //get Server Folder Structure 
+
+                    var AllPatchesType = await _db.PatchTypes
+                        .Where(p => p.PatchTypeActiveStatus == 1)
+                        .Select(p => new SelectedAnyDropDownOrSamllData
+                        {
+                            Id = p.PTId,
+                            Name = p.PatchTypeName
+                        })
+                        .ToListAsync();
+
+
+
+                    // Get last inserted patch by ID
+                    var lastPatch = await _db.NewPatches
+                        .OrderByDescending(p => p.PId)
+                         .Select(p => new SelectedAnyDropDownOrSamllData
+                         {
+                             Id = p.PId,
+                             Name = p.PatchZipName,
+                             Level = p.PatchProcessLevel,
+                             Status = p.PatchActiveStatus
+                         })
+                        .FirstOrDefaultAsync(y => y.Level == 3 && y.Status == 2);
+
+
+                    responseDTO.Status = true;
+                    responseDTO.StatusCode = 2;
+                    responseDTO.Message = "operation Success";
+                    responseDTO.ValueList = AllPatchesType;
+                    responseDTO.Value = lastPatch;
+
+                }
+
+                return Ok(responseDTO);
+
+            }
+
+            catch (Exception ex)
+            {
+                // Log the exception (optional)
+                Console.WriteLine($"Error during Get Server Paths: {ex.Message}");
+
+                // Return a generic error response
+                responseDTO.Status = false;
+                responseDTO.StatusCode = 0;
+                responseDTO.Message = "Error during Get Server Paths";
+                responseDTO.Ex = ex.Message;
+                return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
+                //return StatusCode(500, new { Error = "An unexpected error occurred." });
+            }
+        }
+
+        [HttpGet("getServerFolderPath")]
+        public async Task<IActionResult> getServerPatchFolderPath()
+        {
+            var responseDTO = new APIResponseSingleValue();
+            try
+            {
+
+                if (_db != null)
+                {
+                    //get Server Folder Structure 
+
+                    var path = await _db.ServerFolderPaths
+        .Where(p => p.Name == "SR_P")
+        .Select(p => p.ServerFolderPathValue)
+        .FirstOrDefaultAsync();
+
+                    responseDTO.Status = true;
+                    responseDTO.StatusCode = 2;
+                    responseDTO.Message = "operation Success";
+                    responseDTO.Value = path;
+
+                }
+
+                return Ok(responseDTO);
+
+            }
+
+            catch (Exception ex)
+            {
+                // Log the exception (optional)
+                Console.WriteLine($"Error during Get Server Paths: {ex.Message}");
+
+                // Return a generic error response
+                responseDTO.Status = false;
+                responseDTO.StatusCode = 0;
+                responseDTO.Message = "Error during Get Server Paths";
+                responseDTO.Ex = ex.Message;
+                return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
+                //return StatusCode(500, new { Error = "An unexpected error occurred." });
+            }
+        }
+
+
+
+
+        [HttpGet("getLastTenPatches")]
+        public async Task<IActionResult> getLastTenPatches()
+        {
+            var responseDTO = new APIResponseOnlyList<SelectedAnyDropDownOrSamllData> { };
+            try
+            {
+
+                if (_db != null)
+                {
+                    //get Server Folder Structure 
+
+                    var NewPatches = await _db.NewPatches
+         .Where(p => p.PatchProcessLevel == 1 || p.PatchProcessLevel == 2 || p.PatchProcessLevel == 3 || p.PatchProcessLevel == 4)
+         .OrderByDescending(p => p.PId)
+         .Take(5)
+         .Select(p => new SelectedAnyDropDownOrSamllData
+         {
+             Id = p.PId,
+             Name = p.PatchZipName,
+             Level = p.PatchProcessLevel,
+         })
+         .ToListAsync();
+
+
+                    responseDTO.Status = true;
+                    responseDTO.StatusCode = 2;
+                    responseDTO.Message = "operation Success";
+                    responseDTO.ValueList = NewPatches;
+
+                }
+
+                return Ok(responseDTO);
+
+            }
+
+            catch (Exception ex)
+            {
+                // Log the exception (optional)
+                Console.WriteLine($"Error during Get getLastTenPatches: {ex.Message}");
+
+                // Return a generic error response
+                responseDTO.Status = false;
+                responseDTO.StatusCode = 0;
+                responseDTO.Message = "Error during Get getLastTenPatches";
+                responseDTO.Ex = ex.Message;
+                return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
+                //return StatusCode(500, new { Error = "An unexpected error occurred." });
+            }
+        }
+
+
+        [HttpGet("getSelectedPatches")]
+        public async Task<IActionResult> getSelectedPatches([FromQuery] int patchtype)
+        {
+            var responseDTO = new APIResponseOnlyList<SelectedAnyDropDownOrSamllData>();
+            try
+            {
+                var patches = await _db.NewPatches
+        .Where(p => p.PatchProcessLevel == 3 && p.PTId == patchtype)
+        .OrderByDescending(p => p.PId)
+        .Take(20)
+        .Select(p => new SelectedAnyDropDownOrSamllData
+        {
+            Id = p.PId,
+            Name = p.PatchZipName
+        })
+        .ToListAsync();
+
+                responseDTO.Status = true;
+                responseDTO.StatusCode = 2;
+                responseDTO.Message = "Operation success";
+                responseDTO.ValueList = patches;
+
+                return Ok(responseDTO);
+            }
+            catch (Exception ex)
+            {
+                responseDTO.Status = false;
+                responseDTO.StatusCode = 0;
+                responseDTO.Message = "Error fetching patches";
+                responseDTO.Ex = ex.Message;
+                return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
+            }
+        }
+
+        [HttpGet("getSelectedPatchAllDetails")]
+        public async Task<IActionResult> getSelectedPatchAllDetails([FromQuery] int patchId)
+        {
+            var responseDTO = new APIResponseObjectValue<SelectedPatch>();
+            try
+            {
+                var patch = await _db.NewPatches
+      .Where(p => p.PatchProcessLevel == 3 && p.PId == patchId)
+      .OrderByDescending(p => p.PId)
+      .Select(p => new SelectedPatch
+      {
+          PId = p.PId,
+          PatchVersion = p.PatchVersion,
+          PatchZipName = p.PatchZipName,
+          CreateDate = p.CreateDate,
+          Remark = p.Remark,
+          PatchZipPath = p.PatchZipPath,
+          PatchType = p.PatchType.PatchTypeName
+      })
+      .FirstOrDefaultAsync();
+
+                if (patch != null)
+                {
+                    var branchIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                    if (int.TryParse(branchIdClaim, out int branchId))
+                    {
+                        patch.EnrollBranch = await _db.PatchAssignBranchs
+                       .Where(p => p.Id == branchId && p.PId == patchId)
+                       .OrderByDescending(p => p.PAB)
+                       .Select(p => new SelectedBranchAssingPatch
+                       {
+                           PAB = p.PAB,
+                           BranchId = p.Id,
+                           PatchId = p.PId,
+                           ProcessLevel = p.ProcessLevel,
+                           Status = p.Status,
+                           Message = p.Message,
+                       })
+                       .FirstOrDefaultAsync();
+                    }
+                }
+
+                responseDTO.Status = true;
+                responseDTO.StatusCode = 2;
+                responseDTO.Message = "Operation success";
+                responseDTO.Value = patch;
+
+                return Ok(responseDTO);
+            }
+
+
+            catch (Exception ex)
+            {
+                responseDTO.Status = false;
+                responseDTO.StatusCode = 0;
+                responseDTO.Message = "Error fetching patches";
+                responseDTO.Ex = ex.Message;
+                return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
+            }
+        }
+
 
 
         [HttpPost("getPatchesFolderPath")]
@@ -88,101 +351,6 @@ namespace MonitoringBackend.Controllers
             }
         }
 
-
-        [HttpGet("getPatchesTypes")]
-        public async Task<IActionResult> getPatchesTypes()
-        {
-            var responseDTO = new APIResponseCoustomizeList<PatchType, NewPatch> { };
-            try
-            {
-
-                if (_db != null)
-                {
-                    //get Server Folder Structure 
-
-                    var AllPatchesType = await _db.PatchTypes
-                        .Where(p => p.PatchTypeActiveStatus == 1)
-                        .ToListAsync();
-
-                    // Get last inserted patch by ID
-                    var lastPatch = await _db.NewPatches
-                        .OrderByDescending(p => p.PId)
-                        .FirstOrDefaultAsync(y => y.PatchProcessLevel == 3);
-
-
-                    responseDTO.Status = true;
-                    responseDTO.StatusCode = 2;
-                    responseDTO.Message = "operation Success";
-                    responseDTO.ValueList = AllPatchesType;
-                    responseDTO.Value = lastPatch;
-
-                }
-
-                return Ok(responseDTO);
-
-            }
-
-            catch (Exception ex)
-            {
-                // Log the exception (optional)
-                Console.WriteLine($"Error during Get Server Paths: {ex.Message}");
-
-                // Return a generic error response
-                responseDTO.Status = false;
-                responseDTO.StatusCode = 0;
-                responseDTO.Message = "Error during Get Server Paths";
-                responseDTO.Ex = ex.Message;
-                return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
-                //return StatusCode(500, new { Error = "An unexpected error occurred." });
-            }
-        }
-
-
-
-        [HttpGet("getLastTenPatches")]
-        public async Task<IActionResult> getLastTenPatches()
-        {
-            var responseDTO = new APIResponseCoustomizeList<NewPatch, NewPatch> { };
-            try
-            {
-
-                if (_db != null)
-                {
-                    //get Server Folder Structure 
-
-                    var NewPatches = await _db.NewPatches
-         .Where(p => p.PatchProcessLevel == 1 || p.PatchProcessLevel == 2 || p.PatchProcessLevel == 3 || p.PatchProcessLevel == 4)
-         .OrderByDescending(p => p.PId)
-         .Take(5)
-         .ToListAsync();
-
-
-                    responseDTO.Status = true;
-                    responseDTO.StatusCode = 2;
-                    responseDTO.Message = "operation Success";
-                    responseDTO.ValueList = NewPatches;
-
-                }
-
-                return Ok(responseDTO);
-
-            }
-
-            catch (Exception ex)
-            {
-                // Log the exception (optional)
-                Console.WriteLine($"Error during Get getLastTenPatches: {ex.Message}");
-
-                // Return a generic error response
-                responseDTO.Status = false;
-                responseDTO.StatusCode = 0;
-                responseDTO.Message = "Error during Get getLastTenPatches";
-                responseDTO.Ex = ex.Message;
-                return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
-                //return StatusCode(500, new { Error = "An unexpected error occurred." });
-            }
-        }
-
         //Client UploadFile Serve Methods Start
 
         [RequestSizeLimit(long.MaxValue)]
@@ -191,11 +359,9 @@ namespace MonitoringBackend.Controllers
         {
             var responseDTO = new APIResponseSingleValue();
             string chunksFolder = string.Empty;
-            string mergedFile = string.Empty;
-            string zipFile = string.Empty;
-            string jobUId = string.Empty;
-            string mergedFileFolder = string.Empty;
             string patchID = string.Empty;
+            string jobUId = string.Empty;
+
             try
             {
                 var form = await Request.ReadFormAsync();
@@ -212,58 +378,82 @@ namespace MonitoringBackend.Controllers
                 string selectedPatchTypeID = form["selectedPatchTypeID"];
                 string selectedPatchTypeName = form["selectedPatchTypeName"];
 
-
+                // Validate file
                 if (file == null || file.Length == 0)
-                    return BadRequest(new APIResponseSingleValue
-                    {
-                        Status = false,
-                        StatusCode = 1,
-                        Message = "Chunk is missing"
-                    });
-
-                // Store chunks in temp folder
-                chunksFolder = Path.Combine($"C:\\Branches\\MCS\\Patches\\Chunks\\",$"{jobUId}_{fileName}");
-                Directory.CreateDirectory(chunksFolder);
-
-                string chunkPath = Path.Combine(chunksFolder, $"{chunkIndex}.chunk");
-                using (var fs = new FileStream(chunkPath, FileMode.Create, FileAccess.Write, FileShare.None))
-                    await file.CopyToAsync(fs);
-
-                // Start Job for first chunk
-                if (firstChunkStatus)
                 {
-                    var newjob = new Job
-                    {
-                        UserId = userId,
-                        JTId = 1,
-                        JobUId = jobUId,
-                        JobDate = DateTime.Now,
-                        JobStartTime = DateTime.Now,
-                        JSId = 2,
-                        JobMainStatus = 2,
-                        JobName = $"Upload file: {fileName} Server",
-                        JobMassage = $"Start Uploading",
-                        JobActive = 1
-                    };
+                    responseDTO.Status = false;
+                    responseDTO.StatusCode = 1;
+                    responseDTO.Message = "Chunk is missing";
+                    return BadRequest(responseDTO);
 
-                    await _db.Jobs.AddAsync(newjob);
-                    await _db.SaveChangesAsync();
                 }
 
-                // If NOT last chunk -> return "Chunk" status
-                if (chunkIndex != totalChunks - 1)
-                    return Ok(new APIResponseSingleValue { Status = true, StatusCode = 2, Message = "Chunk" });
+                // Get server chunk base path
+                var serverChunkBase = await _db.ServerFolderPaths
+                    .Where(p => p.Name == "SR_C")
+                    .Select(p => p.ServerFolderPathValue)
+                    .FirstOrDefaultAsync();
 
+                if (string.IsNullOrWhiteSpace(serverChunkBase))
+                {
+                    responseDTO.Status = false;
+                    responseDTO.StatusCode = 1;
+                    responseDTO.Message = "Server chunk path not configured";
+                    return BadRequest(responseDTO);
 
+                }
+
+                // Create folder for this job/file
+                chunksFolder = Path.Combine(serverChunkBase, $"{jobUId}_{Path.GetFileNameWithoutExtension(fileName)}");
+                Directory.CreateDirectory(chunksFolder);
+
+                // Start Job if first chunk
+                if (firstChunkStatus)
+                {
+                    var existingJob = await _db.Jobs.FirstOrDefaultAsync(j => j.JobUId == jobUId);
+                    if (existingJob == null)
+                    {
+                        var newJob = new Job
+                        {
+                            UserId = userId,
+                            JTId = 1,
+                            JobUId = jobUId,
+                            JobDate = DateTime.Now,
+                            JobStartTime = DateTime.Now,
+                            JSId = 2,
+                            JobMainStatus = 2,
+                            JobName = $"Upload file: {fileName} Server",
+                            JobMassage = "Start Uploading",
+                            JobActive = 1
+                        };
+                        await _db.Jobs.AddAsync(newJob);
+                        await _db.SaveChangesAsync();
+                    }
+                }
+
+                // Save current chunk
+                string chunkPath = Path.Combine(chunksFolder, $"{chunkIndex}.chunk");
+                await using (var fs = new FileStream(chunkPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    await file.CopyToAsync(fs);
+                }
+
+                // Count uploaded chunks
+                int uploadedChunks = Directory.EnumerateFiles(chunksFolder).Count();
+
+                // If not all chunks yet
+                if (uploadedChunks < totalChunks)
+                {
+                    responseDTO.Status = true;
+                    responseDTO.StatusCode = 2;
+                    responseDTO.Message = "Chunk";
+                    return Ok(responseDTO);
+                }
+
+                // All chunks received → create Patch
                 string dateString = DateTime.Now.ToString("yyyyMMdd");
-
-                // Get first character safely
-                char firstChar = !string.IsNullOrEmpty(selectedPatchTypeName)
-                                 ? selectedPatchTypeName[0]
-                                 : '_';
-
+                char firstChar = !string.IsNullOrEmpty(selectedPatchTypeName) ? selectedPatchTypeName[0] : '_';
                 string zipName = $"{patchversion}_{dateString}_{firstChar}";
-
 
                 var patch = new NewPatch
                 {
@@ -276,17 +466,16 @@ namespace MonitoringBackend.Controllers
                     PatchFilePath = chunksFolder,
                     PatchProcessLevel = 1,
                     ServerSendChunks = totalChunks,
-                    PatchZipName = zipName,
+                    PatchZipName = zipName
                 };
 
                 await _db.NewPatches.AddAsync(patch);
                 await _db.SaveChangesAsync();
-
                 patchID = patch.PId.ToString();
 
-                var topic = $"server/mainServer/PATCHPROCESS";
-
-                var job = new BranchJobRequest<ServerPatch>
+                // Publish MQTT job
+                var topic = "server/mainServer/PATCHPROCESS";
+                var jobMessage = new BranchJobRequest<ServerPatch>
                 {
                     jobUser = patch.PId.ToString(),
                     jobId = jobUId,
@@ -296,167 +485,56 @@ namespace MonitoringBackend.Controllers
                         ChunksPath = chunksFolder,
                         ZipName = zipName
                     }
-
                 };
+                await _mqtt.PublishToServer(jobMessage, topic, MqttQualityOfServiceLevel.ExactlyOnce);
 
-                await _mqtt.PublishToServer(job, topic, MqttQualityOfServiceLevel.ExactlyOnce);
-
-
-
-
-
-
-                //// FINAL CHUNK -> MERGE FILE
-                //string PatchesFolder = Path.Combine("C:\\Branches\\Patches\\AllNewPatches");
-                //if (!Directory.Exists(PatchesFolder))
-                //    Directory.CreateDirectory(PatchesFolder);
-
-                //mergedFileFolder = Path.Combine(PatchesFolder, zipName);
-
-                //if (!Directory.Exists(mergedFileFolder))
-                //    Directory.CreateDirectory(mergedFileFolder);
-
-                //var ApplicationFolder = Path.Combine(mergedFileFolder, "Application");
-                //var ScriptsFolder = Path.Combine(mergedFileFolder, "Scripts");
-                //var ReleaseFolder = Path.Combine(mergedFileFolder, "Release");
-
-                //if (!Directory.Exists(ApplicationFolder))
-                //    Directory.CreateDirectory(ApplicationFolder);
-                //if (!Directory.Exists(ScriptsFolder))
-                //    Directory.CreateDirectory(ScriptsFolder);
-                //if (!Directory.Exists(ReleaseFolder))
-                //    Directory.CreateDirectory(ReleaseFolder);
-
-                //mergedFile = Path.Combine(ApplicationFolder, fileName);
-
-
-                //using (var outFs = new FileStream(mergedFile, FileMode.Create, FileAccess.Write, FileShare.None))
-                //{
-                //    foreach (var chunkFile in Directory.GetFiles(chunksFolder).OrderBy(f => int.Parse(Path.GetFileNameWithoutExtension(f))))
-                //    {
-                //        using (var inFs = new FileStream(chunkFile, FileMode.Open, FileAccess.Read))
-                //        {
-                //            byte[] buffer = new byte[1024 * 1024]; // 1 MB buffer
-                //            int read;
-                //            while ((read = await inFs.ReadAsync(buffer, 0, buffer.Length)) > 0)
-                //            {
-                //                await outFs.WriteAsync(buffer, 0, read);
-                //            }
-                //        }
-                //    }
-
-                //}
-
-                ////Create ZIP file
-                //zipFile = Path.Combine(PatchesFolder, zipName + ".zip");
-                //if (System.IO.File.Exists(zipFile))
-                //    System.IO.File.Delete(zipFile);
-
-                //using var zip = ZipFile.Open(zipFile, ZipArchiveMode.Create);
-
-                //foreach (var file1 in Directory.GetFiles(mergedFileFolder, "*", SearchOption.AllDirectories))
-                //{
-                //    var entryName = Path.GetRelativePath(mergedFileFolder, file1).Replace('\\', '/');
-                //    var entry = zip.CreateEntry(entryName, CompressionLevel.Optimal);
-
-                //    using var entryStream = entry.Open();
-                //    using var fs = new FileStream(file1, FileMode.Open, FileAccess.Read);
-                //    byte[] buffer = new byte[1024 * 1024];
-                //    int read;
-                //    while ((read = await fs.ReadAsync(buffer, 0, buffer.Length)) > 0)
-                //    {
-                //        await entryStream.WriteAsync(buffer, 0, read);
-                //    }
-                //}
-
-                //// Cleanup chunks and merged file
-                //if (Directory.Exists(chunksFolder))
-                //    Directory.Delete(chunksFolder, true);
-
-                //if (Directory.Exists(mergedFileFolder))
-                //{
-                //    Directory.Delete(mergedFileFolder, true);
-                //}
-
-                //// Update Job
-                //if (!string.IsNullOrEmpty(jobUId))
-                //{
-                //    var getjob = await _db.Jobs.FirstOrDefaultAsync(j => j.JobUId == jobUId);
-                //    if (getjob != null)
-                //    {
-                //        getjob.JSId = 3;
-                //        getjob.JobActive = 2;
-                //        getjob.JobEndTime = DateTime.Now;
-                //        getjob.JobMassage = $"File uploaded and zipped successfully";
-
-                //        _db.Jobs.Update(getjob);
-                //        await _db.SaveChangesAsync();
-                //    }
-                //}
-
-                //// ✅ Return ZIP file for download
-                //var zipBytes = await System.IO.File.ReadAllBytesAsync(zipFile);
-                return Ok(new APIResponseSingleValue
-                {
-                    Status = true,
-                    StatusCode = 2,
-                    Message = "Complete"
-                });
+                // Success response
+                responseDTO.Status = true;
+                responseDTO.StatusCode = 2;
+                responseDTO.Message = "Complete";
+                return Ok(responseDTO);
             }
             catch (Exception ex)
             {
                 // Cleanup on failure
-                try
+                if (Directory.Exists(chunksFolder))
+                    Directory.Delete(chunksFolder, true);
+
+                if (!string.IsNullOrEmpty(jobUId))
                 {
-                    if (Directory.Exists(chunksFolder))
-                        Directory.Delete(chunksFolder, true);
-
-                    if (Directory.Exists(mergedFileFolder))
+                    var job = await _db.Jobs.FirstOrDefaultAsync(j => j.JobUId == jobUId);
+                    if (job != null)
                     {
-                        Directory.Delete(mergedFileFolder, true);
-                    }
+                        job.JSId = 4;
+                        job.JobActive = 2;
+                        job.JobEndTime = DateTime.Now;
+                        job.JobMassage = "File upload failed";
 
-                    if (System.IO.File.Exists(zipFile))
-                        System.IO.File.Delete(zipFile);
-
-                    if (!string.IsNullOrEmpty(jobUId))
-                    {
-                        var job = await _db.Jobs.FirstOrDefaultAsync(j => j.JobUId == jobUId);
-                        if (job != null)
+                        if (!string.IsNullOrEmpty(patchID))
                         {
-                            job.JSId = 4;
-                            job.JobActive = 2;
-                            job.JobEndTime = DateTime.Now;
-                            job.JobMassage = $"File upload failed";
-
-                            if (!string.IsNullOrEmpty(patchID))
+                            var patch = await _db.NewPatches.FirstOrDefaultAsync(p => p.PId.ToString() == patchID);
+                            if (patch != null)
                             {
-                                var patch = new NewPatch
-                                {
-                                    PatchActiveStatus = 1,
-                                    PatchProcessLevel = 4,
-                                };
+                                patch.PatchActiveStatus = 1;
+                                patch.PatchProcessLevel = 4;
                                 _db.NewPatches.Update(patch);
-
                             }
-
-
-                            _db.Jobs.Update(job);
-                            await _db.SaveChangesAsync();
                         }
+
+                        _db.Jobs.Update(job);
+                        await _db.SaveChangesAsync();
                     }
                 }
-                catch { }
 
-                return StatusCode(StatusCodes.Status500InternalServerError, new APIResponseSingleValue
-                {
-                    Status = false,
-                    StatusCode = 0,
-                    Message = "Upload failed",
-                    Ex = ex.Message
-                });
+                responseDTO.Status = false;
+                responseDTO.StatusCode = 0;
+                responseDTO.Message = "Upload failed";
+                responseDTO.Ex = ex.Message;
+                return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
+
             }
         }
+
 
 
 
@@ -490,13 +568,18 @@ namespace MonitoringBackend.Controllers
                     await _db.SaveChangesAsync();
                 }
 
-                var chunksFolder = Path.Combine("C:\\Branches\\MCS\\SFTPFolder\\Chunks", fileName);
+                // Get server chunk base path
+                var serverChunkBase = await _db.ServerFolderPaths
+                    .Where(p => p.Name == "SR_C")
+                    .Select(p => p.ServerFolderPathValue)
+                    .FirstOrDefaultAsync();
+
+                var chunksFolder = Path.Combine(serverChunkBase, $"{jobUId}_{Path.GetFileNameWithoutExtension(fileName)}");
+
                 if (Directory.Exists(chunksFolder))
                     Directory.Delete(chunksFolder, true);
 
-                string finalFolder = Path.Combine("C:\\Branches\\MCS\\SFTPFolder\\Final", fileName);
-                if (Directory.Exists(finalFolder))
-                    System.IO.File.Delete(finalFolder);
+
 
 
                 responseDTO.Status = true;
@@ -522,44 +605,205 @@ namespace MonitoringBackend.Controllers
             }
         }
 
-        private static string CalculateFileChecksum(string filePath)
-        {
-            using var sha256 = SHA256.Create();
-            using var stream = System.IO.File.OpenRead(filePath); // Use fully qualified name to avoid ambiguity
-            var hash = sha256.ComputeHash(stream);
-            return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
-        }
 
-        [HttpGet("deploy")]
-        public async Task<IActionResult> DeployPatchGet([FromQuery] Guid? patchId, [FromQuery] string? branchId)
+
+        [HttpPost("PatchdeployBranch")]
+        public async Task<IActionResult> PatchdeployBranch(APIRequestObject<SelectedBranchAssingPatch> obj)
         {
+            var responseDTO = new APIResponseSingleValue();
+
             try
             {
-                var jobId = Guid.NewGuid().ToString();
-                string patchZipPath = @"C:\Branches\Appliction\project\appliction.zip";
-                string checksum = CalculateFileChecksum(patchZipPath);
 
-                var payload = new PatchDeploymentRequest
+                var branchIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+                if (obj == null && obj.ReqValue == null)
                 {
-                    JobId = jobId,
-                    PatchId = patchId?.ToString() ?? "",
-                    PatchZipPath = patchZipPath,
-                    ExpectedChecksum = checksum
+                    responseDTO.Status = false;
+                    responseDTO.StatusCode = 1;
+                    responseDTO.Message = "Patch Request is Invalid.";
+                    return BadRequest(responseDTO);
+                }
+
+                var list = new List<string>() {
+
+                     obj.ReqValue.ExtraValue
+
                 };
+                var jobId = new CreateUniqId().GenarateUniqID(list);
 
-                await _mqtt.PublishToServer(
-                    payload,
-                    $"branch/{branchId ?? "BRANCH003"}/PATCH/Application",
-                    MqttQualityOfServiceLevel.ExactlyOnce
-                );
 
-                return Ok(new APIResponseObjectValue<object>
+                var patch = await _db.NewPatches
+     .Where(p => p.PatchProcessLevel == 3 && p.PId == obj.ReqValue.PatchId)
+     .OrderByDescending(p => p.PId)
+     .Select(p => new SelectedPatch
+     {
+         PId = p.PId,
+         PatchVersion = p.PatchVersion,
+         PatchZipName = p.PatchZipName,
+         CreateDate = p.CreateDate,
+         Remark = p.Remark,
+         PatchZipPath = p.PatchZipPath,
+         PatchType = p.PatchType.PTId.ToString() ?? "",
+         ServerSendChunk = p.ServerSendChunks
+     })
+     .FirstOrDefaultAsync();
+
+                if (patch != null)
                 {
-                    Status = true,
-                    StatusCode = 2,
-                    Message = "Patch deployment initiated",
-                    Value = payload
-                });
+
+
+
+
+                    if (int.TryParse(branchIdClaim, out int branchId))
+                    {
+
+
+                        PatchAssignBranch? enroll;
+                        Job? jobLog;
+
+
+                        var branch = await _db.Branches
+                                                                      .Where(p => p.Id == branchId).
+                                                                      Select(t => new
+                                                                      {
+                                                                          branchCode = t.BranchId,
+                                                                          branchId = t.Id,
+                                                                          branchName = t.BranchName,
+                                                                      })
+                                                                      .FirstOrDefaultAsync();
+
+                        var zipPath = $"{patch.PatchZipPath}\\{patch.PatchZipName}.zip";
+
+
+
+                        enroll = await _db.PatchAssignBranchs
+                                                 .Where(p => p.Id == branchId && p.PId == patch.PId)
+                                                 .FirstOrDefaultAsync();
+
+                        var ServerSendChunk = await GetChecksumAsync(zipPath);
+
+
+                        if (enroll == null)
+                        {
+
+                            enroll = new PatchAssignBranch
+                            {
+
+                                Id = branchId,
+                                PId = patch.PId,
+                                Status = PatchStatus.INIT,
+                                ProcessLevel = PatchStep.START,
+                                StartTime = DateTime.Now,
+                                JobUId = jobId,
+                                SendChunksBranch = ServerSendChunk,
+                                AttemptSteps = 0
+                            };
+
+
+                            _db.PatchAssignBranchs.Add(enroll);
+
+
+
+                        }
+                        else
+                        {
+                            jobLog = await _db.Jobs
+                                               .Where(p => p.JobUId == enroll.JobUId)
+                                               .FirstOrDefaultAsync();
+
+                            jobLog.JobActive = 1;
+                            jobLog.JSId = 1;
+                            if (enroll.AttemptSteps >= 3)
+                            {
+                                enroll.Status = PatchStatus.INIT;
+                                enroll.ProcessLevel = PatchStep.START;
+                                enroll.SendChunksBranch = ServerSendChunk;
+
+                            }
+                            else
+                            {
+                                enroll.Status = PatchStatus.RESTART;
+                                enroll.ProcessLevel = PatchStep.RESTART;
+                            }
+
+                            enroll.JobUId = jobId;
+                            enroll.AttemptSteps++;
+
+
+                        }
+
+                        jobLog = new Job
+                        {
+                            UserId = obj.ReqValue.ExtraValue,
+                            JTId = 2,
+                            JobUId = jobId,
+                            JobMainStatus = 1,
+                            JobDate = DateTime.Now,
+                            JobStartTime = DateTime.Now,
+                            JSId = 1,
+                            JobName = $"New patch update '{patch.PatchZipName}' for {branch.branchName} ({branch.branchCode})",
+                            JobMassage = "Patch update process started.",
+                            JobActive = 1
+                        };
+
+                        _db.Jobs.Add(jobLog);
+                        await _db.SaveChangesAsync();
+
+
+                        await _db.jobAssignBranches.AddAsync(new JobAssignBranch
+                        {
+                            Id = branch.branchId,
+                            JId = jobLog.JId,
+                            IsPatch = true,
+                            ProcessLevel = 1,
+                        });
+
+                        await _db.SaveChangesAsync();
+
+
+
+                        var payload = new PatchDeploymentMqttRequest
+                        {
+                            PatchId = patch.PId.ToString() ?? "",
+                            PatchZipPath = zipPath,
+                            ExpectedChecksum = enroll.SendChunksBranch?.ToString() ?? "",
+                            Status = enroll.Status,
+                            Step = enroll.ProcessLevel,
+                        };
+
+                        if (patch.PatchType.Equals("1"))
+                        {
+                            await _mqtt.PublishToServer(
+                            payload,
+                            $"branch/{branch.branchCode}/PATCH/Application",
+                            MqttQualityOfServiceLevel.ExactlyOnce
+                        );
+
+                        }
+
+
+                        responseDTO.Status = true;
+                        responseDTO.StatusCode = 2;
+                        responseDTO.Message = "operation Success";
+                        return Ok(responseDTO);
+
+                    }
+                    else
+                    {
+                        responseDTO.Status = false;
+                        responseDTO.StatusCode = 1;
+                        responseDTO.Message = "Branch is not Found.";
+                        return BadRequest(responseDTO);
+                    }
+                }
+                else
+                {
+                    responseDTO.Status = false;
+                    responseDTO.StatusCode = 1;
+                    responseDTO.Message = "Patch is not Found.";
+                    return BadRequest(responseDTO);
+                }
             }
             catch (Exception ex)
             {
@@ -573,15 +817,15 @@ namespace MonitoringBackend.Controllers
             }
         }
 
-
-
-        public class PatchDeployRequest
+        private async Task<string> GetChecksumAsync(string filePath)
         {
-            public int PatchId { get; set; }
-            public string BranchId { get; set; } // null = all branches
+            using var sha256 = SHA256.Create();
+            using var stream = System.IO.File.OpenRead(filePath);
+
+            var hash = await sha256.ComputeHashAsync(stream);
+            return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
         }
 
-        //Client UploadFile Serve Methods End
 
 
     }

@@ -53,17 +53,15 @@ namespace MonitoringBackend.SRHub
             string branchId = http?.Request.Query["branchId"].ToString();
             string userId = http?.Request.Query["userId"].ToString();
 
-            if (string.IsNullOrWhiteSpace(branchId))
+         
+            if (!string.IsNullOrWhiteSpace(branchId))
             {
-                _logger.LogWarning("Connection without branchId - aborting");
-                Context.Abort();
-                return;
+                // Add to groups
+                await Groups.AddToGroupAsync(Context.ConnectionId, BranchGroup(branchId));
+                BranchConnectionCount.AddOrUpdate(branchId, 1, (key, count) => count + 1);
             }
 
-            // Add to groups
-            await Groups.AddToGroupAsync(Context.ConnectionId, BranchGroup(branchId));
-            BranchConnectionCount.AddOrUpdate(branchId, 1, (key, count) => count + 1);
-
+        
             if (!string.IsNullOrWhiteSpace(userId))
             {
                 await Groups.AddToGroupAsync(Context.ConnectionId, UserGroup(userId));

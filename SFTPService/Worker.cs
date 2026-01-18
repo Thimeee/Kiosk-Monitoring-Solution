@@ -400,25 +400,25 @@ namespace SFTPService
         {
             try
             {
-                var request = JsonSerializer.Deserialize<PatchDeploymentRequest>(payload);
+                var request = JsonSerializer.Deserialize<PatchDeploymentMqttRequest>(payload);
                 if (request == null)
                 {
                     await _log.WriteLog("Patch Handler", "Invalid payload received", 3);
                     return;
                 }
 
-                await _log.WriteLog("Patch", $"Received patch request - JobId: {request.JobId}, PatchId: {request.PatchId}");
+                await _log.WriteLog("Patch", $"Received patch request -  PatchId: {request.PatchId}");
 
                 // Execute patch deployment
                 bool success = await _patchService.ApplyPatchAsync(request, branchId, stoppingToken);
 
                 if (success)
                 {
-                    await _log.WriteLog("Patch", $"Patch applied successfully - JobId: {request.JobId}");
+                    await _log.WriteLog("Patch", $"Patch applied successfully - JobId: {request.PatchId}");
                 }
                 else
                 {
-                    await _log.WriteLog("Patch", $"Patch failed - JobId: {request.JobId}", 3);
+                    await _log.WriteLog("Patch", $"Patch failed - JobId: {request.PatchId}", 3);
                 }
             }
             catch (Exception ex)

@@ -23,9 +23,6 @@ namespace Monitoring.Shared.Models
         [Column("PatchTypeActiveStatus")]
         public int? PatchTypeActiveStatus { get; set; }
 
-        // Navigation properties
-        [JsonIgnore]
-        public virtual ICollection<PatchScript>? PatchScripts { get; set; }
         [JsonIgnore]
         public virtual ICollection<NewPatch>? NewPatches { get; set; }
     }

@@ -12,11 +12,13 @@ namespace MonitoringBackend.Data
         public DbSet<SFTPFolderPath> SFTPFolders { get; set; }
         public DbSet<Job> Jobs { get; set; }
         public DbSet<JobType> JobTypes { get; set; }
-        public DbSet<PatchScript> PatchScripts { get; set; }
         public DbSet<PatchType> PatchTypes { get; set; }
         public DbSet<NewPatch> NewPatches { get; set; }
         public DbSet<JobStatus> jobStatuses { get; set; }
         public DbSet<JobAssignBranch> jobAssignBranches { get; set; }
+        public DbSet<ServerFolderPath> ServerFolderPaths { get; set; }
+        public DbSet<PatchAssignBranch> PatchAssignBranchs { get; set; }
+
 
 
         //     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -50,5 +50,7 @@ namespace Monitoring.Shared.DTO
         public string? ZipName { get; set; }
         public string? ChunksFileName { get; set; }
 
+        public string? PatchServerPath { get; set; }
+
     }
 }

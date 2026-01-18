@@ -1,11 +1,15 @@
 ﻿@page "/file-installation-branch"
 @using Microsoft.AspNetCore.Components
 @using Monitoring.Shared.DTO
+@using Monitoring.Shared.DTO.PatchsDto
+@using Monitoring.Shared.Enum
 @using Monitoring.Shared.Models
 @using System.Net.Http.Headers
 @using System.Net
 @using Microsoft.AspNetCore.SignalR.Client;
 @using System.Text.Json
+@using System.Threading.Tasks
+@using static Monitoring.Shared.DTO.PatchsDto.SelectedPatch
 @layout BranchNavbarLayout
 @inject IJSRuntime JS
 @inject AlertService AlertService
@@ -34,32 +38,45 @@
                         <div class="col-12 p-3">
                             <div class="row">
                                 <div class="col-6">
+                                   
+                                                
                                     <Dropdown Size="DropdownSize.Large" Class="dropdown-btn">
                                         <DropdownToggleButton Class="text-white">
-                                            Select Update Type
+                                            @selectedPatchTypeName
                                         </DropdownToggleButton>
                                         <DropdownMenu>
-
-                                            <DropdownItem Type="DropdownItemType.Link">fggf</DropdownItem>
-                                            <DropdownItem Type="DropdownItemType.Link">fggf</DropdownItem>
-                                            <DropdownItem Type="DropdownItemType.Link">fggf</DropdownItem>
-                                            <DropdownItem Type="DropdownItemType.Link">fggf</DropdownItem>
-
+                                            @if (PatchTypeList != null)
+                                            {
+                                            @foreach (var item in PatchTypeList)
+                                            {
+                                                <DropdownItem Type="DropdownItemType.Link" @onclick="() => OnPatchTypeSelected(item)">@item.Name</DropdownItem>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span>Loding...</span>
+                                            }
+                                           
                                         </DropdownMenu>
                                     </Dropdown>
                                 </div>
                                 <div class="col-6">
                                     <Dropdown Size="DropdownSize.Large" Class="dropdown-btn">
                                         <DropdownToggleButton Class="text-white">
-                                            Select Updates
+                                            @selectedPatchName
                                         </DropdownToggleButton>
                                         <DropdownMenu>
-
-                                            <DropdownItem Type="DropdownItemType.Link">fggf</DropdownItem>
-                                            <DropdownItem Type="DropdownItemType.Link">fggf</DropdownItem>
-                                            <DropdownItem Type="DropdownItemType.Link">fggf</DropdownItem>
-                                            <DropdownItem Type="DropdownItemType.Link">fggf</DropdownItem>
-
+                                            @if (SelectedPatchList != null)
+                                            {
+                                                @foreach (var item in SelectedPatchList)
+                                                {
+                                                    <DropdownItem Type="DropdownItemType.Link" @onclick="() => OnPatchsSelected(item)">@item.Name</DropdownItem> 
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span>Loding...</span>
+                                            }
                                         </DropdownMenu>
                                     </Dropdown>
                                 </div>
@@ -67,6 +84,31 @@
                                     <div class="rounded-3 p-3 text-center col-12"
                                          style="border: 1px solid #3e3e3f;">
                                         <div class="row mt-2" >
+                                            @if (SelectPatch == null)
+                                            {
+                                            <div class="col-12 ">
+                                                    <div style="height:50vh" class="d-flex flex-column   justify-content-center align-items-center">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" 
+                                                             viewBox="0 0 512 512"
+                                                             width="130"
+                                                             height="130"
+                                                             fill="white"
+                                                             aria-hidden="true">
+                                                            <path d="M414.682 218.274c0-4.465-3.618-8.084-8.084-8.084H212.727c-4.465 0-8.084 3.62-8.084 8.084s3.62 8.084 8.084 8.084h193.871c4.465 0 8.084-3.62 8.084-8.084z" />
+                                                            <path d="M245.038 285.642c-4.465 0-8.084 3.62-8.084 8.084s3.62 8.084 8.084 8.084h1.078c4.465 0 8.084-3.62 8.084-8.084s-3.62-8.084-8.084-8.084z" />
+                                                            <path d="M457.764 134.783V51.2c0-28.231-22.969-51.2-51.2-51.2H105.053c-28.231 0-51.2 22.969-51.2 51.2v212.948C23.917 265.561 0 290.375 0 320.674c0 31.204 25.369 56.589 56.552 56.589h147.707v28.003c0 3.609 1.694 7.017 4.65 9.352 5.026 3.97 12.608 3.97 17.637 0l41.887-33.081c3.958-3.126 6.228-7.631 6.228-12.359s-2.269-9.233-6.228-12.359l-41.887-33.081c-5.029-3.972-12.61-3.971-17.637-.001-2.957 2.335-4.652 5.743-4.652 9.353v28.004H70.021V51.2c0-19.316 15.716-35.032 35.032-35.032h301.512c19.317 0 35.032 15.716 35.032 35.032v83.537h-134.62v-28.003c0-3.61-1.695-7.018-4.652-9.353-5.027-3.971-12.608-3.969-17.635 0l-41.887 33.081c-3.959 3.126-6.229 7.631-6.229 12.359s2.27 9.233 6.228 12.359l41.888 33.081c5.028 3.971 12.609 3.97 17.633.002 2.958-2.334 4.654-5.743 4.654-9.354v-28.004H449.59c22.267 0 40.383 18.132 40.383 40.421 0 21.51-16.873 39.15-38.068 40.355v-52.751c0-4.465-3.618-8.084-8.084-8.084s-8.084 3.62-8.084 8.084V460.8c0 19.316-15.715 35.032-35.032 35.032H105.053c-19.316 0-35.032-15.716-35.032-35.032v-54.434c0-4.465-3.62-8.084-8.084-8.084s-8.084 3.62-8.084 8.084V460.8c0 28.231 22.969 51.2 51.2 51.2h301.512c28.231 0 51.2-22.969 51.2-51.2V247.869C487.876 246.648 512 221.753 512 191.326s-24.124-55.322-54.236-56.543z" />
+                                                        </svg>
+                                                        <div class="mt-4">
+                                                            <Loder Height="40px" width="40px" />
+                                                        </div>
+                                                        
+                                                    </div>
+                                                </div>
+
+                                            }
+                                            else
+                                            {
+                                                
                                             <div class="col-7" >
                                                 <div class="row ">
 
@@ -79,10 +121,10 @@
                                                             </div>
 
                                                             <div class="col-12 gap-0">
-                                                                <span class="fs-3">1.0.0.0</span> <br>
+                                                                    <span class="fs-3">@SelectPatch.PatchVersion</span> <br>
                                                                 <span style="font-size:12px;">(Version)</span>
                                                             </div>
-                                                            <div class="col-12 mt-5 gap-3 d-grid ps-3 pe-2">
+                                                            <div class="col-12 mt-2 gap-1 d-grid ps-3 pe-2">
 
                                                                 <div class="col-12 d-flex  gap-0">
                                                                     <div class="row col-12">
@@ -93,7 +135,7 @@
                                                                             <span class="fs-6 text-white-50 ">:</span>
                                                                         </div>
                                                                         <div class="col-7 gap-0 text-start">
-                                                                            <span style="font-size:14px;" class="text-white-50">Application Update</span>
+                                                                                <span style="font-size:14px;" class="text-white-50">@SelectPatch.PatchType</span>
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -107,21 +149,24 @@
                                                                             <span class="fs-6 text-white-50 ">:</span>
                                                                         </div>
                                                                         <div class="col-7 gap-0 text-start">
-                                                                            <span style="font-size:14px;" class="text-white-50">1.0.0.0_20251217_A</span>
+                                                                                <span style="font-size:14px;" class="text-white-50">@SelectPatch.PatchZipName</span>
                                                                         </div>
                                                                     </div>
                                                                 </div>
                                                                 <div class="col-12 d-flex  gap-0">
                                                                     <div class="row col-12">
                                                                         <div class="col-4 gap-0 text-start">
-                                                                            <span class="fs-6 text-white-50">ZIp File</span>
+                                                                            <span class="fs-6 text-white-50">ZIp File Path</span>
                                                                         </div>
                                                                         <div class="col-1 gap-0 text-start">
                                                                             <span class="fs-6 text-white-50 ">:</span>
                                                                         </div>
-                                                                        <div class="col-7 gap-0 text-start">
-                                                                            <span style="font-size:14px;" class="text-white-50">1.0.0.0_20251217_A.Zip</span>
-                                                                        </div>
+                                                                            <div class="col-7 gap-0 text-start">
+                                                                                <span style="font-size:14px; word-break: break-all;" class="text-white-50">
+                                                                                    @($"{SelectPatch.PatchZipPath}\\{SelectPatch.PatchZipName}.zip")
+                                                                                </span>
+                                                                            </div>
+
                                                                     </div>
                                                                 </div>
 
@@ -134,7 +179,7 @@
                                                                             <span class="fs-6 text-white-50 ">:</span>
                                                                         </div>
                                                                         <div class="col-7 gap-0 text-start">
-                                                                            <span style="font-size:14px;" class="text-white-50">2025-12-17</span>
+                                                                                <span style="font-size:14px;" class="text-white-50">@SelectPatch.CreateDate</span>
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -148,7 +193,55 @@
                                                                             <span class="fs-6 text-white-50 ">:</span>
                                                                         </div>
                                                                         <div class="col-7 gap-0 text-start">
-                                                                            <span style="font-size:14px;" class="text-success">Ready</span>
+                                                                                @if (SelectPatch.EnrollBranch == null)
+                                                                                {
+                                                                                    <span class="text-warning">
+                                                                                        Branch not assigned to this patch yet.
+                                                                                    </span>
+                                                                                }
+                                                                                else
+                                                                                {
+                                                                                    switch (SelectPatch.EnrollBranch.Status)
+                                                                                    {
+                                                                                        case PatchStatus.SUCCESS:
+                                                                                            <span class="text-success">
+                                                                                                Branch successfully updated for this patch.
+                                                                                            </span>
+                                                                                            break;
+
+                                                                                        case PatchStatus.FAILED:
+                                                                                            <span class="text-danger">
+                                                                                                Branch update incomplete or failed for this patch.
+                                                                                            </span>
+                                                                                            break;
+
+                                                                                        case PatchStatus.ROLLBACK:
+                                                                                            <span class="text-danger">
+                                                                                                Patch rolled back on this branch.
+                                                                                            </span>
+                                                                                            break;
+
+                                                                                        case PatchStatus.IN_PROGRESS:
+                                                                                            <span class="text-info">
+                                                                                                Patch update in progress.
+                                                                                            </span>
+                                                                                            break;
+
+                                                                                        case PatchStatus.INIT:
+                                                                                            <span class="text-secondary">
+                                                                                                Patch initialized.
+                                                                                            </span>
+                                                                                            break;
+
+                                                                                        default:
+                                                                                            <span class="text-muted">
+                                                                                                Unknown status.
+                                                                                            </span>
+                                                                                            break;
+                                                                                    }
+                                                                                }
+
+
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -163,17 +256,8 @@
                                                                         </div>
                                                                         <div class="col-7 gap-0 text-start">
                                                                             <span style="font-size:14px;" class="text-white-50">
-                                                                                lorem
-                                                                                lorem
-                                                                                lorem
-                                                                                lorem
-                                                                                lorem
-                                                                                lorem
-                                                                                lorem
-                                                                                lorem
-                                                                                lorem
-                                                                                lorem
-                                                                                lorem
+                                                                                    @SelectPatch.Remark
+
                                                                                 
                                                                             </span>
 
@@ -304,6 +388,8 @@
                                                     </div>
                                                 </div>
                                             </div>
+                                            }
+
                                         </div>
                                     </div>
 
@@ -331,6 +417,37 @@
 
 @code{
 
+    private string? JWTToken;
+
+    private List<SelectedAnyDropDownOrSamllData>? PatchTypeList;
+    private string? selectedPatchTypeName = "Select Update Type";
+    private string? selectedPatchName = "First Select Update Type ";
+
+
+    private List<SelectedAnyDropDownOrSamllData>? SelectedPatchList;
+    private SelectedPatch? SelectPatch;
+
+
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        JWTToken = await GetJwtToken();
+
+        if (JWTToken != null)
+        {
+            if (await getPatchesTypeAsync(Settings.MainApiBaseUrl, JWTToken))
+            {
+
+            }
+
+            // await InilizeSignalR();
+            StateHasChanged();
+        }
+    }
+
     private async Task<string?> GetJwtToken()
     {
         try
@@ -345,6 +462,7 @@
         }
     }
 
+
     private async Task<LoggedInUser> getUserDetails()
     {
         return await _auth.getLogginUserDetiles();
@@ -353,64 +471,410 @@
     {
         return await _auth.getLogginBranchDetiles();
     }
-    public class PatchDeployRequest
+
+
+
+    private async Task OnPatchTypeSelected(SelectedAnyDropDownOrSamllData patchType)
     {
-        public int PatchId { get; set; }
-        public string BranchId { get; set; } // null = all branches
+        selectedPatchTypeName = patchType.Name;
+        selectedPatchName = $"Select {patchType.Name}";
+
+        if (JWTToken == null)
+            JWTToken = await GetJwtToken();
+
+        if (await getSelectedPatchesAsync(Settings.MainApiBaseUrl, JWTToken, patchType.Id))
+        {
+            StateHasChanged();
+        }
+
     }
+
+
+    private async Task OnPatchsSelected(SelectedAnyDropDownOrSamllData patch)
+    {
+        selectedPatchName = $"{patch.Name}";
+
+        if (JWTToken == null)
+            JWTToken = await GetJwtToken();
+
+        if (await getSelectedPatchAllAsync(Settings.MainApiBaseUrl, JWTToken, patch.Id))
+        {
+            StateHasChanged();
+        }
+
+
+    }
+
     private async Task UploadAsync_Get()
+    {
+        if (JWTToken == null)
+            JWTToken = await GetJwtToken();
+
+        if(SelectPatch != null)
+        {
+            var user = await getUserDetails();
+            var obj = new APIRequestObject<SelectedBranchAssingPatch>
+            {
+                ReqValue = new SelectedBranchAssingPatch
+                {
+                   PatchId = SelectPatch.PId,
+                    ExtraValue = user.UserId,
+                }
+            };
+
+            if (SelectPatch.EnrollBranch == null)
+            {
+                obj.ReqValue.Status = PatchStatus.INIT;
+
+            }
+            else
+            {
+                obj.ReqValue.Status = SelectPatch.EnrollBranch.Status;
+                obj.ReqValue.ProcessLevel = SelectPatch.EnrollBranch.ProcessLevel;
+            }
+            if (await PatchdeployBranch(Settings.MainApiBaseUrl, JWTToken, obj))
+            {
+                StateHasChanged();
+            }
+
+
+
+        }
+
+
+
+    }
+
+
+    private async Task<bool> getPatchesTypeAsync(string baseUrl, string jwtToken)
     {
         try
         {
-            var token = await GetJwtToken();
 
-            var patchId = Guid.NewGuid();      // for testing
-            var branchId = "BRANCH003";        // optional
+            using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
 
-            using var client = new HttpClient { BaseAddress = new Uri(Settings.MainApiBaseUrl) };
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            var response = await client.GetAsync("api/Patches/getPatchesTypes");
 
-            // Build query string
-            var url = $"api/Patches/deploy?patchId={patchId}&branchId={branchId}";
 
-            var response = await client.GetAsync(url);
+            var result = await response.Content.ReadFromJsonAsync<APIResponseCoustomizeList<SelectedAnyDropDownOrSamllData, NewPatch>>();
 
-            APIResponseObjectValue<object>? result = null;
-
-            if (response.Content.Headers.ContentLength > 0)
+            if (response.IsSuccessStatusCode)
             {
-                var options = new System.Text.Json.JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                };
 
-                result = await response.Content.ReadFromJsonAsync<APIResponseObjectValue<object>>(options);
-            }
-
-            if (result != null)
-            {
-                if (result.Status)
+                if (result != null && result.StatusCode == 2 && result.Status == true)
                 {
-                    Console.WriteLine("SUCCESS: Patch deployment initiated (GET)");
-                    Console.WriteLine($"Message: {result.Message}");
-                    Console.WriteLine($"Payload: {System.Text.Json.JsonSerializer.Serialize(result.Value)}");
-                }
-                else
-                {
-                    Console.WriteLine($"FAILED: {result.Message}");
+                    PatchTypeList = result.ValueList;
+                    return true;
                 }
             }
             else
             {
-                Console.WriteLine("No content returned from API");
+                switch (response.StatusCode)
+                {
+                    case HttpStatusCode.BadRequest:
+                    case HttpStatusCode.NotFound:
+                    case HttpStatusCode.Unauthorized:
+                        if (result?.StatusCode == 1 && result.Status == false)
+                        {
+                            AlertService.ShowError("File Sharing Error", $"{result.Message}. Please try again.");
+                            return false;
+                        }
+                        break;
+
+                    case HttpStatusCode.InternalServerError: // 500
+
+                        if (result?.StatusCode == 0 && result.Status == false)
+                        {
+                            var serverMsg = result?.Message ?? "Server error occurred.";
+                            // var content = await response.Content.ReadAsStringAsync();
+                            Console.WriteLine($"Server 500 response body: {result?.Ex}");
+                            AlertService.ShowError("Server Error", $"{serverMsg}. Please contact support.");
+                            return false;
+                        }
+                        break;
+
+                }
+
+
             }
+
+            return false;
+
+        }
+        catch (HttpRequestException ex)
+        {
+            AlertService.ShowError("Server Error", "Server fetch failed. Please contact support.");
+            Console.WriteLine($"HttpRequestException: {ex.Message}");
+            return false;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Exception: {ex}");
-            AlertService.ShowError("Client Error", ex.Message);
+            Console.WriteLine($"General Exception: {ex.Message}");
+            return false;
+        }
+
+    }
+
+    // Get Selected Pathch
+    private async Task<bool> getSelectedPatchesAsync(string baseUrl, string jwtToken,int patchtype)
+    {
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
+
+            var response = await client.GetAsync($"api/Patches/getSelectedPatches?patchtype={patchtype}");
+
+
+            var result = await response.Content.ReadFromJsonAsync<APIResponseOnlyList<SelectedAnyDropDownOrSamllData>>();
+
+            if (response.IsSuccessStatusCode)
+            {
+
+                if (result != null && result.StatusCode == 2 && result.Status == true)
+                {
+                    SelectedPatchList = result.ValueList;
+                    return true;
+                }
+            }
+            else
+            {
+                switch (response.StatusCode)
+                {
+                    case HttpStatusCode.BadRequest:
+                    case HttpStatusCode.NotFound:
+                    case HttpStatusCode.Unauthorized:
+                        if (result?.StatusCode == 1 && result.Status == false)
+                        {
+                            AlertService.ShowError("File Sharing Error", $"{result.Message}. Please try again.");
+                            return false;
+                        }
+                        break;
+
+                    case HttpStatusCode.InternalServerError: // 500
+
+                        if (result?.StatusCode == 0 && result.Status == false)
+                        {
+                            var serverMsg = result?.Message ?? "Server error occurred.";
+                            // var content = await response.Content.ReadAsStringAsync();
+                            Console.WriteLine($"Server 500 response body: {result?.Ex}");
+                            AlertService.ShowError("Server Error", $"{serverMsg}. Please contact support.");
+                            return false;
+                        }
+                        break;
+
+                }
+
+
+            }
+
+            return false;
+
+        }
+        catch (HttpRequestException ex)
+        {
+            AlertService.ShowError("Server Error", "Server fetch failed. Please contact support.");
+            Console.WriteLine($"HttpRequestException: {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"General Exception: {ex.Message}");
+            return false;
         }
     }
+
+    // Get Selected Pathch All
+    private async Task<bool> getSelectedPatchAllAsync(string baseUrl, string jwtToken, int patchtype)
+    {
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
+
+            var response = await client.GetAsync($"api/Patches/getSelectedPatchAllDetails?patchId={patchtype}");
+
+
+            var result = await response.Content.ReadFromJsonAsync<APIResponseObjectValue<SelectedPatch>>();
+
+            if (response.IsSuccessStatusCode)
+            {
+
+                if (result != null && result.StatusCode == 2 && result.Status == true)
+                {
+                    SelectPatch = result.Value;
+                    return true;
+                }
+            }
+            else
+            {
+                switch (response.StatusCode)
+                {
+                    case HttpStatusCode.BadRequest:
+                    case HttpStatusCode.NotFound:
+                    case HttpStatusCode.Unauthorized:
+                        if (result?.StatusCode == 1 && result.Status == false)
+                        {
+                            AlertService.ShowError("File Sharing Error", $"{result.Message}. Please try again.");
+                            return false;
+                        }
+                        break;
+
+                    case HttpStatusCode.InternalServerError: // 500
+
+                        if (result?.StatusCode == 0 && result.Status == false)
+                        {
+                            var serverMsg = result?.Message ?? "Server error occurred.";
+                            // var content = await response.Content.ReadAsStringAsync();
+                            Console.WriteLine($"Server 500 response body: {result?.Ex}");
+                            AlertService.ShowError("Server Error", $"{serverMsg}. Please contact support.");
+                            return false;
+                        }
+                        break;
+
+                }
+
+
+            }
+
+            return false;
+
+        }
+        catch (HttpRequestException ex)
+        {
+            AlertService.ShowError("Server Error", "Server fetch failed. Please contact support.");
+            Console.WriteLine($"HttpRequestException: {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"General Exception: {ex.Message}");
+            return false;
+        }
+    }
+
+
+    private async Task<bool> PatchdeployBranch(string baseUrl, string jwtToken, APIRequestObject<SelectedBranchAssingPatch> obj)
+    {
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
+            var response = await client.PostAsJsonAsync("api/Patches/PatchdeployBranch", obj);
+
+            var result = await response.Content.ReadFromJsonAsync<APIResponseObjectValue<SelectedPatch>>();
+
+            if (response.IsSuccessStatusCode)
+            {
+
+                if (result != null && result.StatusCode == 2 && result.Status == true)
+                {
+                    // SelectPatch = result.Value;
+                    return true;
+                }
+            }
+            else
+            {
+                switch (response.StatusCode)
+                {
+                    case HttpStatusCode.BadRequest:
+                    case HttpStatusCode.NotFound:
+                    case HttpStatusCode.Unauthorized:
+                        if (result?.StatusCode == 1 && result.Status == false)
+                        {
+                            AlertService.ShowError("File Sharing Error", $"{result.Message}. Please try again.");
+                            return false;
+                        }
+                        break;
+
+                    case HttpStatusCode.InternalServerError: // 500
+
+                        if (result?.StatusCode == 0 && result.Status == false)
+                        {
+                            var serverMsg = result?.Message ?? "Server error occurred.";
+                            // var content = await response.Content.ReadAsStringAsync();
+                            Console.WriteLine($"Server 500 response body: {result?.Ex}");
+                            AlertService.ShowError("Server Error", $"{serverMsg}. Please contact support.");
+                            return false;
+                        }
+                        break;
+
+                }
+
+
+            }
+
+            return false;
+
+        }
+        catch (HttpRequestException ex)
+        {
+            AlertService.ShowError("Server Error", "Server fetch failed. Please contact support.");
+            Console.WriteLine($"HttpRequestException: {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"General Exception: {ex.Message}");
+            return false;
+        }
+    }
+
+
+    // private async Task UploadAsync_Get()
+    // {
+    //     try
+    //     {
+    //         var token = await GetJwtToken();
+
+    //         var patchId = Guid.NewGuid();      for testing
+    //         var branchId = "BRANCH003";        optional
+
+    //         using var client = new HttpClient { BaseAddress = new Uri(Settings.MainApiBaseUrl) };
+    //         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+    //         Build query string
+    //         var url = $"api/Patches/PatchdeployBranch?status={patchId}";
+
+    //         var response = await client.GetAsync(url);
+
+    //         APIResponseObjectValue<object>? result = null;
+
+    //         if (response.Content.Headers.ContentLength > 0)
+    //         {
+    //             var options = new System.Text.Json.JsonSerializerOptions
+    //             {
+    //                 PropertyNameCaseInsensitive = true
+    //             };
+
+    //             result = await response.Content.ReadFromJsonAsync<APIResponseObjectValue<object>>(options);
+    //         }
+
+    //         if (result != null)
+    //         {
+    //             if (result.Status)
+    //             {
+    //                 Console.WriteLine("SUCCESS: Patch deployment initiated (GET)");
+    //                 Console.WriteLine($"Message: {result.Message}");
+    //                 Console.WriteLine($"Payload: {System.Text.Json.JsonSerializer.Serialize(result.Value)}");
+    //             }
+    //             else
+    //             {
+    //                 Console.WriteLine($"FAILED: {result.Message}");
+    //             }
+    //         }
+    //         else
+    //         {
+    //             Console.WriteLine("No content returned from API");
+    //         }
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         Console.WriteLine($"Exception: {ex}");
+    //         AlertService.ShowError("Client Error", ex.Message);
+    //     }
+    // }
 
 
 

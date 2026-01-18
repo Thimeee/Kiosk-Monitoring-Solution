@@ -376,7 +376,6 @@ namespace MonitoringBackend.Service
 
             int newPatchId = int.TryParse(res.jobUser, out var id) ? id : 0;
 
-            // Use semaphore for heavy patch operations
             await _semaphore.WaitAsync();
             try
             {
@@ -386,64 +385,93 @@ namespace MonitoringBackend.Service
                 var newPatch = await db.NewPatches.FirstOrDefaultAsync(p => p.PId == newPatchId);
                 if (newPatch == null) return;
 
-                Job job = null;
-            
+                Job? job = await db.Jobs.FirstOrDefaultAsync(j => j.JobUId == res.jobId);
 
-                try
+                if (res.jobRqValue == null) return;
+
+                // Validate patch metadata
+                if (newPatch.PatchFileName != res.jobRqValue.ChunksFileName ||
+                    newPatch.PatchFilePath != res.jobRqValue.ChunksPath ||
+                    newPatch.PatchZipName != res.jobRqValue.ZipName)
                 {
-                    job = await db.Jobs.FirstOrDefaultAsync(j => j.JobUId == res.jobId);
-
-                    string patchesFolder = Path.Combine("C:\\Branches\\MCS\\Patches\\AllNewPatches");
-                    Directory.CreateDirectory(patchesFolder);
-
-              
-
-                    // Update status
-                    if (job != null)
-                    {
-                        newPatch.PatchProcessLevel = 2;
-                        job.JSId = 2;
-                        await db.SaveChangesAsync();
-                    }
-
-                    // Decide merged file name
-                    string mergedFilePath = Path.Combine(
-                        patchesFolder,
-                        res.jobRqValue.ChunksFileName
-                    );
-                    // Merge chunks
-                    await MergeChunks(res.jobRqValue.ChunksPath, mergedFilePath);
-
-                    await _hubContext.Clients.All.SendAsync("PatchDeploymentStart", newPatch.PId);
-
-                 
-
-                    if (Directory.Exists(res.jobRqValue.ChunksPath))
-                    {
-                        Directory.Delete(res.jobRqValue.ChunksPath, true);
-                    }
-
-                    // Final update
-                    if (job != null)
-                    {
-                        newPatch.PatchZipPath = patchesFolder;
-                        newPatch.PatchProcessLevel = 3;
-                        newPatch.PatchActiveStatus = 2;
-
-                        job.JSId = 3;
-                        job.JobActive = 2;
-                        job.JobEndTime = DateTime.Now;
-                        job.JobMassage = "File uploaded and zipped successfully";
-
-                        await db.SaveChangesAsync();
-                        await _hubContext.Clients.All.SendAsync("PatchDeploymentComplete", newPatch.PId);
-                    }
+                    await FileUploadFailed(newPatch, job, newPatchId, db);
+                    await _hubContext.Clients.All.SendAsync("PatchDeploymentFailed", newPatch.PId);
+                    return;
                 }
-                catch (Exception ex)
+
+                // Ensure chunk folder exists
+                string chunksFolder = res.jobRqValue.ChunksPath;
+                if (!Directory.Exists(chunksFolder))
                 {
-                    //await CleanupFailedPatch(res, newPatch, job, mergedFileFolder, zipFile, db);
-                    await _log.WriteLog("PatchProcess Error", ex.ToString(), 3);
+                    await FileUploadFailed(newPatch, job, newPatchId, db);
+                    await _hubContext.Clients.All.SendAsync("PatchDeploymentFailed", newPatch.PId);
+                    return;
                 }
+
+                // Count total chunks in folder
+                int totalChunks = Directory.EnumerateFiles(chunksFolder).Count();
+
+                // Check if all chunks have arrived
+                if (newPatch.ServerSendChunks != totalChunks)
+                {
+                    await FileUploadFailed(newPatch, job, newPatchId, db);
+                    await _hubContext.Clients.All.SendAsync("PatchDeploymentFailed", newPatch.PId);
+                    return;
+
+                }
+
+                // Get Server Patch Folder
+                var patchesFolder = await db.ServerFolderPaths
+                    .Where(p => p.Name == "SR_P")
+                    .Select(p => p.ServerFolderPathValue)
+                    .FirstOrDefaultAsync();
+
+                if (string.IsNullOrWhiteSpace(patchesFolder))
+                {
+                    await _log.WriteLog("PatchProcess Error", "Server patch folder not configured", 3);
+                    await _hubContext.Clients.All.SendAsync("PatchDeploymentFailed", newPatch.PId);
+                    return;
+                }
+
+                // Update status → merging started
+                if (job != null)
+                {
+                    newPatch.PatchProcessLevel = 2;
+                    job.JSId = 2;
+                    await db.SaveChangesAsync();
+                }
+
+                // Decide merged file path
+                string mergedFilePath = Path.Combine(patchesFolder, $"{res.jobRqValue.ZipName}.zip");
+
+                // Merge chunks
+                await MergeChunks(chunksFolder, mergedFilePath);
+
+                // Cleanup chunk folder
+                if (Directory.Exists(chunksFolder))
+                    Directory.Delete(chunksFolder, true);
+
+                // Final update → completed
+                if (job != null)
+                {
+                    newPatch.PatchZipPath = patchesFolder;
+                    newPatch.PatchProcessLevel = 3;
+                    newPatch.PatchActiveStatus = 2;
+
+                    job.JSId = 3;
+                    job.JobActive = 2;
+                    job.JobEndTime = DateTime.Now;
+                    job.JobMassage = "File uploaded and zipped successfully";
+
+                    await db.SaveChangesAsync();
+                    // Notify complete
+                    await _hubContext.Clients.All.SendAsync("PatchDeploymentComplete", newPatch.PId);
+                }
+            }
+            catch (Exception ex)
+            {
+                await _log.WriteLog("PatchProcess Error", ex.ToString(), 3);
+
             }
             finally
             {
@@ -451,34 +479,71 @@ namespace MonitoringBackend.Service
             }
         }
 
-        private async Task MergeChunks(string chunksPath, string outputFile)
+
+        private async Task FileUploadFailed(NewPatch patch, Job? job, int newPatchId, AppDbContext db)
         {
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
+                string chunksFolder = patch?.PatchFilePath ?? "";
+                if (Directory.Exists(chunksFolder))
+                    Directory.Delete(chunksFolder, true);
 
-                using var outFs = new FileStream(
-                    outputFile,
-                    FileMode.Create,
-                    FileAccess.Write,
-                    FileShare.None
-                );
-
-                var chunkFiles = Directory.GetFiles(chunksPath)
-                    .OrderBy(f => int.Parse(Path.GetFileNameWithoutExtension(f)));
-
-                foreach (var chunkFile in chunkFiles)
+                if (job != null)
                 {
-                    using var inFs = new FileStream(chunkFile, FileMode.Open, FileAccess.Read, FileShare.Read);
-                    await inFs.CopyToAsync(outFs);
+                    job.JSId = 4;
+                    job.JobActive = 2;
+                    job.JobEndTime = DateTime.Now;
+                    job.JobMassage = $"File upload failed";
+
+                    db.Jobs.Update(job);
                 }
+
+                if (patch != null)
+                {
+                    patch.PatchActiveStatus = 1;
+                    patch.PatchProcessLevel = 4;
+                    db.NewPatches.Update(patch);
+                }
+
+                await db.SaveChangesAsync();
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("MergeChunks Error", ex.ToString(), 3);
-                throw;
+                await _log.WriteLog("FileUploadFailed Error", ex.ToString(), 3);
             }
         }
+
+
+        private async Task MergeChunks(string chunksPath, string outputFile)
+        {
+            if (!Directory.Exists(chunksPath))
+                throw new DirectoryNotFoundException($"Chunks folder not found: {chunksPath}");
+
+            Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
+
+            var chunkFiles = Directory.EnumerateFiles(chunksPath)
+                .Select(f => new
+                {
+                    File = f,
+                    Index = int.TryParse(Path.GetFileNameWithoutExtension(f), out var i) ? i : -1
+                })
+                .Where(x => x.Index >= 0)
+                .OrderBy(x => x.Index)
+                .Select(x => x.File)
+                .ToList();
+
+            if (!chunkFiles.Any())
+                throw new InvalidOperationException("No valid chunk files found.");
+
+            await using var outFs = new FileStream(outputFile, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
+
+            foreach (var chunkFile in chunkFiles)
+            {
+                await using var inFs = new FileStream(chunkFile, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, true);
+                await inFs.CopyToAsync(outFs);
+            }
+        }
+
 
 
         //private async Task MergeScripts(AppDbContext db, int? patchTypeId, string scriptsFolder)
