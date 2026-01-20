@@ -15,17 +15,17 @@
 @inject AlertService AlertService
 @inject AppSettings Settings
 @inject AuthCredential _auth
+@implements IAsyncDisposable
 
-
-<div >
+<div>
     <main class="main-content">
         <div class="transfer-container">
             <!-- Header -->
             <div class="transfer-header">
                 <h1>Patch Update</h1>
                 <div class="connection-status">
-                    <span class="status-indicat"></span>
-                    @* <span></span> *@
+                    <span class="status-indicator @(IsConnected ? "connected" : "disconnected")"></span>
+                    <span class="connection-text">@ConnectionStatus</span>
                 </div>
             </div>
 
@@ -33,65 +33,64 @@
             <div class="dual-panel col-12">
                 <!-- Left Panel - Server Files -->
                 <div class="panel col-12">
-                   
+
                     <div class="panel-body">
                         <div class="col-12 p-3">
                             <div class="row">
                                 <div class="col-6">
-                                   
-                                                
                                     <Dropdown Size="DropdownSize.Large" Class="dropdown-btn">
                                         <DropdownToggleButton Class="text-white">
                                             @selectedPatchTypeName
                                         </DropdownToggleButton>
                                         <DropdownMenu>
-                                            @if (PatchTypeList != null)
+                                            @if (PatchTypeList != null && PatchTypeList.Any())
                                             {
-                                            @foreach (var item in PatchTypeList)
-                                            {
-                                                <DropdownItem Type="DropdownItemType.Link" @onclick="() => OnPatchTypeSelected(item)">@item.Name</DropdownItem>
+                                                @foreach (var item in PatchTypeList)
+                                                {
+                                                    <DropdownItem Type="DropdownItemType.Link" @onclick="() => OnPatchTypeSelected(item)">@item.Name</DropdownItem>
                                                 }
                                             }
                                             else
                                             {
-                                                <span>Loding...</span>
+                                                <span class="text-muted p-2">Loading...</span>
                                             }
-                                           
                                         </DropdownMenu>
                                     </Dropdown>
                                 </div>
+
                                 <div class="col-6">
-                                    <Dropdown Size="DropdownSize.Large" Class="dropdown-btn">
+                                    <Dropdown Size="DropdownSize.Large" Class="dropdown-btn" Disabled="@(SelectedPatchList == null || !SelectedPatchList.Any())">
                                         <DropdownToggleButton Class="text-white">
                                             @selectedPatchName
                                         </DropdownToggleButton>
                                         <DropdownMenu>
-                                            @if (SelectedPatchList != null)
+                                            @if (SelectedPatchList != null && SelectedPatchList.Any())
                                             {
                                                 @foreach (var item in SelectedPatchList)
                                                 {
-                                                    <DropdownItem Type="DropdownItemType.Link" @onclick="() => OnPatchsSelected(item)">@item.Name</DropdownItem> 
+                                                    <DropdownItem Type="DropdownItemType.Link" @onclick="() => OnPatchsSelected(item)">@item.Name</DropdownItem>
                                                 }
                                             }
                                             else
                                             {
-                                                <span>Loding...</span>
+                                                <span class="text-muted p-2">Select a type first</span>
                                             }
                                         </DropdownMenu>
                                     </Dropdown>
                                 </div>
+
                                 <div class="col-12 mt-2 d-flex justify-content-center align-items-center">
                                     <div class="rounded-3 p-3 text-center col-12"
                                          style="border: 1px solid #3e3e3f;">
-                                        <div class="row mt-2" >
-                                            @if (SelectPatch == null)
+                                        <div class="row mt-2">
+                                            @if (IsLoadingPatch || SelectPatch == null)
                                             {
-                                            <div class="col-12 ">
-                                                    <div style="height:50vh" class="d-flex flex-column   justify-content-center align-items-center">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" 
+                                                <div class="col-12">
+                                                    <div style="height:50vh" class="d-flex flex-column justify-content-center align-items-center">
+                                                        <svg xmlns="http://www.w3.org/2000/svg"
                                                              viewBox="0 0 512 512"
-                                                             width="130"
-                                                             height="130"
+                                                             width="50"
+                                                             height="50"
                                                              fill="white"
                                                              aria-hidden="true">
                                                             <path d="M414.682 218.274c0-4.465-3.618-8.084-8.084-8.084H212.727c-4.465 0-8.084 3.62-8.084 8.084s3.62 8.084 8.084 8.084h193.871c4.465 0 8.084-3.62 8.084-8.084z" />
@@ -101,98 +100,102 @@
                                                         <div class="mt-4">
                                                             <Loder Height="40px" width="40px" />
                                                         </div>
-                                                        
+                                                        @if (IsLoadingPatch)
+                                                        {
+                                                            <span class="text-muted mt-3">Loading patch details...</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="text-muted mt-3">Select a patch to view details</span>
+                                                        }
                                                     </div>
                                                 </div>
-
                                             }
                                             else
                                             {
-                                                
-                                            <div class="col-7" >
-                                                <div class="row ">
+                                                <div class="col-7">
+                                                    <div class="row">
+                                                        <div class="col-8 d-flex justify-content-center">
+                                                            <div class="col-11 p-2 rounded-4 text-white" style="border: 1px solid #3e3e3f; background: linear-gradient(135deg, #3e3e3f 0%, #2f2f30 100%); height:60vh">
+                                                                <div class="col-12 p-2">
+                                                                    <svg width="50px" height="50px" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                                        <path d="M13 3H7C5.89543 3 5 3.89543 5 5V10M13 3L19 9M13 3V8C13 8.55228 13.4477 9 14 9H19M19 9V19C19 20.1046 18.1046 21 17 21H10C7.79086 21 6 19.2091 6 17V17C6 14.7909 7.79086 13 10 13H13M13 13L10 10M13 13L10 16" stroke="rgba(76, 175, 80, 0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                                                    </svg>
+                                                                </div>
 
-                                                <div class="col-8 d-flex justify-content-center">
-                                                    <div class="col-11 p-2 rounded-4 text-white" style=" border: 1px solid #3e3e3f; background: linear-gradient(135deg, #3e3e3f 0%, #2f2f30 100%); ">
-                                                       <div class="col-12 p-2">
-                                                                <svg width="50px" height="50px"  viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                                    <path d="M13 3H7C5.89543 3 5 3.89543 5 5V10M13 3L19 9M13 3V8C13 8.55228 13.4477 9 14 9H19M19 9V19C19 20.1046 18.1046 21 17 21H10C7.79086 21 6 19.2091 6 17V17C6 14.7909 7.79086 13 10 13H13M13 13L10 10M13 13L10 16" stroke="rgba(76, 175, 80, 0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                                                                </svg>
-                                                            </div>
-
-                                                            <div class="col-12 gap-0">
+                                                                <div class="col-12 gap-0">
                                                                     <span class="fs-3">@SelectPatch.PatchVersion</span> <br>
-                                                                <span style="font-size:12px;">(Version)</span>
-                                                            </div>
-                                                            <div class="col-12 mt-2 gap-1 d-grid ps-3 pe-2">
+                                                                    <span style="font-size:12px;">(Version)</span>
+                                                                </div>
 
-                                                                <div class="col-12 d-flex  gap-0">
-                                                                    <div class="row col-12">
-                                                                        <div class="col-4 gap-0 text-start">
-                                                                            <span class="fs-6 text-white-50 ">Patch Type</span>
-                                                                        </div>
-                                                                        <div class="col-1 gap-0 text-start">
-                                                                            <span class="fs-6 text-white-50 ">:</span>
-                                                                        </div>
-                                                                        <div class="col-7 gap-0 text-start">
+                                                                <div class="col-12 mt-2 gap-1 d-grid ps-3 pe-2">
+                                                                    <div class="col-12 d-flex gap-0">
+                                                                        <div class="row col-12">
+                                                                            <div class="col-4 gap-0 text-start">
+                                                                                <span class="fs-6 text-white-50">Patch Type</span>
+                                                                            </div>
+                                                                            <div class="col-1 gap-0 text-start">
+                                                                                <span class="fs-6 text-white-50">:</span>
+                                                                            </div>
+                                                                            <div class="col-7 gap-0 text-start">
                                                                                 <span style="font-size:14px;" class="text-white-50">@SelectPatch.PatchType</span>
+                                                                            </div>
                                                                         </div>
                                                                     </div>
-                                                                </div>
 
-                                                                <div class="col-12 d-flex  gap-0">
-                                                                    <div class="row col-12">
-                                                                        <div class="col-4 gap-0 text-start">
-                                                                            <span class="fs-6 text-white-50">Patch Name</span>
-                                                                        </div>
-                                                                        <div class="col-1 gap-0 text-start">
-                                                                            <span class="fs-6 text-white-50 ">:</span>
-                                                                        </div>
-                                                                        <div class="col-7 gap-0 text-start">
+                                                                    <div class="col-12 d-flex gap-0">
+                                                                        <div class="row col-12">
+                                                                            <div class="col-4 gap-0 text-start">
+                                                                                <span class="fs-6 text-white-50">Patch Name</span>
+                                                                            </div>
+                                                                            <div class="col-1 gap-0 text-start">
+                                                                                <span class="fs-6 text-white-50">:</span>
+                                                                            </div>
+                                                                            <div class="col-7 gap-0 text-start">
                                                                                 <span style="font-size:14px;" class="text-white-50">@SelectPatch.PatchZipName</span>
+                                                                            </div>
                                                                         </div>
                                                                     </div>
-                                                                </div>
-                                                                <div class="col-12 d-flex  gap-0">
-                                                                    <div class="row col-12">
-                                                                        <div class="col-4 gap-0 text-start">
-                                                                            <span class="fs-6 text-white-50">ZIp File Path</span>
-                                                                        </div>
-                                                                        <div class="col-1 gap-0 text-start">
-                                                                            <span class="fs-6 text-white-50 ">:</span>
-                                                                        </div>
+
+                                                                    <div class="col-12 d-flex gap-0">
+                                                                        <div class="row col-12">
+                                                                            <div class="col-4 gap-0 text-start">
+                                                                                <span class="fs-6 text-white-50">Zip File Path</span>
+                                                                            </div>
+                                                                            <div class="col-1 gap-0 text-start">
+                                                                                <span class="fs-6 text-white-50">:</span>
+                                                                            </div>
                                                                             <div class="col-7 gap-0 text-start">
                                                                                 <span style="font-size:14px; word-break: break-all;" class="text-white-50">
                                                                                     @($"{SelectPatch.PatchZipPath}\\{SelectPatch.PatchZipName}.zip")
                                                                                 </span>
                                                                             </div>
-
+                                                                        </div>
                                                                     </div>
-                                                                </div>
 
-                                                                <div class="col-12 d-flex  gap-0">
-                                                                    <div class="row col-12">
-                                                                        <div class="col-4 gap-0 text-start">
-                                                                            <span class="fs-6 text-white-50">Date</span>
-                                                                        </div>
-                                                                        <div class="col-1 gap-0 text-start">
-                                                                            <span class="fs-6 text-white-50 ">:</span>
-                                                                        </div>
-                                                                        <div class="col-7 gap-0 text-start">
+                                                                    <div class="col-12 d-flex gap-0">
+                                                                        <div class="row col-12">
+                                                                            <div class="col-4 gap-0 text-start">
+                                                                                <span class="fs-6 text-white-50">Date</span>
+                                                                            </div>
+                                                                            <div class="col-1 gap-0 text-start">
+                                                                                <span class="fs-6 text-white-50">:</span>
+                                                                            </div>
+                                                                            <div class="col-7 gap-0 text-start">
                                                                                 <span style="font-size:14px;" class="text-white-50">@SelectPatch.CreateDate</span>
+                                                                            </div>
                                                                         </div>
                                                                     </div>
-                                                                </div>
 
-                                                                <div class="col-12 d-flex  gap-0">
-                                                                    <div class="row col-12">
-                                                                        <div class="col-4 gap-0 text-start">
-                                                                            <span class="fs-6 text-white-50">Status</span>
-                                                                        </div>
-                                                                        <div class="col-1 gap-0 text-start">
-                                                                            <span class="fs-6 text-white-50 ">:</span>
-                                                                        </div>
-                                                                        <div class="col-7 gap-0 text-start">
+                                                                    <div class="col-12 d-flex gap-0">
+                                                                        <div class="row col-12">
+                                                                            <div class="col-4 gap-0 text-start">
+                                                                                <span class="fs-6 text-white-50">Status</span>
+                                                                            </div>
+                                                                            <div class="col-1 gap-0 text-start">
+                                                                                <span class="fs-6 text-white-50">:</span>
+                                                                            </div>
+                                                                            <div class="col-7 gap-0 text-start">
                                                                                 @if (SelectPatch.EnrollBranch == null)
                                                                                 {
                                                                                     <span class="text-warning">
@@ -201,253 +204,610 @@
                                                                                 }
                                                                                 else
                                                                                 {
-                                                                                    switch (SelectPatch.EnrollBranch.Status)
-                                                                                    {
-                                                                                        case PatchStatus.SUCCESS:
-                                                                                            <span class="text-success">
-                                                                                                Branch successfully updated for this patch.
-                                                                                            </span>
-                                                                                            break;
-
-                                                                                        case PatchStatus.FAILED:
-                                                                                            <span class="text-danger">
-                                                                                                Branch update incomplete or failed for this patch.
-                                                                                            </span>
-                                                                                            break;
-
-                                                                                        case PatchStatus.ROLLBACK:
-                                                                                            <span class="text-danger">
-                                                                                                Patch rolled back on this branch.
-                                                                                            </span>
-                                                                                            break;
-
-                                                                                        case PatchStatus.IN_PROGRESS:
-                                                                                            <span class="text-info">
-                                                                                                Patch update in progress.
-                                                                                            </span>
-                                                                                            break;
-
-                                                                                        case PatchStatus.INIT:
-                                                                                            <span class="text-secondary">
-                                                                                                Patch initialized.
-                                                                                            </span>
-                                                                                            break;
-
-                                                                                        default:
-                                                                                            <span class="text-muted">
-                                                                                                Unknown status.
-                                                                                            </span>
-                                                                                            break;
-                                                                                    }
+                                                                                    @GetPatchStatusText(SelectPatch.EnrollBranch.Status)
                                                                                 }
-
-
+                                                                            </div>
                                                                         </div>
                                                                     </div>
-                                                                </div>
 
-                                                                <div class="col-12 d-flex  gap-0">
-                                                                    <div class="row col-12">
-                                                                        <div class="col-4 gap-0 text-start">
-                                                                            <span class="fs-6 text-white-50">Remark</span>
-                                                                        </div>
-                                                                        <div class="col-1 gap-0 text-start">
-                                                                            <span class="fs-6 text-white-50 ">:</span>
-                                                                        </div>
-                                                                        <div class="col-7 gap-0 text-start">
-                                                                            <span style="font-size:14px;" class="text-white-50">
-                                                                                    @SelectPatch.Remark
-
-                                                                                
-                                                                            </span>
-
+                                                                    <div class="col-12 d-flex gap-0">
+                                                                        <div class="row col-12">
+                                                                            <div class="col-4 gap-0 text-start">
+                                                                                <span class="fs-6 text-white-50">Remark</span>
+                                                                            </div>
+                                                                            <div class="col-1 gap-0 text-start">
+                                                                                <span class="fs-6 text-white-50">:</span>
+                                                                            </div>
+                                                                            <div class="col-7 gap-0 text-start">
+                                                                                <span style="font-size:14px;" class="text-white-50">
+                                                                                    @(string.IsNullOrEmpty(SelectPatch.Remark) ? "No remarks" : SelectPatch.Remark)
+                                                                                </span>
+                                                                            </div>
                                                                         </div>
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                         
-                                                    </div>
+                                                        </div>
 
-                                                </div>
+                                                        <div class="col-4 ">
+                                                          
+                                                            <div class="  d-flex justify-content-center align-items-center" style=" height:60vh">
+                                                                    <button class="btn-upload w-100 mt-3 p-4"
+                                                                            style="background: linear-gradient(135deg, #953e3f 0%, #b04e4f 100%);"
+                                                                            @onclick="UploadAsync_Get"
+                                                                            disabled="@IsPatchDeploying">
+                                                                        @if (IsPatchDeploying)
+                                                                        {
+                                                                            <Spinner Color="SpinnerColor.Light" Size="SpinnerSize.Small" />
+                                                                            <span class="ms-2">Deploying...</span>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <span>Push to Branch</span>
+                                                                        }
+                                                                    </button>
 
-                                                <div class="col-4 ">
-                                                    <div>
-                                                            
-                                                            <button class="btn-upload w-100 mt-3" style="background: linear-gradient(135deg, #953e3f 0%, #b04e4f 100%);" @onclick="() => UploadAsync_Get()">
-                                                                Push Branch
-                                                            </button>
-                                                    </div>
-                                                        <div class="mt-5 " style=" border: 1px solid #3e3e3f; background: linear-gradient(135deg, #3e3e3f 0%, #2f2f30 100%); ">
-
-                                                        <div class=" p-2  mb-3" >
-                                                            <span class="text-white">Branch</span>
-
-                                                            <div>
-
-                                                            <button class="btn-upload w-100 mt-3" style="background: linear-gradient(135deg, #0f5132 0%, #198754 100%);">
-                                                                    Check Update Available
-                                                                </button>
+                               
                                                             </div> 
                                                         </div>
-
-                                                        <div class=" p-2 mt-5 mb-3" >
-                                                            <span class="text-white">Branch</span>
-                                                           <div>
-                                                            <button class="btn-upload w-100 mt-3" style="background: linear-gradient(135deg, #0f5132 0%, #198754 100%);">
-                                                                Install New Update 
-                                                            </button>
-                                                            </div>
-
-                                                            <div>
-
-                                                                <button class="btn-upload w-100 mt-3" style="background: linear-gradient(135deg, #953e3f 0%, #b04e4f 100%);">
-                                                                    Cancel
-                                                                </button>
-                                                            </div>
-                                                            </div>
-                                                        </div>
-                                                       
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            </div>
-                                            <div class="col-5 " >
-                                                <div class="col-12 p-2 d-flex justify-content-center">
-                                                    <div class="col-12 bg-black opacity-75 rounded-2 p-2 ps-4 pe-4 " style=" border: 1px solid #3e3e3f; height:60vh">
-                                                        <div class="uploaded-file " style="background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3);">
 
-                                                            <svg width="80px" height="80px" style="color: rgba(76, 175, 80, 0.5);" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                                <path d="M22 11.1V6.9C22 3.4 20.6 2 17.1 2H12.9C9.4 2 8 3.4 8 6.9V8H11.1C14.6 8 16 9.4 16 12.9V16H17.1C20.6 16 22 14.6 22 11.1Z" stroke="rgba(76, 175, 80, 0.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                                                                <path d="M16 17.1V12.9C16 9.4 14.6 8 11.1 8H6.9C3.4 8 2 9.4 2 12.9V17.1C2 20.6 3.4 22 6.9 22H11.1C14.6 22 16 20.6 16 17.1Z" stroke="rgba(76, 175, 80, 0.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                                                                <path d="M6.08008 15L8.03008 16.95L11.9201 13.05" stroke="rgba(76, 175, 80, 0.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-                                                            </svg>
+                                                <div class="col-5">
+                                                    <div class="col-12 p-2 d-flex justify-content-center">
+                                                        <div id="patch-logs-container" class="col-12 bg-black opacity-75 rounded-2 p-2 ps-4 pe-4"
+                                                             style="border: 1px solid #3e3e3f; height:60vh; overflow-y:scroll">
 
-                                                            <div class="file-info-upload overflow-hidden">
-                                                                <span class="file-name-upload ">dsgf</span>
-                                                                <span class="file-size-upload">Patch Deployment Server Successfully</span>
-                                                            </div>
-
-                                                            <div class="div-status p-1" style="background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3);">
-                                                                <span class="text-success ">Success</span>
-
-                                                            </div>
-
-                                                        </div>
-
-                                                        <div class="uploaded-file  " style="background: rgba(255, 152, 0, 0.1); border: 1px solid rgba(255, 152, 0, 0.3);">
-
-                                                            <svg width="80px" height="80px" viewBox="0 0 24 24" style="color: rgba(255, 152, 0, 0.5);" xmlns="http://www.w3.org/2000/svg">
-                                                                <path d="M10.25 4.00003C10.25 3.69074 10.0602 3.41317 9.77191 3.30105C9.48366 3.18892 9.15614 3.26524 8.94715 3.49324L3.44715 9.49324C3.24617 9.71248 3.19374 10.0298 3.3135 10.302C3.43327 10.5743 3.70259 10.75 4.00002 10.75H20C20.4142 10.75 20.75 10.4142 20.75 10C20.75 9.58582 20.4142 9.25003 20 9.25003L10.25 9.25003V4.00003Z" fill="rgba(255, 152, 0, 0.5)" />
-                                                                <path d="M13.75 20L13.75 14.75H4.00002C3.5858 14.75 3.25002 14.4142 3.25002 14C3.25002 13.5858 3.5858 13.25 4.00002 13.25L20 13.25C20.2974 13.25 20.5668 13.4258 20.6865 13.698C20.8063 13.9703 20.7539 14.2876 20.5529 14.5068L15.0529 20.5068C14.8439 20.7348 14.5164 20.8111 14.2281 20.699C13.9399 20.5869 13.75 20.3093 13.75 20Z" fill="rgba(255, 152, 0, 0.5)" />
-                                                            </svg>
-
-                                                            <div class="file-info-upload overflow-hidden">
-                                                                <span class="file-name-upload ">dgh</span>
-                                                                <span class="file-size-upload">Patch Deployment InProcessing</span>
-                                                            </div>
-
-                                                            <Spinner Color="SpinnerColor.Secondary" Size="SpinnerSize.Medium" />
-                                                        </div>
-
-
-                                                        <div class="uploaded-file  " style="background: rgba(82, 132, 250, 0.1); border: 1px solid rgba(82, 132, 250, 0.3);">
-
-                                                            <svg width="80px" height="80px" viewBox="0 0 24 24" style="color: rgba(82, 132, 250, 0.5);" xmlns="http://www.w3.org/2000/svg">
-                                                                <path d="M10.25 4.00003C10.25 3.69074 10.0602 3.41317 9.77191 3.30105C9.48366 3.18892 9.15614 3.26524 8.94715 3.49324L3.44715 9.49324C3.24617 9.71248 3.19374 10.0298 3.3135 10.302C3.43327 10.5743 3.70259 10.75 4.00002 10.75H20C20.4142 10.75 20.75 10.4142 20.75 10C20.75 9.58582 20.4142 9.25003 20 9.25003L10.25 9.25003V4.00003Z" fill="rgba(255, 152, 0, 0.5)" />
-                                                                <path d="M13.75 20L13.75 14.75H4.00002C3.5858 14.75 3.25002 14.4142 3.25002 14C3.25002 13.5858 3.5858 13.25 4.00002 13.25L20 13.25C20.2974 13.25 20.5668 13.4258 20.6865 13.698C20.8063 13.9703 20.7539 14.2876 20.5529 14.5068L15.0529 20.5068C14.8439 20.7348 14.5164 20.8111 14.2281 20.699C13.9399 20.5869 13.75 20.3093 13.75 20Z" fill="rgba(255, 152, 0, 0.5)" />
-                                                            </svg>
-
-                                                            <div class="file-info-upload overflow-hidden">
-                                                                <span class="file-name-upload ">fgdf</span>
-                                                                <span class="file-size-upload">Converting to Zip</span>
-                                                            </div>
-
-                                                            <Spinner Color="SpinnerColor.Secondary" Size="SpinnerSize.Medium" />
-                                                        </div>
-
-                                                        <div class="uploaded-file  " style="background: rgba(149, 62, 63, 0.1); border: 1px solid rgba(149, 62, 63, 0.3);">
-
-
-
-
-                                                            <svg width="80px" height="80px" viewBox="0 0 24 24" fill="none">
-                                                                <path d="M12 16H12.01M12 8V12M12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C7.02944 3 3 7.02944 3 12C3 16.9706 7.02944 21 12 21Z" stroke="#953e3f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                                                            </svg>
-                                                            <div class="file-info-upload overflow-hidden">
-                                                                <span class="file-name-upload ">fghfg</span>
-                                                                <span class="file-size-upload">Patch Deployment Failure</span>
-                                                            </div>
-
-                                                            <div class="div-status p-1" style="background: rgba(149, 62, 63, 0.2); border: 1px solid rgba(149, 62, 63, 0.3);">
-                                                                <span class="text-danger ">
-                                                                    Retry
-                                                                </span>
-
-                                                            </div>
-
+                                                            @if (!PatchLogs.Any())
+                                                            {
+                                                                @if (SelectPatch.EnrollBranch == null)
+                                                                {
+                                                                    <div class=" text-center w-100 h-100 d-flex flex-column justify-content-center align-items-center">
+                                                                        <Loder Height="40px" width="40px" />
+                                                                        <p class="text-muted mt-3">Waiting for patch deployment...</p>
+                                                                    </div>
+                                                                }
+                                                                else
+                                                                {
+                                                                    @RenderStatusCard(SelectPatch.EnrollBranch)
+                                                                }
+                                                            }
+                                                            else
+                                                            {
+                                                                @foreach (var log in PatchLogs)
+                                                                {
+                                                                    @RenderLogCard(log)
+                                                                }
+                                                            }
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </div>
                                             }
-
                                         </div>
                                     </div>
-
                                 </div>
-
                             </div>
                         </div>
-                       
                     </div>
-
                 </div>
-
-                <!-- Transfer Controls -->
-             
-
-                <!-- Right Panel - Branch Files -->
-               
             </div>
-
-           
         </div>
     </main>
 </div>
 <AlertContainer />
 
-@code{
-
+@code {
+    // ====== FIELDS ======
     private string? JWTToken;
+    private HubConnection? _hubConnection;
+    private SemaphoreSlim _stateLock = new(1, 1);
+    private bool _reconnecting = false;
+    private int _reconnectAttempts = 0;
+    private const int MAX_RECONNECT_ATTEMPTS = 5;
+    private const int MAX_LOGS = 100;
 
+    // ====== DROPDOWN DATA ======
     private List<SelectedAnyDropDownOrSamllData>? PatchTypeList;
-    private string? selectedPatchTypeName = "Select Update Type";
-    private string? selectedPatchName = "First Select Update Type ";
-
-
     private List<SelectedAnyDropDownOrSamllData>? SelectedPatchList;
+    private string selectedPatchTypeName = "Select Update Type";
+    private string selectedPatchName = "First Select Update Type";
+
+    // ====== PATCH DATA ======
     private SelectedPatch? SelectPatch;
+    private List<PatchLiveLog> PatchLogs = new();
 
+    // ====== UI STATE ======
+    private bool IsLoadingPatch { get; set; }
+    private bool IsPatchDeploying { get; set; }
+    private bool IsCheckingUpdate { get; set; }
 
+    // ====== COMPUTED PROPERTIES ======
+    private bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;
+    private string ConnectionStatus => _hubConnection?.State.ToString() ?? "Disconnected";
+    private bool CanInstallUpdate => SelectPatch?.EnrollBranch != null && IsConnected;
+    private bool CanCancelOperation => SelectPatch?.EnrollBranch?.Status == PatchStatus.IN_PROGRESS;
 
+    // ====== LOG MODEL ======
+    public class PatchLiveLog
+    {
+        public DateTime Time { get; set; } = DateTime.Now;
+        public PatchStatus? Status { get; set; }
+        public PatchStep? Step { get; set; }
+        public string? Message { get; set; }
+    }
 
-
+    // ====== LIFECYCLE ======
     protected override async Task OnInitializedAsync()
     {
-
         JWTToken = await GetJwtToken();
 
         if (JWTToken != null)
         {
-            if (await getPatchesTypeAsync(Settings.MainApiBaseUrl, JWTToken))
-            {
+            await getPatchesTypeAsync(Settings.MainApiBaseUrl, JWTToken);
+            await InitializeSignalR();
+        }
+    }
 
+    public async ValueTask DisposeAsync()
+    {
+        _stateLock?.Dispose();
+
+        if (_hubConnection != null)
+        {
+            try
+            {
+                await _hubConnection.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error disposing SignalR connection: {ex.Message}");
+            }
+        }
+    }
+
+    // ====== SIGNALR ======
+    private async Task InitializeSignalR()
+    {
+        try
+        {
+            var user = await getUserDetails();
+            var branch = await getBranchDetails();
+
+            _hubConnection = new HubConnectionBuilder()
+                .WithUrl($"{Settings.MainApiBaseUrl}branchHub?branchId={branch.BranchCode}&userId={user.UserId}")
+                .WithAutomaticReconnect(new[] { TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10) })
+                .Build();
+
+            // Register SignalR event handler
+            _hubConnection.On<PatchStatusUpdateMqttResponse>(
+                "SingleBranchPatchResponse",
+                async data => await HandlePatchStatusUpdate(data)
+            );
+
+            // Handle reconnected event
+            _hubConnection.Reconnected += async (connectionId) =>
+            {
+                Console.WriteLine($"SignalR reconnected: {connectionId}");
+                _reconnectAttempts = 0;
+                await InvokeAsync(StateHasChanged);
+            };
+
+            // Handle reconnecting event
+            _hubConnection.Reconnecting += async (error) =>
+            {
+                Console.WriteLine($"SignalR reconnecting: {error?.Message}");
+                await InvokeAsync(StateHasChanged);
+            };
+
+            // Handle closed event
+            _hubConnection.Closed += async (error) =>
+            {
+                Console.WriteLine($"SignalR connection closed: {error?.Message}");
+                await HandleConnectionClosed(error);
+            };
+
+            await _hubConnection.StartAsync();
+            Console.WriteLine("SignalR connection established");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"SignalR connection failed: {ex.Message}");
+            AlertService.ShowError("Connection Error", "Failed to establish real-time connection. Updates may be delayed.");
+        }
+    }
+
+    private async Task HandlePatchStatusUpdate(PatchStatusUpdateMqttResponse data)
+    {
+        await _stateLock.WaitAsync();
+        try
+        {
+            if (data == null)
+            {
+                Console.WriteLine("Received null data from SignalR");
+                return;
             }
 
-            // await InilizeSignalR();
+            // Update SelectPatch status
+            if (SelectPatch?.EnrollBranch != null)
+            {
+                SelectPatch.EnrollBranch.Status = data.Status;
+                SelectPatch.EnrollBranch.ProcessLevel = data.Step;
+                SelectPatch.EnrollBranch.Message = data.Message;
+            }
+
+            // Add to log list
+            PatchLogs.Add(new PatchLiveLog
+            {
+                Status = data.Status,
+                Step = data.Step,
+                Message = data.Message
+            });
+
+            // Keep only last MAX_LOGS entries
+            if (PatchLogs.Count > MAX_LOGS)
+            {
+                PatchLogs.RemoveRange(0, PatchLogs.Count - MAX_LOGS);
+            }
+
+            await InvokeAsync(StateHasChanged);
+            await ScrollLogsToBottom();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error handling SignalR message: {ex.Message}");
+            AlertService.ShowError("Update Error", "Failed to process update");
+        }
+        finally
+        {
+            _stateLock.Release();
+        }
+    }
+
+    private async Task HandleConnectionClosed(Exception? error)
+    {
+        if (_reconnecting || _reconnectAttempts >= MAX_RECONNECT_ATTEMPTS)
+        {
+            if (_reconnectAttempts >= MAX_RECONNECT_ATTEMPTS)
+            {
+                AlertService.ShowError("Connection Lost", "Unable to reconnect to server after multiple attempts.");
+            }
+            return;
+        }
+
+        _reconnecting = true;
+
+        while (_reconnectAttempts < MAX_RECONNECT_ATTEMPTS)
+        {
+            _reconnectAttempts++;
+            var delay = TimeSpan.FromSeconds(Math.Pow(2, _reconnectAttempts)); // Exponential backoff
+
+            Console.WriteLine($"Reconnection attempt {_reconnectAttempts}/{MAX_RECONNECT_ATTEMPTS} in {delay.TotalSeconds}s...");
+            await Task.Delay(delay);
+
+            try
+            {
+                await _hubConnection!.StartAsync();
+                _reconnectAttempts = 0; // Reset on success
+                Console.WriteLine("SignalR reconnected successfully");
+                await InvokeAsync(StateHasChanged);
+                _reconnecting = false;
+                return;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Reconnect attempt {_reconnectAttempts} failed: {ex.Message}");
+            }
+        }
+
+        _reconnecting = false;
+        AlertService.ShowError("Connection Lost", "Unable to reconnect to server. Please refresh the page.");
+    }
+
+    // ====== UI HELPERS ======
+    private async Task ScrollLogsToBottom()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("scrollToBottom", "patch-logs-container");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error scrolling logs: {ex.Message}");
+        }
+    }
+
+    private RenderFragment RenderLogCard(PatchLiveLog log)
+    {
+        var (bgColor, borderColor, iconColor) = GetLogCardColors(log.Status);
+
+        return @<div class="log-card mb-3" style="background: @bgColor; border: 1px solid @borderColor;">
+            <div class="log-card-header">
+                <div class="log-icon" style="color: @iconColor;">
+                    @GetLogIcon(log.Status)
+                </div>
+
+                <div class="log-content">
+                    <div class="log-step-container">
+                        <span class="log-step">@log.Step</span>
+                        <span class="log-time">@log.Time.ToString("HH:mm:ss")</span>
+                    </div>
+                    <div class="log-message">@log.Message</div>
+                </div>
+
+                <div class="log-status-badge" style="background: @borderColor;">
+                    <span>@GetStatusBadgeText(log.Status)</span>
+                </div>
+            </div>
+        </div>;
+    }
+
+    private (string bgColor, string borderColor, string iconColor) GetLogCardColors(PatchStatus? status) => status switch
+    {
+        PatchStatus.SUCCESS => ("rgba(76, 175, 80, 0.1)", "rgba(76, 175, 80, 0.3)", "rgba(76, 175, 80, 0.7)"),
+        PatchStatus.FAILED => ("rgba(149, 62, 63, 0.1)", "rgba(149, 62, 63, 0.3)", "rgba(149, 62, 63, 0.7)"),
+        PatchStatus.IN_PROGRESS => ("rgba(82, 132, 250, 0.1)", "rgba(82, 132, 250, 0.3)", "rgba(82, 132, 250, 0.7)"),
+        PatchStatus.ROLLBACK => ("rgba(255, 152, 0, 0.1)", "rgba(255, 152, 0, 0.3)", "rgba(255, 152, 0, 0.7)"),
+        PatchStatus.INIT => ("rgba(108, 117, 125, 0.1)", "rgba(108, 117, 125, 0.3)", "rgba(108, 117, 125, 0.7)"),
+        _ => ("rgba(153, 153, 153, 0.1)", "rgba(153, 153, 153, 0.3)", "rgba(153, 153, 153, 0.7)")
+    };
+
+    private string GetStatusBadgeText(PatchStatus? status) => status switch
+    {
+        PatchStatus.SUCCESS => "✓ Success",
+        PatchStatus.FAILED => "✗ Failed",
+        PatchStatus.IN_PROGRESS => "⟳ Running",
+        PatchStatus.ROLLBACK => "↶ Rollback",
+        PatchStatus.INIT => "◉ Init",
+        _ => "?"
+    };
+
+    private RenderFragment GetLogIcon(PatchStatus? status) => status switch
+    {
+        PatchStatus.SUCCESS => @<svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+</svg>,
+
+    PatchStatus.FAILED => @<svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <path d="M12 8V12M12 16H12.01M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+</svg>,
+
+    PatchStatus.IN_PROGRESS => @<svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
+    <path d="M12 6V12L16 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+</svg>,
+
+    PatchStatus.ROLLBACK => @<svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <path d="M3 9L9 3M9 3L15 9M9 3V15C9 18.866 12.134 22 16 22C19.866 22 23 18.866 23 15"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+</svg>,
+
+    PatchStatus.INIT => @<svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
+    <circle cx="12" cy="12" r="3" fill="currentColor" />
+</svg>,
+
+    _ => @<svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2" />
+    <path d="M12 8V12M12 16H12.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+</svg>
+};
+
+    private string GetStatusColor(PatchStatus? status) => status switch
+    {
+        PatchStatus.SUCCESS => "#4CAF50",
+        PatchStatus.FAILED => "#953e3f",
+        PatchStatus.IN_PROGRESS => "#5284FA",
+        PatchStatus.ROLLBACK => "#ff9800",
+        PatchStatus.INIT => "#6c757d",
+        _ => "#999"
+    };
+
+    private RenderFragment GetPatchStatusText(PatchStatus? status) => status switch
+    {
+        PatchStatus.SUCCESS => @<span class="text-success">Branch successfully updated for this patch.</span>,
+        PatchStatus.FAILED => @<span class="text-danger">Branch update incomplete or failed for this patch.</span>,
+        PatchStatus.ROLLBACK => @<span class="text-danger">Patch rolled back on this branch.</span>,
+        PatchStatus.IN_PROGRESS => @<span class="text-info">Patch update in progress.</span>,
+        PatchStatus.INIT => @<span class="text-secondary">Patch initialized.</span>,
+        _ => @<span class="text-muted">Unknown status.</span>
+    };
+
+    private RenderFragment RenderStatusCard(dynamic enrollBranch)
+    {
+        var status = (PatchStatus)enrollBranch.Status;
+        var processLevel = (PatchStep)enrollBranch.ProcessLevel;
+        var message = (string)enrollBranch.Message;
+
+        return status switch
+        {
+            PatchStatus.SUCCESS => RenderSuccessCard(message),
+            PatchStatus.FAILED => RenderFailedCard(processLevel, message),
+            PatchStatus.ROLLBACK => RenderRollbackCard(message),
+            PatchStatus.IN_PROGRESS => RenderInProgressCard(processLevel, message),
+            PatchStatus.INIT => RenderInitCard(),
+            _ => @<span class="text-muted">Unknown status.</span>
+        };
+    }
+
+    private RenderFragment RenderSuccessCard(string message) =>
+    @<div class="uploaded-file" style="background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3);">
+        <svg width="10px" height="10px" style="color: rgba(76, 175, 80, 0.5);" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M22 11.1V6.9C22 3.4 20.6 2 17.1 2H12.9C9.4 2 8 3.4 8 6.9V8H11.1C14.6 8 16 9.4 16 12.9V16H17.1C20.6 16 22 14.6 22 11.1Z" stroke="rgba(76, 175, 80, 0.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M16 17.1V12.9C16 9.4 14.6 8 11.1 8H6.9C3.4 8 2 9.4 2 12.9V17.1C2 20.6 3.4 22 6.9 22H11.1C14.6 22 16 20.6 16 17.1Z" stroke="rgba(76, 175, 80, 0.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M6.08008 15L8.03008 16.95L11.9201 13.05" stroke="rgba(76, 175, 80, 0.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <div class="file-info-upload overflow-hidden">
+            <span class="file-name-upload">COMPLETE</span>
+            <span class="file-size-upload">@message</span>
+        </div>
+        <div class="div-status p-1" style="background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3);">
+            <span class="text-success">Success</span>
+        </div>
+    </div>;
+
+    private RenderFragment RenderFailedCard(PatchStep processLevel, string message) =>
+    @<div class="uploaded-file" style="background: rgba(149, 62, 63, 0.1); border: 1px solid rgba(149, 62, 63, 0.3);">
+        <svg width="40px" height="40px" viewBox="0 0 24 24" fill="none">
+            <path d="M12 16H12.01M12 8V12M12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C7.02944 3 3 7.02944 3 12C3 16.9706 7.02944 21 12 21Z" stroke="#953e3f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <div class="file-info-upload overflow-hidden">
+            <span class="file-name-upload">@processLevel.ToString()</span>
+            <span class="file-size-upload">@message</span>
+        </div>
+        <div class="div-status p-1" style="background: rgba(149, 62, 63, 0.2); border: 1px solid rgba(149, 62, 63, 0.3);">
+            <span class="text-danger">Retry</span>
+        </div>
+    </div>;
+
+    private RenderFragment RenderRollbackCard(string message) =>
+    @<div class="uploaded-file" style="background: rgba(149, 62, 63, 0.1); border: 1px solid rgba(149, 62, 63, 0.3);">
+        <svg width="40px" height="40px" viewBox="0 0 24 24" fill="none">
+            <path d="M12 16H12.01M12 8V12M12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C7.02944 3 3 7.02944 3 12C3 16.9706 7.02944 21 12 21Z" stroke="#953e3f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <div class="file-info-upload overflow-hidden">
+            <span class="file-name-upload">ROLLBACK</span>
+            <span class="file-size-upload">@message</span>
+        </div>
+        <div class="div-status p-1" style="background: rgba(149, 62, 63, 0.2); border: 1px solid rgba(149, 62, 63, 0.3);">
+            <span class="text-danger">Retry</span>
+        </div>
+    </div>;
+
+    private RenderFragment RenderInProgressCard(PatchStep processLevel, string message) =>
+    @<div class="uploaded-file" style="background: rgba(82, 132, 250, 0.1); border: 1px solid rgba(82, 132, 250, 0.3);">
+        <svg width="40px" height="40px" viewBox="0 0 24 24" style="color: rgba(82, 132, 250, 0.5);" xmlns="http://www.w3.org/2000/svg">
+            <path d="M10.25 4.00003C10.25 3.69074 10.0602 3.41317 9.77191 3.30105C9.48366 3.18892 9.15614 3.26524 8.94715 3.49324L3.44715 9.49324C3.24617 9.71248 3.19374 10.0298 3.3135 10.302C3.43327 10.5743 3.70259 10.75 4.00002 10.75H20C20.4142 10.75 20.75 10.4142 20.75 10C20.75 9.58582 20.4142 9.25003 20 9.25003L10.25 9.25003V4.00003Z" fill="rgba(255, 152, 0, 0.5)" />
+            <path d="M13.75 20L13.75 14.75H4.00002C3.5858 14.75 3.25002 14.4142 3.25002 14C3.25002 13.5858 3.5858 13.25 4.00002 13.25L20 13.25C20.2974 13.25 20.5668 13.4258 20.6865 13.698C20.8063 13.9703 20.7539 14.2876 20.5529 14.5068L15.0529 20.5068C14.8439 20.7348 14.5164 20.8111 14.2281 20.699C13.9399 20.5869 13.75 20.3093 13.75 20Z" fill="rgba(255, 152, 0, 0.5)" />
+        </svg>
+        <div class="file-info-upload overflow-hidden">
+            <span class="file-name-upload">@processLevel.ToString()</span>
+            <span class="file-size-upload">@message</span>
+        </div>
+        <Spinner Color="SpinnerColor.Secondary" Size="SpinnerSize.Medium" />
+    </div>;
+
+    private RenderFragment RenderInitCard() =>
+    @<div class="uploaded-file" style="background: rgba(82, 132, 250, 0.1); border: 1px solid rgba(82, 132, 250, 0.3);">
+        <svg width="40px" height="40px" viewBox="0 0 24 24" style="color: rgba(82, 132, 250, 0.5);" xmlns="http://www.w3.org/2000/svg">
+            <path d="M10.25 4.00003C10.25 3.69074 10.0602 3.41317 9.77191 3.30105C9.48366 3.18892 9.15614 3.26524 8.94715 3.49324L3.44715 9.49324C3.24617 9.71248 3.19374 10.0298 3.3135 10.302C3.43327 10.5743 3.70259 10.75 4.00002 10.75H20C20.4142 10.75 20.75 10.4142 20.75 10C20.75 9.58582 20.4142 9.25003 20 9.25003L10.25 9.25003V4.00003Z" fill="rgba(255, 152, 0, 0.5)" />
+            <path d="M13.75 20L13.75 14.75H4.00002C3.5858 14.75 3.25002 14.4142 3.25002 14C3.25002 13.5858 3.5858 13.25 4.00002 13.25L20 13.25C20.2974 13.25 20.5668 13.4258 20.6865 13.698C20.8063 13.9703 20.7539 14.2876 20.5529 14.5068L15.0529 20.5068C14.8439 20.7348 14.5164 20.8111 14.2281 20.699C13.9399 20.5869 13.75 20.3093 13.75 20Z" fill="rgba(255, 152, 0, 0.5)" />
+        </svg>
+        <div class="file-info-upload overflow-hidden">
+            <span class="file-name-upload">INIT</span>
+            <span class="file-size-upload">Patch Deployment Initialize</span>
+        </div>
+        <Spinner Color="SpinnerColor.Secondary" Size="SpinnerSize.Medium" />
+    </div>;
+
+    // ====== EVENT HANDLERS ======
+    private async Task OnPatchTypeSelected(SelectedAnyDropDownOrSamllData patchType)
+    {
+        selectedPatchTypeName = patchType.Name;
+        selectedPatchName = $"Select {patchType.Name}";
+        SelectedPatchList = null;
+        SelectPatch = null;
+        PatchLogs.Clear();
+
+        JWTToken ??= await GetJwtToken();
+
+        if (await getSelectedPatchesAsync(Settings.MainApiBaseUrl, JWTToken!, patchType.Id))
+        {
             StateHasChanged();
         }
     }
 
+    private async Task OnPatchsSelected(SelectedAnyDropDownOrSamllData patch)
+    {
+        IsLoadingPatch = true;
+        selectedPatchName = patch.Name;
+        PatchLogs.Clear();
+        StateHasChanged();
+
+        try
+        {
+            JWTToken ??= await GetJwtToken();
+
+            if (await getSelectedPatchAllAsync(Settings.MainApiBaseUrl, JWTToken!, patch.Id))
+            {
+                // Success
+            }
+        }
+        finally
+        {
+            IsLoadingPatch = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task UploadAsync_Get()
+    {
+        if (SelectPatch == null)
+        {
+            AlertService.ShowWarning("No Patch Selected", "Please select a patch first.");
+            return;
+        }
+
+        IsPatchDeploying = true;
+        StateHasChanged();
+
+        try
+        {
+            JWTToken ??= await GetJwtToken();
+
+            var user = await getUserDetails();
+            var obj = new APIRequestObject<SelectedBranchAssingPatch>
+            {
+                ReqValue = new SelectedBranchAssingPatch
+                {
+                    PatchId = SelectPatch.PId,
+                    ExtraValue = user.UserId,
+                    Status = SelectPatch.EnrollBranch?.Status ?? PatchStatus.INIT,
+                    ProcessLevel = SelectPatch.EnrollBranch?.ProcessLevel ?? PatchStep.DOWNLOAD
+                }
+            };
+
+            if (await PatchdeployBranch(Settings.MainApiBaseUrl, JWTToken!, obj))
+            {
+                AlertService.ShowSuccess("Deployment Started", "Patch deployment initiated successfully.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Deploy error: {ex.Message}");
+            AlertService.ShowError("Deployment Failed", "Failed to start patch deployment.");
+        }
+        finally
+        {
+            IsPatchDeploying = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CheckUpdateAvailable()
+    {
+        IsCheckingUpdate = true;
+        StateHasChanged();
+
+        try
+        {
+            await Task.Delay(1000); // Simulate API call
+            AlertService.ShowInfo("Check Complete", "No new updates available.");
+        }
+        finally
+        {
+            IsCheckingUpdate = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CancelOperation()
+    {
+        AlertService.ShowInfo("Cancelled", "Operation cancelled by user.");
+    }
+
+    // ====== API CALLS ======
     private async Task<string?> GetJwtToken()
     {
         try
@@ -462,145 +822,34 @@
         }
     }
 
-
     private async Task<LoggedInUser> getUserDetails()
     {
         return await _auth.getLogginUserDetiles();
     }
+
     private async Task<LogInBranchDeties> getBranchDetails()
     {
         return await _auth.getLogginBranchDetiles();
     }
 
-
-
-    private async Task OnPatchTypeSelected(SelectedAnyDropDownOrSamllData patchType)
-    {
-        selectedPatchTypeName = patchType.Name;
-        selectedPatchName = $"Select {patchType.Name}";
-
-        if (JWTToken == null)
-            JWTToken = await GetJwtToken();
-
-        if (await getSelectedPatchesAsync(Settings.MainApiBaseUrl, JWTToken, patchType.Id))
-        {
-            StateHasChanged();
-        }
-
-    }
-
-
-    private async Task OnPatchsSelected(SelectedAnyDropDownOrSamllData patch)
-    {
-        selectedPatchName = $"{patch.Name}";
-
-        if (JWTToken == null)
-            JWTToken = await GetJwtToken();
-
-        if (await getSelectedPatchAllAsync(Settings.MainApiBaseUrl, JWTToken, patch.Id))
-        {
-            StateHasChanged();
-        }
-
-
-    }
-
-    private async Task UploadAsync_Get()
-    {
-        if (JWTToken == null)
-            JWTToken = await GetJwtToken();
-
-        if(SelectPatch != null)
-        {
-            var user = await getUserDetails();
-            var obj = new APIRequestObject<SelectedBranchAssingPatch>
-            {
-                ReqValue = new SelectedBranchAssingPatch
-                {
-                   PatchId = SelectPatch.PId,
-                    ExtraValue = user.UserId,
-                }
-            };
-
-            if (SelectPatch.EnrollBranch == null)
-            {
-                obj.ReqValue.Status = PatchStatus.INIT;
-
-            }
-            else
-            {
-                obj.ReqValue.Status = SelectPatch.EnrollBranch.Status;
-                obj.ReqValue.ProcessLevel = SelectPatch.EnrollBranch.ProcessLevel;
-            }
-            if (await PatchdeployBranch(Settings.MainApiBaseUrl, JWTToken, obj))
-            {
-                StateHasChanged();
-            }
-
-
-
-        }
-
-
-
-    }
-
-
     private async Task<bool> getPatchesTypeAsync(string baseUrl, string jwtToken)
     {
         try
         {
-
             using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
 
             var response = await client.GetAsync("api/Patches/getPatchesTypes");
-
-
             var result = await response.Content.ReadFromJsonAsync<APIResponseCoustomizeList<SelectedAnyDropDownOrSamllData, NewPatch>>();
 
-            if (response.IsSuccessStatusCode)
+            if (response.IsSuccessStatusCode && result?.StatusCode == 2 && result.Status == true)
             {
-
-                if (result != null && result.StatusCode == 2 && result.Status == true)
-                {
-                    PatchTypeList = result.ValueList;
-                    return true;
-                }
-            }
-            else
-            {
-                switch (response.StatusCode)
-                {
-                    case HttpStatusCode.BadRequest:
-                    case HttpStatusCode.NotFound:
-                    case HttpStatusCode.Unauthorized:
-                        if (result?.StatusCode == 1 && result.Status == false)
-                        {
-                            AlertService.ShowError("File Sharing Error", $"{result.Message}. Please try again.");
-                            return false;
-                        }
-                        break;
-
-                    case HttpStatusCode.InternalServerError: // 500
-
-                        if (result?.StatusCode == 0 && result.Status == false)
-                        {
-                            var serverMsg = result?.Message ?? "Server error occurred.";
-                            // var content = await response.Content.ReadAsStringAsync();
-                            Console.WriteLine($"Server 500 response body: {result?.Ex}");
-                            AlertService.ShowError("Server Error", $"{serverMsg}. Please contact support.");
-                            return false;
-                        }
-                        break;
-
-                }
-
-
+                PatchTypeList = result.ValueList;
+                return true;
             }
 
+            HandleApiError(response, result);
             return false;
-
         }
         catch (HttpRequestException ex)
         {
@@ -613,11 +862,9 @@
             Console.WriteLine($"General Exception: {ex.Message}");
             return false;
         }
-
     }
 
-    // Get Selected Pathch
-    private async Task<bool> getSelectedPatchesAsync(string baseUrl, string jwtToken,int patchtype)
+    private async Task<bool> getSelectedPatchesAsync(string baseUrl, string jwtToken, int patchtype)
     {
         try
         {
@@ -625,52 +872,16 @@
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
 
             var response = await client.GetAsync($"api/Patches/getSelectedPatches?patchtype={patchtype}");
-
-
             var result = await response.Content.ReadFromJsonAsync<APIResponseOnlyList<SelectedAnyDropDownOrSamllData>>();
 
-            if (response.IsSuccessStatusCode)
+            if (response.IsSuccessStatusCode && result?.StatusCode == 2 && result.Status == true)
             {
-
-                if (result != null && result.StatusCode == 2 && result.Status == true)
-                {
-                    SelectedPatchList = result.ValueList;
-                    return true;
-                }
-            }
-            else
-            {
-                switch (response.StatusCode)
-                {
-                    case HttpStatusCode.BadRequest:
-                    case HttpStatusCode.NotFound:
-                    case HttpStatusCode.Unauthorized:
-                        if (result?.StatusCode == 1 && result.Status == false)
-                        {
-                            AlertService.ShowError("File Sharing Error", $"{result.Message}. Please try again.");
-                            return false;
-                        }
-                        break;
-
-                    case HttpStatusCode.InternalServerError: // 500
-
-                        if (result?.StatusCode == 0 && result.Status == false)
-                        {
-                            var serverMsg = result?.Message ?? "Server error occurred.";
-                            // var content = await response.Content.ReadAsStringAsync();
-                            Console.WriteLine($"Server 500 response body: {result?.Ex}");
-                            AlertService.ShowError("Server Error", $"{serverMsg}. Please contact support.");
-                            return false;
-                        }
-                        break;
-
-                }
-
-
+                SelectedPatchList = result.ValueList;
+                return true;
             }
 
+            HandleApiError(response, result);
             return false;
-
         }
         catch (HttpRequestException ex)
         {
@@ -685,61 +896,24 @@
         }
     }
 
-    // Get Selected Pathch All
-    private async Task<bool> getSelectedPatchAllAsync(string baseUrl, string jwtToken, int patchtype)
+    private async Task<bool> getSelectedPatchAllAsync(string baseUrl, string jwtToken, int patchId)
     {
         try
         {
             using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
 
-            var response = await client.GetAsync($"api/Patches/getSelectedPatchAllDetails?patchId={patchtype}");
-
-
+            var response = await client.GetAsync($"api/Patches/getSelectedPatchAllDetails?patchId={patchId}");
             var result = await response.Content.ReadFromJsonAsync<APIResponseObjectValue<SelectedPatch>>();
 
-            if (response.IsSuccessStatusCode)
+            if (response.IsSuccessStatusCode && result?.StatusCode == 2 && result.Status == true)
             {
-
-                if (result != null && result.StatusCode == 2 && result.Status == true)
-                {
-                    SelectPatch = result.Value;
-                    return true;
-                }
-            }
-            else
-            {
-                switch (response.StatusCode)
-                {
-                    case HttpStatusCode.BadRequest:
-                    case HttpStatusCode.NotFound:
-                    case HttpStatusCode.Unauthorized:
-                        if (result?.StatusCode == 1 && result.Status == false)
-                        {
-                            AlertService.ShowError("File Sharing Error", $"{result.Message}. Please try again.");
-                            return false;
-                        }
-                        break;
-
-                    case HttpStatusCode.InternalServerError: // 500
-
-                        if (result?.StatusCode == 0 && result.Status == false)
-                        {
-                            var serverMsg = result?.Message ?? "Server error occurred.";
-                            // var content = await response.Content.ReadAsStringAsync();
-                            Console.WriteLine($"Server 500 response body: {result?.Ex}");
-                            AlertService.ShowError("Server Error", $"{serverMsg}. Please contact support.");
-                            return false;
-                        }
-                        break;
-
-                }
-
-
+                SelectPatch = result.Value;
+                return true;
             }
 
+            HandleApiError(response, result);
             return false;
-
         }
         catch (HttpRequestException ex)
         {
@@ -753,7 +927,6 @@
             return false;
         }
     }
-
 
     private async Task<bool> PatchdeployBranch(string baseUrl, string jwtToken, APIRequestObject<SelectedBranchAssingPatch> obj)
     {
@@ -761,52 +934,17 @@
         {
             using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
-            var response = await client.PostAsJsonAsync("api/Patches/PatchdeployBranch", obj);
 
+            var response = await client.PostAsJsonAsync("api/Patches/PatchdeployBranch", obj);
             var result = await response.Content.ReadFromJsonAsync<APIResponseObjectValue<SelectedPatch>>();
 
-            if (response.IsSuccessStatusCode)
+            if (response.IsSuccessStatusCode && result?.StatusCode == 2 && result.Status == true)
             {
-
-                if (result != null && result.StatusCode == 2 && result.Status == true)
-                {
-                    // SelectPatch = result.Value;
-                    return true;
-                }
-            }
-            else
-            {
-                switch (response.StatusCode)
-                {
-                    case HttpStatusCode.BadRequest:
-                    case HttpStatusCode.NotFound:
-                    case HttpStatusCode.Unauthorized:
-                        if (result?.StatusCode == 1 && result.Status == false)
-                        {
-                            AlertService.ShowError("File Sharing Error", $"{result.Message}. Please try again.");
-                            return false;
-                        }
-                        break;
-
-                    case HttpStatusCode.InternalServerError: // 500
-
-                        if (result?.StatusCode == 0 && result.Status == false)
-                        {
-                            var serverMsg = result?.Message ?? "Server error occurred.";
-                            // var content = await response.Content.ReadAsStringAsync();
-                            Console.WriteLine($"Server 500 response body: {result?.Ex}");
-                            AlertService.ShowError("Server Error", $"{serverMsg}. Please contact support.");
-                            return false;
-                        }
-                        break;
-
-                }
-
-
+                return true;
             }
 
+            HandleApiError(response, result);
             return false;
-
         }
         catch (HttpRequestException ex)
         {
@@ -821,67 +959,80 @@
         }
     }
 
+    private void HandleApiError<T>(HttpResponseMessage response, T? result) where T : class
+    {
+        dynamic? dynResult = result;
 
-    // private async Task UploadAsync_Get()
-    // {
-    //     try
-    //     {
-    //         var token = await GetJwtToken();
+        switch (response.StatusCode)
+        {
+            case HttpStatusCode.BadRequest:
+            case HttpStatusCode.NotFound:
+            case HttpStatusCode.Unauthorized:
+                if (dynResult?.StatusCode == 1 && dynResult?.Status == false)
+                {
+                    AlertService.ShowError("Request Error", $"{dynResult?.Message}. Please try again.");
+                }
+                break;
 
-    //         var patchId = Guid.NewGuid();      for testing
-    //         var branchId = "BRANCH003";        optional
-
-    //         using var client = new HttpClient { BaseAddress = new Uri(Settings.MainApiBaseUrl) };
-    //         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-    //         Build query string
-    //         var url = $"api/Patches/PatchdeployBranch?status={patchId}";
-
-    //         var response = await client.GetAsync(url);
-
-    //         APIResponseObjectValue<object>? result = null;
-
-    //         if (response.Content.Headers.ContentLength > 0)
-    //         {
-    //             var options = new System.Text.Json.JsonSerializerOptions
-    //             {
-    //                 PropertyNameCaseInsensitive = true
-    //             };
-
-    //             result = await response.Content.ReadFromJsonAsync<APIResponseObjectValue<object>>(options);
-    //         }
-
-    //         if (result != null)
-    //         {
-    //             if (result.Status)
-    //             {
-    //                 Console.WriteLine("SUCCESS: Patch deployment initiated (GET)");
-    //                 Console.WriteLine($"Message: {result.Message}");
-    //                 Console.WriteLine($"Payload: {System.Text.Json.JsonSerializer.Serialize(result.Value)}");
-    //             }
-    //             else
-    //             {
-    //                 Console.WriteLine($"FAILED: {result.Message}");
-    //             }
-    //         }
-    //         else
-    //         {
-    //             Console.WriteLine("No content returned from API");
-    //         }
-    //     }
-    //     catch (Exception ex)
-    //     {
-    //         Console.WriteLine($"Exception: {ex}");
-    //         AlertService.ShowError("Client Error", ex.Message);
-    //     }
-    // }
-
-
-
+            case HttpStatusCode.InternalServerError:
+                if (dynResult?.StatusCode == 0 && dynResult?.Status == false)
+                {
+                    var serverMsg = dynResult?.Message ?? "Server error occurred.";
+                    Console.WriteLine($"Server 500 response: {dynResult?.Ex}");
+                    AlertService.ShowError("Server Error", $"{serverMsg}. Please contact support.");
+                }
+                break;
+        }
+    }
 }
 
 <style>
+    /* ====== CONNECTION STATUS ====== */
+    .connection-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid #3e3e3f;
+        border-radius: 6px;
+    }
 
+    .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+        .status-indicator.connected {
+            background: #4CAF50;
+            box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.disconnected {
+            background: #953e3f;
+            box-shadow: 0 0 8px rgba(149, 62, 63, 0.6);
+        }
+
+    .connection-text {
+        font-size: 13px;
+        color: #ffffff;
+        font-weight: 500;
+    }
+
+    @@keyframes pulse {
+        0%, 100% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: 0.5;
+        }
+    }
+
+    /* ====== DROPDOWN STYLES ====== */
     .dropdown-btn {
         display: flex;
         align-items: center;
@@ -896,10 +1047,15 @@
         white-space: nowrap;
     }
 
-        .dropdown-btn:hover {
+        .dropdown-btn:hover:not(:disabled) {
             background: rgba(149, 62, 63, 0.2);
             border-color: #953e3f;
             color: white;
+        }
+
+        .dropdown-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
         .dropdown-btn svg {
@@ -907,7 +1063,7 @@
             transition: transform 0.3s ease;
         }
 
-        .dropdown-btn:hover svg {
+        .dropdown-btn:hover:not(:disabled) svg {
             color: #953e3f;
         }
 
@@ -916,12 +1072,13 @@
         top: calc(100% + 8px);
         left: 0;
         min-width: 240px;
+        max-height: 300px;
+        overflow-y: auto;
         background: #2a2a2b;
         border: 1px solid #3e3e3f;
         border-radius: 8px;
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
         z-index: 1000;
-        overflow: hidden;
         animation: dropdownSlide 0.2s ease;
     }
 
@@ -933,7 +1090,7 @@
 
         to {
             opacity: 1;
-            transform: translateY(35px);
+            transform: translateY(0);
         }
     }
 
@@ -974,30 +1131,20 @@
             color: #953e3f;
         }
 
-    .dropdown-item-content {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-    }
-
-
+    /* ====== UPLOAD/STATUS CARDS ====== */
     .uploaded-file {
         display: flex;
         align-items: center;
         gap: 16px;
         margin-top: 20px;
         padding: 16px;
-        background: rgba(76, 175, 80, 0.1);
-        border: 1px solid rgba(76, 175, 80, 0.3);
-        /* background: rgba(149, 62, 63, 0.1);
-            border: 1px solid rgba(149, 62, 63, 0.3); */
         border-radius: 10px;
+        transition: all 0.3s ease;
     }
 
         .uploaded-file svg {
-            width: 32px;
-            height: 32px;
+            width: 80px;
+            height: 80px;
             flex-shrink: 0;
         }
 
@@ -1016,43 +1163,173 @@
 
     .file-size-upload {
         font-size: 12px;
-        color: #666;
-    }
-
-    .btn-remove {
-        width: 32px;
-        height: 32px;
-        background: rgba(149, 62, 63, 0.2);
-        border: 1px solid rgba(149, 62, 63, 0.3);
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        transition: all 0.3s ease;
+        color: #999;
     }
 
     .div-status {
-        font-size: 14px;
+        padding: 8px 16px;
+        font-size: 13px;
         border-radius: 8px;
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
         transition: all 0.3s ease;
+        font-weight: 600;
     }
 
-
-    .btn-remove:hover {
-        background: rgba(149, 62, 63, 0.3);
-        transform: rotate(90deg);
+    /* ====== BUTTONS ====== */
+    .btn-upload {
+        padding: 12px 24px;
+        border: none;
+        border-radius: 6px;
+        color: white;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
     }
 
-    .btn-remove svg {
-        width: 16px;
-        height: 16px;
-        color: #953e3f;
+        .btn-upload:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn-upload:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn-upload:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+    /* ====== SCROLLBAR ====== */
+    #patch-logs-container::-webkit-scrollbar {
+        width: 8px;
     }
 
+    #patch-logs-container::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 10px;
+    }
 
+    #patch-logs-container::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+    }
+
+        #patch-logs-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+
+    /* ====== LOG CARDS ====== */
+    .log-card {
+        border-radius: 8px;
+        padding: 12px;
+        transition: all 0.3s ease;
+    }
+
+        .log-card:hover {
+            transform: translateX(4px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+    .log-card-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .log-icon {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 6px;
+        padding: 4px;
+    }
+
+    .log-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+    }
+
+    .log-step-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .log-step {
+        font-size: 14px;
+        font-weight: 600;
+        color: #ffffff;
+        white-space: nowrap;
+    }
+
+    .log-time {
+        font-size: 11px;
+        color: #999;
+        font-family: 'Courier New', monospace;
+        white-space: nowrap;
+    }
+
+    .log-message {
+        font-size: 13px;
+        color: #ccc;
+        line-height: 1.4;
+        word-break: break-word;
+    }
+
+    .log-status-badge {
+        flex-shrink: 0;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #ffffff;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    /* ====== ANIMATIONS ====== */
+@@keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    .log-card {
+        animation: slideInRight 0.3s ease;
+    }
 </style>
+
+<script>
+    window.scrollToBottom = (elementId) => {
+        const element = document.getElementById(elementId);
+        if (element) {
+            element.scrollTop = element.scrollHeight;
+        }
+    };
+</script>

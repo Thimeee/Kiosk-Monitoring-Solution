@@ -9,7 +9,8 @@ namespace Monitoring.Shared.DTO
 {
     public class PatchDeploymentMqttRequest
     {
-        //public string JobId { get; set; }
+        public string UserId { get; set; }
+        public PatchRequestType PatchRequestType { get; set; }
         public string PatchId { get; set; }
         public string PatchZipPath { get; set; }
         public string ExpectedChecksum { get; set; }
@@ -19,8 +20,11 @@ namespace Monitoring.Shared.DTO
     }
     public class PatchStatusUpdateMqttResponse
     {
+        public string UserId { get; set; }
+
         public string PatchId { get; set; }
-        public string BranchId { get; set; }
+        public PatchRequestType PatchRequestType { get; set; }
+
         public PatchStatus? Status { get; set; }
         public PatchStep? Step { get; set; }
         public string Message { get; set; }

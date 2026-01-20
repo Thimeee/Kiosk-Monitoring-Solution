@@ -16,6 +16,13 @@ namespace Monitoring.Shared.Enum
         RESTART,
 
     }
+    public enum PatchRequestType
+    {
+        SINGLE_BRANCH_PATCH,
+        ALL_BRANCH_PATCH,
+    }
+
+
 
     public enum PatchStep
     {

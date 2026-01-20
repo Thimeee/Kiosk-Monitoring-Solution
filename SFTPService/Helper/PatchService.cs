@@ -74,71 +74,71 @@ namespace SFTPService.Helper
                 await _log.WriteLog("Patch", $"Starting patch deployment: JobId={request.PatchId}");
 
                 // PHASE 1: DOWNLOAD (0-15%)
-                await PublishStatusAsync(request.PatchId, branchId, PatchStatus.IN_PROGRESS,
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
                     PatchStep.DOWNLOAD, "Downloading patch file", 5, cancellationToken);
 
                 string downloadedZip = await DownloadPatchAsync(request, branchId, cancellationToken);
                 if (downloadedZip == null)
                 {
-                    await PublishStatusAsync(request.PatchId, branchId, PatchStatus.FAILED,
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.FAILED,
                         PatchStep.DOWNLOAD, "Failed to download patch", 5, cancellationToken);
                     return false;
                 }
 
                 // PHASE 2: VALIDATE (15-20%)
-                await PublishStatusAsync(request.PatchId, branchId, PatchStatus.IN_PROGRESS,
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
                     PatchStep.VALIDATE, "Validating checksum", 15, cancellationToken);
 
                 if (!await ValidateChecksumAsync(downloadedZip, request.ExpectedChecksum))
                 {
-                    await PublishStatusAsync(request.PatchId, branchId, PatchStatus.FAILED,
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.FAILED,
                         PatchStep.VALIDATE, "Checksum validation failed", 15, cancellationToken);
                     return false;
                 }
 
                 // PHASE 3: EXTRACT (20-30%)
-                await PublishStatusAsync(request.PatchId, branchId, PatchStatus.IN_PROGRESS,
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
                     PatchStep.EXTRACT, "Extracting patch files", 20, cancellationToken);
 
                 if (!await ExtractPatchAsync(downloadedZip, cancellationToken))
                 {
-                    await PublishStatusAsync(request.PatchId, branchId, PatchStatus.FAILED,
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.FAILED,
                         PatchStep.EXTRACT, "Failed to extract patch", 20, cancellationToken);
                     return false;
                 }
 
-                await PublishStatusAsync(request.PatchId, branchId, PatchStatus.IN_PROGRESS,
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
                     PatchStep.EXTRACT, "Patch extracted successfully", 30, cancellationToken);
 
                 // PHASE 4: STOP APPLICATION (30-40%)
-                await PublishStatusAsync(request.PatchId, branchId, PatchStatus.IN_PROGRESS,
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
                     PatchStep.STOP_APP, "Stopping application", 35, cancellationToken);
 
                 if (!await StopApplicationAsync(_processName))
                 {
-                    await PublishStatusAsync(request.PatchId, branchId, PatchStatus.FAILED,
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.FAILED,
                         PatchStep.STOP_APP, "Failed to stop application", 35, cancellationToken);
                     return false;
                 }
 
                 if (!await StopApplicationAsync(_SecprocessName))
                 {
-                    await PublishStatusAsync(request.PatchId, branchId, PatchStatus.FAILED,
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.FAILED,
                         PatchStep.STOP_APP, "Failed to stop application", 35, cancellationToken);
                     return false;
                 }
 
-                await PublishStatusAsync(request.PatchId, branchId, PatchStatus.IN_PROGRESS,
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
                     PatchStep.STOP_APP, "Application stopped successfully", 40, cancellationToken);
 
                 // PHASE 5: BACKUP (40-55%)
-                await PublishStatusAsync(request.PatchId, branchId, PatchStatus.IN_PROGRESS,
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
                     PatchStep.BACKUP, "Creating backup", 45, cancellationToken);
 
                 backupPath = await CreateBackupAsync(cancellationToken);
                 if (string.IsNullOrEmpty(backupPath))
                 {
-                    await PublishStatusAsync(request.PatchId, branchId, PatchStatus.FAILED,
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.FAILED,
                         PatchStep.BACKUP, "Backup creation failed", 45, cancellationToken);
 
                     // Try to restart app even if backup failed
@@ -146,70 +146,70 @@ namespace SFTPService.Helper
                     return false;
                 }
 
-                await PublishStatusAsync(request.PatchId, branchId, PatchStatus.IN_PROGRESS,
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
                     PatchStep.BACKUP, $"Backup created: {Path.GetFileName(backupPath)}", 55, cancellationToken);
 
                 // PHASE 6: APPLY UPDATE (55-75%)
-                await PublishStatusAsync(request.PatchId, branchId, PatchStatus.IN_PROGRESS,
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
                     PatchStep.UPDATE, "Applying update", 60, cancellationToken);
 
                 if (!await ApplyUpdateAsync(cancellationToken))
                 {
-                    await PublishStatusAsync(request.PatchId, branchId, PatchStatus.IN_PROGRESS,
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
                         PatchStep.ROLLBACK, "Update failed - starting rollback", 65, cancellationToken);
 
                     await RollbackAsync(backupPath, cancellationToken);
 
-                    await PublishStatusAsync(request.PatchId, branchId, PatchStatus.ROLLBACK,
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.ROLLBACK,
                         PatchStep.COMPLETE, "Rollback completed", 100, cancellationToken);
                     return false;
                 }
 
-                await PublishStatusAsync(request.PatchId, branchId, PatchStatus.IN_PROGRESS,
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
                     PatchStep.UPDATE, "Update applied successfully", 75, cancellationToken);
 
                 // PHASE 7: START APPLICATION (75-90%)
-                await PublishStatusAsync(request.PatchId, branchId, PatchStatus.IN_PROGRESS,
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
                     PatchStep.START_APP, "Starting application", 80, cancellationToken);
 
                 if (!await StartApplicationAsync(cancellationToken))
                 {
-                    await PublishStatusAsync(request.PatchId, branchId, PatchStatus.IN_PROGRESS,
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
                         PatchStep.ROLLBACK, "Application failed to start - rolling back", 85, cancellationToken);
 
                     await RollbackAsync(backupPath, cancellationToken);
 
-                    await PublishStatusAsync(request.PatchId, branchId, PatchStatus.ROLLBACK,
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.ROLLBACK,
                         PatchStep.COMPLETE, "Rollback completed", 100, cancellationToken);
                     return false;
                 }
 
                 // PHASE 8: VERIFY (90-95%)
-                await PublishStatusAsync(request.PatchId, branchId, PatchStatus.IN_PROGRESS,
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
                     PatchStep.VERIFY, "Verifying application", 90, cancellationToken);
 
                 if (!await VerifyApplicationAsync(cancellationToken))
                 {
-                    await PublishStatusAsync(request.PatchId, branchId, PatchStatus.IN_PROGRESS,
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
                         PatchStep.ROLLBACK, "Verification failed - rolling back", 92, cancellationToken);
 
                     await RollbackAsync(backupPath, cancellationToken);
 
-                    await PublishStatusAsync(request.PatchId, branchId, PatchStatus.ROLLBACK,
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.ROLLBACK,
                         PatchStep.COMPLETE, "Rollback completed", 100, cancellationToken);
                     return false;
                 }
 
-                await PublishStatusAsync(request.PatchId, branchId, PatchStatus.IN_PROGRESS,
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
                     PatchStep.VERIFY, "Application verified successfully", 95, cancellationToken);
 
                 // PHASE 9: CLEANUP (95-100%)
-                await PublishStatusAsync(request.PatchId, branchId, PatchStatus.IN_PROGRESS,
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
                     PatchStep.CLEANUP, "Cleaning up", 97, cancellationToken);
 
                 await CleanupAsync(downloadedZip);
 
-                await PublishStatusAsync(request.PatchId, branchId, PatchStatus.SUCCESS,
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.SUCCESS,
                     PatchStep.COMPLETE, "Patch applied successfully", 100, cancellationToken);
 
                 await _log.WriteLog("Patch", $"Patch completed successfully: JobId={request.PatchId}");
@@ -219,7 +219,7 @@ namespace SFTPService.Helper
             {
                 await _log.WriteLog("Patch Error", $"JobId={request.PatchId}, Error: {ex}", 3);
 
-                await PublishStatusAsync(request.PatchId, branchId, PatchStatus.FAILED,
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.FAILED,
                     PatchStep.ERROR, $"Unexpected error: {ex.Message}", 0, cancellationToken);
 
                 // Attempt rollback if we have a backup
@@ -866,7 +866,9 @@ shutdown.exe /r /t 5 /c 'Application rollback completed. Restarting...'
         }
 
         private async Task PublishStatusAsync(
+            string UserId,
             string PatchId,
+            PatchRequestType PatchRequestType,
             string branchId,
             PatchStatus status,
             PatchStep step,
@@ -876,13 +878,14 @@ shutdown.exe /r /t 5 /c 'Application rollback completed. Restarting...'
         {
             var payload = new PatchStatusUpdateMqttResponse
             {
+                UserId = UserId,
                 PatchId = PatchId,
-                BranchId = branchId,
+                PatchRequestType = PatchRequestType,
                 Status = status,
                 Step = step,
                 Message = message,
                 Progress = progress,
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.Now
             };
 
             try

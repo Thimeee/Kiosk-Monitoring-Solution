@@ -765,10 +765,12 @@ namespace MonitoringBackend.Controllers
 
                         var payload = new PatchDeploymentMqttRequest
                         {
+                            UserId = obj.ReqValue.ExtraValue,
                             PatchId = patch.PId.ToString() ?? "",
                             PatchZipPath = zipPath,
                             ExpectedChecksum = enroll.SendChunksBranch?.ToString() ?? "",
                             Status = enroll.Status,
+                            PatchRequestType = PatchRequestType.SINGLE_BRANCH_PATCH,
                             Step = enroll.ProcessLevel,
                         };
 
