@@ -28,6 +28,7 @@ namespace MonitoringBackend.Service
         private const int MaxConcurrentHeavyOperations = 100;
         private readonly TimeSpan _healthThrottleInterval = TimeSpan.FromMilliseconds(100);
 
+
         public MqttWorker(
             MQTTHelper mqtt,
             IConfiguration config,
@@ -61,11 +62,16 @@ namespace MonitoringBackend.Service
             const int maxRetries = 10;
             const int retryDelayMs = 3000;
 
+            var mqttHost = _config["MQTT:Host"] ?? "localhost";
+            var mqttPort = int.TryParse(_config["MQTT:Port"], out var port) ? port : 1883;
+            var mqttUserName = _config["MQTT:Username"] ?? "User";
+            var mqttPassword = _config["MQTT:Password"] ?? "1234";
+
             while (!stoppingToken.IsCancellationRequested)
             {
                 await _log.WriteLog("MQTT Init", "Attempting MQTT connection...");
 
-                bool connected = await _mqtt.InitAsync("127.0.0.1", "MQTTUser", "Thimi@1234", 1883);
+                bool connected = await _mqtt.InitAsync(mqttHost, mqttUserName, mqttPassword, mqttPort);
 
                 if (connected)
                 {

@@ -48,6 +48,8 @@ namespace SFTPService.Helper
         {
             try
             {
+                var branchId = _config["BranchId"] ?? "BR001";
+
                 if (_disposed || _isShuttingDown)
                 {
                     await SafeLog("MQTT Init", "Skipping init - service shutting down");
@@ -60,6 +62,7 @@ namespace SFTPService.Helper
                 _client = factory.CreateMqttClient();
 
                 _options = new MqttClientOptionsBuilder()
+                    .WithClientId(branchId)
                     .WithTcpServer(host, port)
                     .WithCredentials(user, pass)
                     .WithKeepAlivePeriod(TimeSpan.FromSeconds(30))
