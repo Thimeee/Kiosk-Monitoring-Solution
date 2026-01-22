@@ -258,7 +258,7 @@
         var token = await GetJwtToken();
         if (token != null)
         {
-            await GetHealthPerformance(Settings.MainApiBaseUrl, token, branch.BranchCode);
+            await GetHealthPerformance(Settings.MainApiBaseUrl, token, branch.terminalId);
         }
 
         InitializeHistoryData();
@@ -289,7 +289,7 @@
         try
         {
             _hubConnection = new HubConnectionBuilder()
-                .WithUrl(Settings.MainApiBaseUrl + $"branchHub?branchId={branch.BranchCode}&userId={user.UserId}")
+                .WithUrl(Settings.MainApiBaseUrl + $"branchHub?branchId={branch.terminalId}&userId={user.UserId}")
                 .Build();
 
             _hubConnection.On<string>("PerformanceUpdate", (data) =>

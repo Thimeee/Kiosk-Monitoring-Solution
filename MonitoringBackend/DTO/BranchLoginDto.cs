@@ -3,6 +3,6 @@
     public class BranchLoginDto
     {
         public int Id { get; set; }
-        public string BranchId { get; set; } = string.Empty;
+        public string? TerminalId { get; set; } = string.Empty;
     }
 }

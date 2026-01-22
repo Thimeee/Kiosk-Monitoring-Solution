@@ -54,7 +54,7 @@ else
                 </div>
 
                 <!-- Center Section: Search -->
-                <div class="navbar-center">
+                @* <div class="navbar-center">
                     <div class="search-container">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon">
                             <circle cx="11" cy="11" r="8"></circle>
@@ -67,7 +67,7 @@ else
                                @oninput="OnSearchInput" />
                         <kbd class="search-shortcut">Ctrl+K</kbd>
                     </div>
-                </div>
+                </div> *@
 
                 <!-- Right Section: Actions & User -->
                 <div class="navbar-right">
@@ -247,10 +247,12 @@ else
         menuItems = new List<MenuModel>
         {
             new MenuModel { Id = "1", Name = "Dashboard", URL = "/dashboard", Icon = "fas fa-tachometer-alt", HasSubMenu = false },
-            new MenuModel { Id = "2", Name = "Branches", URL = "/branches", Icon = "fas fa-map-marker-alt", HasSubMenu = false },
+            
+            // new MenuModel { Id = "2", Name = "Events", URL = "/events", Icon = "fas fa-map-marker-alt", HasSubMenu = false },
+            new MenuModel { Id = "3", Name = "All Branches", URL = "/branches", Icon = "fas fa-map-marker-alt", HasSubMenu = false },
        new MenuModel
 {
-    Id = "3",
+    Id = "4",
     Name = "Patch Updates",
     URL = "/patchupdate",
     Icon = "fas fa-desktop",
@@ -265,8 +267,8 @@ else
         },
         new SubMenuModel
         {
-            Name = "Kiosk Patch Push",
-            URL = "/patchupdate/kiosk",
+            Name = "Patch Update All Branch",
+            URL = "/patchupdate/patch-update-all-Branch",
             Icon = "fas fa-desktop"
         },
         new SubMenuModel
@@ -279,7 +281,7 @@ else
 },
 
             new MenuModel {
-                Id = "4",
+                Id = "5",
                 Name = "Analytics",
                 URL = "#",
                 Icon = "fas fa-chart-line",
@@ -291,8 +293,22 @@ else
                     new SubMenuModel { Name = "Logs", URL = "/logs", Icon = "fas fa-file-contract" }
                 }
             },
-            new MenuModel { Id = "5", Name = "Users", URL = "/users", Icon = "fas fa-users", HasSubMenu = false },
-            new MenuModel { Id = "6", Name = "Settings", URL = "/settings", Icon = "fas fa-cog", HasSubMenu = false }
+
+             new MenuModel {
+                Id = "6",
+                Name = "Setting",
+                URL = "#",
+                Icon = "fas fa-chart-line",
+                HasSubMenu = true,
+                SubMenus = new List<SubMenuModel>
+                {
+                    new SubMenuModel { Name = "Add New Branch", URL = "/setting/add-new-branch", Icon = "fas fa-heartbeat" },
+                    new SubMenuModel { Name = "Add New User", URL = "/setting/add-new-user", Icon = "fas fa-file-alt" },
+                    // new SubMenuModel { Name = "Logs", URL = "/logs", Icon = "fas fa-file-contract" }
+                }
+            },
+            // new MenuModel { Id = "6", Name = "Users", URL = "/users", Icon = "fas fa-users", HasSubMenu = false },
+            // new MenuModel { Id = "7", Name = "Settings", URL = "/settings", Icon = "fas fa-cog", HasSubMenu = false }
         };
     }
 

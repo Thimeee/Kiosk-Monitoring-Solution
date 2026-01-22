@@ -1,0 +1,24 @@
+﻿.Main-wrapper {
+    /* min-height: 100vh; */
+    background: #2a2a2b;
+    display: flex;
+    flex-direction: column;
+}
+
+
+.Main-content {
+    flex: 1;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+}
+
+
+
+.Main-section, .alerts-section {
+    background: linear-gradient(135deg, #3e3e3f 0%, #2a2a2b 100%);
+    padding: 32px;
+    border-radius: 16px;
+    border: 2px solid rgba(100, 98, 100, 0.3);
+}

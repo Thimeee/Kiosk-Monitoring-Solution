@@ -1,0 +1,1004 @@
+﻿@page "/setting/add-new-branch"
+@using Microsoft.AspNetCore.SignalR.Client
+@using Monitoring.Shared.DTO
+@using System.Net.Http.Headers
+@using System.Net
+@using Monitoring.Shared.DTO.BranchDto
+@using Monitoring.Shared.Models
+@inject NavigationManager Navigation
+@layout NavbarLayout
+@inject IJSRuntime JSRuntime
+@inject AlertService AlertService
+@inject AppSettings Settings
+@inject AuthCredential _auth
+
+
+<div class="Main-wrapper">
+    <main class="Main-content">
+        <section class="Main-section mt-4">
+            <div class="patch-content d-flex flex-column">
+                <div class="row">
+
+                    <div class="col-6 parent-panel">
+                        <div class="panel server-panel">
+                            <div class="panel-header d-flex">
+                                <div class="header-content col-6">
+                                    <div class="icon-title">
+                                        @* <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                                            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                                            <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                                            <line x1="6" y1="18" x2="6.01" y2="18"></line>
+                                        </svg> *@
+                                        <h2>Branches</h2>
+
+                                    </div>
+                                    
+                                </div>
+                                <div class="panel-actions col-6 d-grid">
+
+                            <input type="text"
+                                   id="patch-version"
+                                   class="field-input text-white"
+                                   @bind="searchText"
+                                   @bind:event="oninput"
+                                   @onkeypress="HandleKeyPress"
+                                   placeholder="Search by branch name, code, or location..."   />
+                                    
+
+                                </div>
+                            </div>
+                            <div class="panel-body">
+                                @if (BranchList != null)
+                                {
+
+
+                                    <div class="file-tree">
+                                        @RenderAllBranch(BranchList)
+
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div style="height:40vh" class="d-flex justify-content-center align-items-center">
+                                        <Loder Height="50px" width="50px" />
+                                    </div>
+
+                                }
+
+
+
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- Patch Upload Section -->
+                    <div class=" d-flex  col-6 flex-row">
+                        <div class="patch-options col-12">
+                            <div class="row">
+                                <div class="col-12">
+                                    <div class="row">
+                                        <div class="col-6 d-flex flex-column">
+                                            <div class="row">
+
+                                                <div class="col-8">
+                                                    <h3 class="mt-5  pb-4">Add new Branch</h3>
+                                                </div>
+                                               
+                                            </div>
+
+
+
+                                        </div>
+                                        <div class="col-6">
+
+                                            <div class="">
+                                               
+                                                @if (LastPath != null && LastPathactive)
+                                                {
+                                                    <div class="uploaded-file " style="background: rgba(76, 175, 80, 0.1); border: 1px solid rgba(76, 175, 80, 0.3);">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" style="color: rgba(76, 175, 80, 0.3);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                                                            <polyline points="13 2 13 9 20 9"></polyline>
+                                                        </svg>
+
+                                                        <div class="file-info-upload overflow-hidden">
+                                                            <span class="file-name-upload ">@LastPath.Name</span>
+                                                            <span class="file-size-upload">Last Patch Update</span>
+                                                        </div>
+
+
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                              
+                                <div class="col-12">
+                                    <div class=" d-flex col-12  ">
+                                        <div class="row col-12">
+                                            <div class=" col-12">
+                                                <label for="patch-version" class="text-white">Branch Code</label>
+                                                <div class="input-wrapper">
+                                                    <input type="text"
+                                                           id="patch-version"
+                                                           class="field-input text-white"
+                                                           @bind="patch_version_input"
+                                                          
+                                                           required
+                                                            />
+                                                    <div class="input-glow"></div>
+                                                </div>
+                                            </div>
+                                            <div class=" col-12">
+                                                <label for="patch-version" class="text-white">Terminal Id</label>
+                                                <div class="input-wrapper">
+                                                    <input type="text"
+                                                           id="patch-version"
+                                                           class="field-input text-white"
+                                                           @bind="patch_version_input"
+                                                           required />
+                                                    <div class="input-glow"></div>
+                                                </div>
+                                            </div>
+
+                                            <div class=" col-12">
+                                                <label for="patch-version" class="text-white">Branch Name</label>
+                                                <div class="input-wrapper">
+                                                    <input type="text"
+                                                           id="patch-version"
+                                                           class="field-input text-white"
+                                                           @bind="patch_version_input"
+                                                           
+                                                           required
+                                                            />
+                                                    <div class="input-glow"></div>
+                                                </div>
+                                            </div>
+                                               <div class=" col-12">
+                                                <label for="patch-version" class="text-white">Location</label>
+                                                <div class="input-wrapper">
+                                                    <input type="text"
+                                                           id="patch-version"
+                                                           class="field-input text-white"
+                                                           @bind="patch_version_input"
+                                                           
+                                                           required
+                                                            />
+                                                    <div class="input-glow"></div>
+                                                </div>
+                                            </div>   
+                                            <div class=" col-12 mt-5">
+                                               
+
+                                                    <button class="btn-upload w-100 mt-3"
+                                                            @onclick="FileUploadToServer">
+                                                       Add 
+                                                    </button> 
+
+
+
+                                            </div>
+                                        </div>
+                                       
+
+
+                                    </div>
+
+
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+
+
+
+                </div>
+
+
+
+            </div>
+
+        </section>
+    </main>
+</div>
+<AlertContainer />
+
+
+
+@code {
+
+
+    private string? JWTToken;
+
+
+    private List<SelectBranchDto>? BranchList;
+    private SFTPFolderPath? SFTPFolderPathObj;
+
+
+    private List<SelectedAnyDropDownOrSamllData>? PatchTypeList;
+    private string? selectedPatchTypeName = "Select Patch Type";
+    private int? selectedPatchTypeID;
+    private SelectedAnyDropDownOrSamllData? LastPath;
+    private bool LastPathactive;
+    private string? relese_note_input;
+    private string? patch_version_input;
+
+
+    private string? ServerPatchPath;
+
+    private string searchText = string.Empty;
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+
+        JWTToken = await GetJwtToken();
+
+        if (JWTToken != null)
+        {
+            await LoadBranchesAsync();
+        }
+    }
+
+    private async Task LoadBranchesAsync()
+    {
+        try
+        {
+            if (Settings.MainApiBaseUrl != null && JWTToken != null)
+            {
+                var branchList = await getAllBranch($"{Settings.MainApiBaseUrl}", JWTToken);
+                if (branchList != null)
+                {
+                    BranchList = branchList;
+                    StateHasChanged();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception: {ex.Message}");
+            AlertService.ShowError("Error", $"Failed to load branches: {ex.Message}");
+        }
+    }
+    private RenderFragment RenderAllBranch(List<SelectBranchDto> branch)
+    {
+        return builder =>
+        {
+            if (branch == null) return;
+
+            var sequence = 0;
+
+            foreach (var selectbranch in branch)
+            {
+                // Main card container
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-card");
+
+                // Branch icon
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-icon");
+                builder.AddContent(sequence++, "🏢");
+                builder.CloseElement();
+
+                // Branch info container
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-info");
+
+                // Branch name
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-name");
+                builder.AddContent(sequence++, selectbranch.BranchName);
+                builder.CloseElement();
+
+                // Location
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-location");
+                builder.AddContent(sequence++, $"📍 {selectbranch.Location}");
+                builder.CloseElement();
+
+                builder.CloseElement(); // Close branch-info
+
+                // Branch details container
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-details");
+
+                // Terminal ID
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-detail-item");
+                builder.OpenElement(sequence++, "span");
+                builder.AddAttribute(sequence++, "class", "detail-label");
+                builder.AddContent(sequence++, "Terminal:");
+                builder.CloseElement();
+                builder.OpenElement(sequence++, "span");
+                builder.AddAttribute(sequence++, "class", "detail-value");
+                builder.AddContent(sequence++, selectbranch.TerminalId ?? "N/A");
+                builder.CloseElement();
+                builder.CloseElement();
+
+                // Branch ID
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-detail-item");
+                builder.OpenElement(sequence++, "span");
+                builder.AddAttribute(sequence++, "class", "detail-label");
+                builder.AddContent(sequence++, "Branch ID:");
+                builder.CloseElement();
+                builder.OpenElement(sequence++, "span");
+                builder.AddAttribute(sequence++, "class", "detail-value");
+                builder.AddContent(sequence++, selectbranch.BranchId);
+                builder.CloseElement();
+                builder.CloseElement();
+
+                builder.CloseElement(); // Close branch-details
+
+                // Action button
+                builder.OpenElement(sequence++, "button");
+                builder.AddAttribute(sequence++, "class", "branch-action-btn");
+                builder.AddAttribute(sequence++, "onclick", EventCallback.Factory.Create(this, () => OnBranchClick(selectbranch)));
+                builder.AddContent(sequence++, (MarkupString)"<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' viewBox='0 0 16 16'><path fill-rule='evenodd' d='M4 8a.5.5 0 0 1 .5-.5h5.793L8.146 5.354a.5.5 0 1 1 .708-.708l3 3a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708-.708L10.293 8.5H4.5A.5.5 0 0 1 4 8z'/></svg>");
+                builder.CloseElement();
+
+                builder.CloseElement(); // Close branch-card
+            }
+        };
+    }
+
+    private void OnBranchClick(SelectBranchDto branch)
+    {
+        // Handle branch selection/navigation
+        Console.WriteLine($"Branch clicked: {branch.BranchName}");
+    }
+
+
+
+    private async Task DeleteFile(int? fullpath, bool isServer)
+    {
+
+    }
+
+    private async Task<string?> GetJwtToken()
+    {
+        try
+        {
+            var getJWT = new getJWTTokens(JSRuntime);
+            return await getJWT.GetJWTLoggedInUserAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"JWT Error: {ex.Message}");
+            return null;
+        }
+    }
+
+    // Handle Enter key press in search
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await OnSearchAsync();
+        }
+    }
+
+    private async Task FileUploadToServer()
+    {
+        
+    }
+
+    // Event Handlers
+    private async Task OnSearchAsync()
+    {
+        await LoadBranchesAsync();
+    }
+    public async Task<List<SelectBranchDto>?> getAllBranch(string baseUrl, string jwtToken)
+    {
+        try
+        {
+            var url = $"api/Branch/getAllBranch?" +
+                      $"PageNumber={1}&" +
+                      $"PageSize={50}&" +
+                      $"Search={Uri.EscapeDataString(searchText ?? string.Empty)}&" +
+                      $"Status={string.Empty}";
+
+            using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
+
+            var response = await client.GetAsync(url);
+            var result = await response.Content.ReadFromJsonAsync<APIResponseCoustomizeList<SelectBranchDto, int>>();
+
+            if (response.IsSuccessStatusCode)
+            {
+                if (result != null && result.StatusCode == 2 && result.Status == true)
+                {
+                    // totalKiosks = result.Value;
+                    return result.ValueList;
+                }
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                if (result != null && result.StatusCode == 1 && result.Status == false)
+                {
+                    AlertService.ShowError("Error", $"{result.Message}");
+                    return null;
+                }
+                else if (result != null && result.StatusCode == 0 && result.Status == false)
+                {
+                    AlertService.ShowError("Error", $"{result.Message}");
+                    Console.WriteLine($"Unexpected response: {response.StatusCode}");
+                    return null;
+                }
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception: {ex.Message}");
+            AlertService.ShowError("Error", $"API call failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    
+
+
+   
+    private async Task<LoggedInUser> getUserDetails()
+    {
+        return await _auth.getLogginUserDetiles();
+    }
+
+    private async Task<int> UploadFileToServer(string baseUrl, string jwtToken, MultipartFormDataContent content)
+    {
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
+            var response = await client.PostAsync("api/Patches/DeployPatchServer", content);
+
+            var result = await response.Content.ReadFromJsonAsync<APIResponseSingleValue>();
+
+            if (response.IsSuccessStatusCode)
+            {
+
+                if (result != null && result.StatusCode == 2 && result.Status == true)
+                {
+                    if (result.Message == "Chunk")
+                    {
+                        return 1;
+
+
+
+                    }
+                    else if (result.Message == "Complete")
+                    {
+                        return 2;
+
+                    }
+
+
+                }
+            }
+            else
+            {
+                switch (response.StatusCode)
+                {
+                    case HttpStatusCode.BadRequest:
+                    case HttpStatusCode.NotFound:
+                    case HttpStatusCode.Unauthorized:
+                        if (result?.StatusCode == 1 && result.Status == false)
+                        {
+                            AlertService.ShowError("File Sharing Error", $"{result.Message}. Please try again.");
+                            return 0;
+                        }
+                        break;
+
+                    case HttpStatusCode.InternalServerError: // 500
+
+                        if (result?.StatusCode == 0 && result.Status == false)
+                        {
+                            var serverMsg = result?.Message ?? "Server error occurred.";
+                            // var content = await response.Content.ReadAsStringAsync();
+                            Console.WriteLine($"Server 500 response body: {result?.Ex}");
+                            AlertService.ShowError("Server Error", $"{serverMsg}. Please contact support.");
+                            return 0;
+                        }
+                        break;
+
+                }
+
+
+            }
+
+            return 0;
+
+        }
+        catch (HttpRequestException ex)
+        {
+            AlertService.ShowError("Server Error", "Server fetch failed. Please contact support.");
+            Console.WriteLine($"HttpRequestException: {ex.Message}");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"General Exception: {ex.Message}");
+            return 0;
+        }
+
+    }
+    private async Task<bool> UploadFileToServerCancel(string baseUrl, string jwtToken, string jobId, string fileName)
+    {
+        try
+        {
+            var obj = new
+            {
+                JobUId = jobId,
+                FileName = fileName
+
+            };
+            using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
+            var response = await client.PostAsJsonAsync("api/SFTPFiles/UploadFileToServerCancel", obj);
+
+            var result = await response.Content.ReadFromJsonAsync<APIResponseSingleValue>();
+
+            if (response.IsSuccessStatusCode)
+            {
+
+                if (result != null && result.StatusCode == 2 && result.Status == true)
+                {
+                    return true;
+
+
+                }
+            }
+            else
+            {
+                switch (response.StatusCode)
+                {
+                    case HttpStatusCode.BadRequest:
+                    case HttpStatusCode.NotFound:
+                    case HttpStatusCode.Unauthorized:
+                        if (result?.StatusCode == 1 && result.Status == false)
+                        {
+                            AlertService.ShowError("File Sharing Error", $"{result.Message}. Please try again.");
+                            return false;
+                        }
+                        break;
+
+                    case HttpStatusCode.InternalServerError: // 500
+
+                        if (result?.StatusCode == 0 && result.Status == false)
+                        {
+                            var serverMsg = result?.Message ?? "Server error occurred.";
+                            Console.WriteLine($"Server 500 response body: {result?.Ex}");
+                            AlertService.ShowError("Server Error", $"{serverMsg}. Please contact support.");
+                            return false;
+                        }
+                        break;
+
+                }
+
+
+            }
+
+            return false;
+
+        }
+        catch (HttpRequestException ex)
+        {
+            AlertService.ShowError("Server Error", "Server fetch failed. Please contact support.");
+            Console.WriteLine($"HttpRequestException: {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"General Exception: {ex.Message}");
+            return false;
+        }
+
+    }
+
+
+
+
+
+   
+
+
+
+    
+
+
+
+
+
+}
+
+<style>
+
+
+
+
+
+
+
+
+    .patch-content {
+        display: flex;
+        flex-direction: column;
+        gap: 30px;
+    }
+
+
+
+
+
+
+    /* Patch Options */
+    .patch-options {
+        border: 2px solid rgba(100, 98, 100, 0.3);
+        border-radius: 16px;
+        padding: 30px;
+        padding-top: 2px;
+    }
+
+        .patch-options h3 {
+            font-size: 18px;
+            color: #ffffff;
+            font-weight: 700;
+            margin: 0 0 20px 0;
+        }
+
+   
+
+    .input-wrapper {
+        position: relative;
+    }
+
+    .field-input {
+        width: 100%;
+        padding: 16px 20px;
+        background: rgba(0, 0, 0, 0.4);
+        border: 2px solid rgba(100, 98, 100, 0.3);
+        border-radius: 12px;
+        color: #ffffff;
+        font-size: 15px;
+        transition: all 0.3s ease;
+    }
+
+        .field-input:focus {
+            outline: none;
+            background: rgba(0, 0, 0, 0.5);
+            border-color: #953e3f;
+        }
+
+        .field-input::placeholder {
+            color: #666;
+        }
+
+    .input-glow {
+        position: absolute;
+        inset: -2px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #953e3f, #646264);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        z-index: -1;
+        filter: blur(8px);
+    }
+
+    .field-input:focus + .input-glow {
+        opacity: 0.4;
+    }
+
+    /* new ? */
+
+    .parent-panel {
+        display: grid;
+        gap: 20px;
+        height: calc(100vh - 200px);
+    }
+
+    .panel {
+        background: #252526;
+        border: 1px solid #3e3e3f;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .server-panel {
+        border-left: 3px solid #953e3f;
+    }
+
+
+
+    /* Panel Header */
+    .panel-header {
+        background: #2a2a2b;
+        border-bottom: 1px solid #3e3e3f;
+        padding: 16px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .header-content {
+        flex: 1;
+    }
+
+    .icon-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 8px;
+    }
+
+        .icon-title svg {
+            color: #999;
+        }
+
+        .icon-title h2 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+    .breadcrumb {
+        font-size: 12px;
+        color: #666;
+        font-family: 'Courier New', monospace;
+    }
+
+    .panel-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .action-btn {
+        width: 32px;
+        height: 32px;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid #3e3e3f;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+        .action-btn:hover {
+            background: rgba(149, 62, 63, 0.2);
+            border-color: #953e3f;
+        }
+
+        .action-btn svg {
+            color: #999;
+        }
+
+    /* Panel Body */
+    .panel-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+    }
+
+    .file-tree {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+
+
+
+
+  
+</style>
+
+
+<style>
+    /* Branch Card Styles */
+    .branch-card {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 16px;
+        background: linear-gradient(135deg, rgba(62, 62, 63, 0.4) 0%, rgba(42, 42, 43, 0.6) 100%);
+        border: 1px solid rgba(100, 98, 100, 0.3);
+        border-radius: 12px;
+        margin-bottom: 12px;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+
+        .branch-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .branch-card:hover {
+            transform: translateX(4px);
+            background: linear-gradient(135deg, rgba(62, 62, 63, 0.6) 0%, rgba(42, 42, 43, 0.8) 100%);
+            border-color: rgba(102, 126, 234, 0.4);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+        }
+
+            .branch-card:hover::before {
+                opacity: 1;
+            }
+
+    /* Branch Icon */
+    .branch-icon {
+        font-size: 32px;
+        min-width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(102, 126, 234, 0.15);
+        border-radius: 10px;
+        transition: all 0.3s ease;
+    }
+
+    .branch-card:hover .branch-icon {
+        background: rgba(102, 126, 234, 0.25);
+        transform: scale(1.1);
+    }
+
+    /* Branch Info */
+    .branch-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    .branch-name {
+        font-size: 16px;
+        font-weight: 600;
+        color: #ffffff;
+        line-height: 1.3;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .branch-location {
+        font-size: 13px;
+        color: #999;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    /* Branch Details */
+    .branch-details {
+        display: flex;
+        gap: 20px;
+        padding: 0 12px;
+    }
+
+    .branch-detail-item {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .detail-label {
+        font-size: 11px;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+    }
+
+    .detail-value {
+        font-size: 13px;
+        color: #ffffff;
+        font-weight: 500;
+        font-family: 'Courier New', monospace;
+    }
+
+    /* Action Button */
+    .branch-action-btn {
+        min-width: 40px;
+        height: 40px;
+        background: rgba(102, 126, 234, 0.2);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        border-radius: 8px;
+        color: #667eea;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        opacity: 0.7;
+    }
+
+    .branch-card:hover .branch-action-btn {
+        opacity: 1;
+        background: rgba(102, 126, 234, 0.3);
+        transform: translateX(4px);
+    }
+
+    .branch-action-btn:hover {
+        background: rgba(102, 126, 234, 0.4);
+        border-color: rgba(102, 126, 234, 0.5);
+    }
+
+    .branch-action-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    /* Responsive Design */
+    @@media (max-width: 768px) {
+        .branch-card {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .branch-details {
+            width: 100%;
+            padding: 12px 0 0 0;
+            border-top: 1px solid rgba(100, 98, 100, 0.2);
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .branch-detail-item {
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .detail-label {
+            text-transform: none;
+        }
+
+        .branch-action-btn {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+        }
+
+       
+    }
+
+    .btn-upload {
+        padding: 12px 32px;
+        background: linear-gradient(135deg, #953e3f 0%, #b04e4f 100%);
+        border: none;
+        border-radius: 10px;
+        color: white;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+        .btn-upload:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(149, 62, 63, 0.4);
+        }
+
+</style>

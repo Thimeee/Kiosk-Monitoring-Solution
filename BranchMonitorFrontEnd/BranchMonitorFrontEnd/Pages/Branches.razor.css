@@ -1,5 +1,5 @@
 ﻿.kiosks-wrapper {
-    /* min-height: 100vh; */
+    min-height: 90vh;
     background: #2a2a2b;
     display: flex;
     flex-direction: column;
@@ -22,6 +22,7 @@
     border-radius: 16px;
     border: 2px solid rgba(100, 98, 100, 0.3);
 }
+
 
 .section-header {
     display: flex;
@@ -123,6 +124,15 @@
         border-color: rgba(255, 152, 0, 0.4);
     }
 
+    .kiosk-card.notverify {
+        border-color: rgba(0, 123, 255, 0.15);
+    }
+
+
+    .kiosk-card.deactive {
+        border-color: rgba(0, 0, 0, 0.15);
+    }
+
 .kiosk-header {
     display: flex;
     justify-content: space-between;
@@ -171,6 +181,17 @@
         color: #ff9800;
     }
 
+    .status-badge.notverify {
+        background: rgba(0, 123, 255, 0.15);
+        color: #007bff;
+    }
+
+
+    .status-badge.deactive {
+        background: rgba(0, 0, 0, 0.15);
+        color: #000000;
+    }
+
 .kiosk-info {
     display: flex;
     flex-direction: column;
@@ -217,7 +238,7 @@
 }
 
     .btn-action:hover {
-/*        background: rgba(149, 62, 63, 0.3);*/
+        /*        background: rgba(149, 62, 63, 0.3);*/
         transform: translateY(-2px);
     }
 
@@ -277,4 +298,73 @@
     .kiosks-grid {
         grid-template-columns: 1fr;
     }
+}
+
+/* Pagination Styles */
+.pagination-wrapper {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(100, 98, 100, 0.3);
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.pagination-info {
+    color: #999;
+    font-size: 14px;
+}
+
+.pagination-controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.btn-page {
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(100, 98, 100, 0.3);
+    border-radius: 6px;
+    color: #ffffff;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 40px;
+}
+
+    .btn-page:hover:not(:disabled) {
+        background: rgba(149, 62, 63, 0.3);
+        border-color: rgba(149, 62, 63, 0.4);
+    }
+
+    .btn-page.active {
+        background: rgba(149, 62, 63, 0.4);
+        border-color: rgba(149, 62, 63, 0.6);
+        color: #ff9999;
+        font-weight: 700;
+    }
+
+    .btn-page:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+
+.page-size-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #999;
+    font-size: 14px;
+}
+
+.loading-container, .no-data-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 400px;
+    color: #999;
+    font-size: 18px;
 }

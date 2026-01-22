@@ -6,10 +6,12 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Monitoring.Shared.DTO;
+using Monitoring.Shared.DTO.BranchDto;
+using Monitoring.Shared.Enum;
+using Monitoring.Shared.Models;
 using MonitoringBackend.Data;
 using MonitoringBackend.DTO;
-using Monitoring.Shared.Models;
-using Monitoring.Shared.DTO;
 
 namespace MonitoringBackend.Controllers
 {
@@ -31,19 +33,57 @@ namespace MonitoringBackend.Controllers
             _db = db;
         }
 
+
+
         [HttpGet("getAllBranch")]
-        public async Task<IActionResult> Register()
+        public async Task<IActionResult> getAllBranch([FromQuery] PagedRequest request)
         {
 
-            var responseDTO = new APIResponseCoustomizeList<Branch, int> { };
+            var responseDTO = new APIResponseCoustomizeList<SelectBranchDto, int> { };
 
             try
             {
-                //BranchActiveStatus = 1 (active) BranchActiveStatus=0 (deActive)
+                IQueryable<Branch> query = _db.Branches;
 
-                //var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (!string.IsNullOrWhiteSpace(request.Search))
+                {
+                    query = query.Where(x =>
+                        x.BranchName.Contains(request.Search) ||
+                        x.BranchId.Contains(request.Search) ||
+                        x.TerminalId.Contains(request.Search) ||
+                        x.Location.Contains(request.Search));
+                }
 
-                var branches = await _db.Branches.ToListAsync();
+                if (!string.IsNullOrWhiteSpace(request.Status))
+                {
+                    if (Enum.TryParse<TerminalActive>(request.Status, out var status))
+                    {
+                        query = query.Where(x => x.TerminalActiveStatus == status);
+                    }
+                }
+
+                int totalCount = await query.CountAsync();
+
+
+                var branches = await query
+    .OrderBy(x => x.Id)
+    .Skip((request.PageNumber - 1) * request.PageSize)
+    .Take(request.PageSize)
+    .Select(r => new SelectBranchDto
+    {
+        Id = r.Id,
+        BranchId = r.BranchId,
+        BranchName = r.BranchName,
+        TerminalActiveStatus = r.TerminalActiveStatus,
+        Location = r.Location,
+        TerminalName = r.TerminalName,
+        TerminalId = r.TerminalId,
+        TerminalVersion = r.TerminalVersion
+    })
+    .ToListAsync();
+
+
+
                 if (branches == null)
                 {
                     responseDTO.Status = false;
@@ -55,12 +95,14 @@ namespace MonitoringBackend.Controllers
 
                 responseDTO.Status = true;
                 responseDTO.StatusCode = 2;
-                responseDTO.Message = "operaction Success";
-                responseDTO.Value = branches.Count();
+                responseDTO.Message = "Operation Success";
+                responseDTO.Value = totalCount;
                 responseDTO.ValueList = branches;
 
-
                 return Ok(responseDTO);
+
+
+
 
 
             }
@@ -89,7 +131,7 @@ namespace MonitoringBackend.Controllers
                 //Use for this in branch login access by user Ex: only admin can access this api
                 //var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-                if (request == null || request.Id == null || string.IsNullOrEmpty(request.BranchId))
+                if (request == null || request.Id == null || string.IsNullOrEmpty(request.TerminalId))
                 {
                     responseDTO.Status = false;
                     responseDTO.StatusCode = 1;
@@ -99,7 +141,7 @@ namespace MonitoringBackend.Controllers
                 //var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 var branches = await _db.Branches.FindAsync(request.Id);
 
-                if (branches == null || branches.BranchId != request.BranchId)
+                if (branches == null || branches.TerminalId != request.TerminalId)
                 {
                     responseDTO.Status = false;
                     responseDTO.StatusCode = 1;
@@ -112,7 +154,7 @@ namespace MonitoringBackend.Controllers
                 var claims = new List<Claim>
     {
         new Claim(ClaimTypes.NameIdentifier,  branches.Id.ToString()),
-        new Claim(JwtRegisteredClaimNames.Sub, branches.BranchId)
+        new Claim(JwtRegisteredClaimNames.Sub, branches.TerminalId)
     };
 
                 var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
@@ -129,7 +171,7 @@ namespace MonitoringBackend.Controllers
                 var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
 
 
-                branches.KisokSessionKey = tokenString;
+                branches.TerminalSessionKey = tokenString;
 
 
                 await _db.SaveChangesAsync();

@@ -4,6 +4,8 @@
 @using BranchMonitorFrontEnd.DTO
 @using BranchMonitorFrontEnd.Helper
 @using Monitoring.Shared.DTO
+@using Monitoring.Shared.DTO.BranchDto
+@using Monitoring.Shared.Enum
 @inject NavigationManager Navigation
 @layout NavbarLayout
 @inject IJSRuntime JS
@@ -11,49 +13,96 @@
 @inject AlertService AlertService
 @inject AppSettings Settings
 
-
-
-
-<div class="kiosks-wrapper">
-    <main class="kiosks-content">
-            <section class="kiosks-section mt-4">
-
-            @if (allKiosks == null || !allKiosks.Any())
+<div class="kiosks-wrapper ">
+    <div class="kiosks-content">
+        @if (isLoading)
         {
-           <Loder Height="80px" width="80px"/>        
-           
+            <div class="loading-container">
+               <Loder Height="60px" width="60px" />
+            </div>
+        }
+        else if (allKiosks == null || !allKiosks.Any())
+        {
+            <div class="no-data-container d-flex flex-column ">
+                <p class="fs-3 text-center">No terminals found.</p>
+                
+                <button @onclick="ClearSearchAsync" class="btn-secondary mt-2">Reset</button>
+
+            </div>
         }
         else
         {
+            <div class="kiosks-section mt-4">
+                <!-- Header with Search and Filters -->
                 <div class="section-header">
-                    <h2>All Kiosks Status</h2>
+                    <h2>All Terminals Status</h2>
                     <div class="section-actions">
-                        <input type="text" placeholder="Search kiosks..." class="search-input" />
-                        <select class="filter-select">
-                            <option>All Status</option>
-                            <option>Online</option>
-                            <option>Offline</option>
-                            <option>Warning</option>
-                        </select>
+                        @* <input type="text"
+                               @bind="searchText"
+                               @bind:event="oninput"
+                               @onkeypress="HandleKeyPress"
+                               placeholder="Search by branch name, code, or location..."
+                               class="search-input" /> *@
+                        <div class="input-wrapper">
+                            <input type="text"
+                                   id="patch-version"
+                                   class="field-input text-white"
+                                   @bind="searchText"
+                                   @bind:event="oninput"
+                                   @onkeypress="HandleKeyPress"
+                                   placeholder="Search by branch name, code, or location..."   />
+                            <div class="input-glow"></div>
+                        </div>
+
+                      <Dropdown Size="DropdownSize.None" Class="dropdown-btn">
+    <DropdownToggleButton Class="text-white">
+        @SelectedStatusText
+    </DropdownToggleButton>
+
+    <DropdownMenu>
+        <DropdownItem @onclick="() => OnStatusSelected(null)">All Status</DropdownItem>
+        <DropdownItem @onclick="() => OnStatusSelected(TerminalActive.TERMINAL_ONLINE)">Online</DropdownItem>
+                                <DropdownItem @onclick="() => OnStatusSelected(TerminalActive.TERMINAL_OFFLINE)">Offline</DropdownItem>
+                                <DropdownItem @onclick="() => OnStatusSelected(TerminalActive.TERMINAL_DEACTIVE)">Deactivated</DropdownItem>
+                                <DropdownItem @onclick="() => OnStatusSelected(TerminalActive.TERMINAL_NOT_VERIFY)">Not Verified</DropdownItem>
+    </DropdownMenu>
+</Dropdown>
+
+                        
+                     
+
+                        <button @onclick="OnSearchAsync" class="btn-secondary">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z" />
+                            </svg>
+                            Search
+                        </button>
+
+                        <button @onclick="ClearSearchAsync" class="btn-secondary">Clear</button>
                     </div>
                 </div>
 
+                <!-- Kiosks Grid -->
                 <div class="kiosks-grid">
-                    @foreach (var kiosk in GetPagedKiosks())
+                    @foreach (var kiosk in allKiosks)
                     {
                         <div class="kiosk-card @kiosk.Status">
                             <div class="kiosk-header">
                                 <div class="kiosk-id">
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                                        <line x1="8" y1="21" x2="16" y2="21"></line>
-                                        <line x1="12" y1="17" x2="12" y2="21"></line>
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H2z" />
+                                        <path d="M2 5.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zM2 7a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7A.5.5 0 0 1 2 7zm0 1.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z" />
                                     </svg>
-                                    <span>Kiosk #@kiosk.Number.ToString("D3")</span>
+                                    @kiosk.TerminalId
                                 </div>
                                 <span class="status-badge @kiosk.Status">@kiosk.StatusText</span>
                             </div>
+
                             <div class="kiosk-info">
+                                <div class="info-row">
+                                    <span class="info-label">Branch Code:</span>
+                                    <span class="info-value">@kiosk.BranchCode</span>
+                                </div>
                                 <div class="info-row">
                                     <span class="info-label">Branch:</span>
                                     <span class="info-value">@kiosk.Branch</span>
@@ -62,233 +111,372 @@
                                     <span class="info-label">Location:</span>
                                     <span class="info-value">@kiosk.Location</span>
                                 </div>
-                                <div class="info-row">
-                                    <span class="info-label">Uptime:</span>
-                                    <span class="info-value">@kiosk.Uptime</span>
-                                </div>
+                              
                                 <div class="info-row">
                                     <span class="info-label">Last Update:</span>
                                     <span class="info-value">@kiosk.LastUpdate</span>
                                 </div>
                             </div>
-                            <div class="kiosk-actions">
-                                <button class="btn-action" title="View " @onclick="() => LoginInBranch(kiosk.branchDto)" style="">
-                                    LogIn &nbsp;&nbsp;
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                        <polyline points="14 2 14 8 20 8"></polyline>
-                                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                                        <line x1="16" y1="17" x2="8" y2="17"></line>
-                                        <polyline points="10 9 9 9 8 9"></polyline>
-                                    </svg>
-                                </button>
 
+                            <div class="kiosk-actions">
+                                @if (kiosk.branchDto.TerminalActiveStatus == TerminalActive.TERMINAL_NOT_VERIFY ||
+                                                        kiosk.branchDto.TerminalActiveStatus == TerminalActive.TERMINAL_DEACTIVE)
+                                {
+                                    <button class="btn-action" disabled style="opacity: 0.5; cursor: not-allowed;">
+                                        Disabled
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button @onclick="() => LoginInBranch(kiosk.branchDto)" class="btn-action">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16">
+                                            <path fill-rule="evenodd" d="M6 3.5a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-2a.5.5 0 0 0-1 0v2A1.5 1.5 0 0 0 6.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 14.5 2h-8A1.5 1.5 0 0 0 5 3.5v2a.5.5 0 0 0 1 0v-2z" />
+                                            <path fill-rule="evenodd" d="M11.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 1 0-.708.708L10.293 7.5H1.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z" />
+                                        </svg>
+                                        Login
+                                    </button>
+                                }
                             </div>
                         </div>
                     }
                 </div>
 
-                <PaginationCom ActivePageNumber="@currentPageNumber" TotalPages="@totalPages" PageChanged="OnPageChangedAsync" />
+                <!-- Pagination -->
+                <div class="pagination-wrapper">
+                    <div class="pagination-info">
+                        Showing @startItem - @endItem of @totalKiosks kiosks
+                    </div>
 
-                <div class="page-info-text">
-                    <text>Showing @startItem - @endItem of @totalKiosks kiosks (Page @currentPageNumber of @totalPages)</text>
+                    <div class="pagination-controls">
+                        <button @onclick="() => OnPageChangedAsync(1)"
+                                disabled="@(currentPageNumber == 1)"
+                                class="btn-page">
+                            &#171;
+                        </button>
+
+                        <button @onclick="() => OnPageChangedAsync(currentPageNumber - 1)"
+                                disabled="@(currentPageNumber == 1)"
+                                class="btn-page">
+                            &#8249;
+                        </button>
+
+                        @for (int i = GetStartPage(); i <= GetEndPage(); i++)
+                        {
+                            var pageNumber = i;
+                            <button @onclick="() => OnPageChangedAsync(pageNumber)"
+                                    class="btn-page @(currentPageNumber == pageNumber ? "active" : "")">
+                                @pageNumber
+                            </button>
+                        }
+
+                        <button @onclick="() => OnPageChangedAsync(currentPageNumber + 1)"
+                                disabled="@(currentPageNumber == totalPages)"
+                                class="btn-page">
+                            &#8250;
+                        </button>
+
+                        <button @onclick="() => OnPageChangedAsync(totalPages)"
+                                disabled="@(currentPageNumber == totalPages)"
+                                class="btn-page">
+                            &#187;
+                        </button>
+                    </div>
+
+                    <div class="page-size-selector">
+                        <label>Show:</label>
+                        <Dropdown @ref="pageSizeDropdown" Size="DropdownSize.None" Class="dropdown-btn">
+                            <DropdownToggleButton Class="text-white">
+                                @pageSize
+                            </DropdownToggleButton>
+
+                            <DropdownMenu>
+                                <DropdownItem @onclick="() => OnPageSizeSelected(8)">8</DropdownItem>
+                                <DropdownItem @onclick="() => OnPageSizeSelected(12)">12</DropdownItem>
+                                <DropdownItem @onclick="() => OnPageSizeSelected(16)">16</DropdownItem>
+                                <DropdownItem @onclick="() => OnPageSizeSelected(20)">20</DropdownItem>
+                                <DropdownItem @onclick="() => OnPageSizeSelected(50)">50</DropdownItem>
+                            </DropdownMenu>
+                        </Dropdown>
+                    </div>
                 </div>
+            </div>
         }
-        </section>
-
-        
-    </main>
+    </div>
 </div>
-
-@* Alert  *@
-<AlertContainer />
 
 @code {
     // Pagination settings
     private int currentPageNumber = 1;
-    private int pageSize = 8; // 10 kiosks per page
-    private int totalKiosks ; // Total kiosks
-    private int totalPages => (int)Math.Ceiling((double)totalKiosks / pageSize);
+    private int pageSize = 8;
+    private int totalKiosks = 0;
+    private int totalPages => totalKiosks > 0 ? (int)Math.Ceiling((double)totalKiosks / pageSize) : 1;
 
     // Calculate display range
-    private int startItem => (currentPageNumber - 1) * pageSize + 1;
+    private int startItem => totalKiosks > 0 ? (currentPageNumber - 1) * pageSize + 1 : 0;
     private int endItem => Math.Min(currentPageNumber * pageSize, totalKiosks);
 
-    // All kiosks data
-    private List<KioskData> allKiosks = new();
+    // Search and Filter
+    private string searchText = string.Empty;
+    private string selectedStatus = string.Empty;
 
+    // Data
+    private List<KioskData> allKiosks = new();
     private string? JWTToken;
+    private bool isLoading = false;
 
     protected override async Task OnInitializedAsync()
     {
         await OnStartupAsync();
     }
 
-
     private async Task OnStartupAsync()
     {
         try
         {
+            isLoading = true;
+            StateHasChanged();
+
             getJWTTokens getJWT = new getJWTTokens(JS);
-            if(getJWT != null)
+            if (getJWT != null)
             {
                 var token = await getJWT.GetJWTLoggedInUserAsync();
                 if (token != null)
                 {
                     JWTToken = token;
                 }
+
                 if (JWTToken != null)
                 {
-                    if (Settings.MainApiBaseUrl != null)
-                    {
-                        var branchList = await GetAllBranchesAsync($"{Settings.MainApiBaseUrl}", JWTToken);
-
-                    if (branchList != null)
-                    {
-                        allKiosks = GenerateKiosks(branchList);
-                        StateHasChanged();
-					}                        
-                    }
-
-                   
+                    await LoadBranchesAsync();
                 }
-
             }
-          
-        }catch(Exception ex)
+        }
+        catch (Exception ex)
         {
             Console.WriteLine($"Exception: {ex.Message}");
+            AlertService.ShowError("Error", $"Failed to load data: {ex.Message}");
         }
-
-
-
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
     }
 
+    private async Task LoadBranchesAsync()
+    {
+        try
+        {
+            if (Settings.MainApiBaseUrl != null && JWTToken != null)
+            {
+                var branchList = await GetAllBranchesAsync($"{Settings.MainApiBaseUrl}", JWTToken);
+                if (branchList != null)
+                {
+                    allKiosks = GenerateKiosks(branchList);
+                    StateHasChanged();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception: {ex.Message}");
+            AlertService.ShowError("Error", $"Failed to load branches: {ex.Message}");
+        }
+    }
 
-    private List<KioskData> GenerateKiosks(List<Branch> totlebranch)
+    private List<KioskData> GenerateKiosks(List<SelectBranchDto> totlebranch)
     {
         var kiosks = new List<KioskData>();
-        var random = new Random();
-        var locations = new[] { "Main Hall", "Side Entrance", "Back Office", "Lobby", "Service Area" };
-
-        foreach (var branch in totlebranch){
-
+        foreach (var branch in totlebranch)
+        {
             string status;
             string statusText;
-            string uptime;
-            string lastUpdate;
 
-            if(branch.BranchActiveStatus == 1)
+            if (branch.TerminalActiveStatus == TerminalActive.TERMINAL_ONLINE)
             {
                 status = "online";
                 statusText = "Online";
-
-
-            }else if(branch.BranchActiveStatus == 0)
+            }
+            else if (branch.TerminalActiveStatus == TerminalActive.TERMINAL_OFFLINE)
             {
                 status = "offline";
                 statusText = "Offline";
-
-
+            }
+            else if (branch.TerminalActiveStatus == TerminalActive.TERMINAL_DEACTIVE)
+            {
+                status = "deactive";
+                statusText = "Deactivated";
+            }
+            else if (branch.TerminalActiveStatus == TerminalActive.TERMINAL_NOT_VERIFY)
+            {
+                status = "notverify";
+                statusText = "Not Verified";
             }
             else
             {
-                status = "warning";
-                statusText = "Warning";
-
+                status = "undefined";
+                statusText = "Undefined";
             }
-
-            uptime = "foj";
-            lastUpdate = "sfdgk";
 
             kiosks.Add(new KioskData
             {
-                Number = 1,
+                Number = branch.Id,
+                BranchCode = branch.BranchId,
+                TerminalId = branch.TerminalId,
                 Status = status,
                 StatusText = statusText,
                 Branch = branch.BranchName,
                 Location = branch.Location,
-                Uptime = uptime,
-                LastUpdate = lastUpdate,
-                branchDto = branch
+                Uptime = "N/A",
+                LastUpdate = "N/A",
+                branchDto = branch,
             });
-
         }
-
-
-
         return kiosks;
     }
 
-    public async Task<List<Branch>?> GetAllBranchesAsync(string baseUrl, string jwtToken)
+    public async Task<List<SelectBranchDto>?> GetAllBranchesAsync(string baseUrl, string jwtToken)
     {
         try
         {
+            var url = $"api/Branch/getAllBranch?" +
+                      $"PageNumber={currentPageNumber}&" +
+                      $"PageSize={pageSize}&" +
+                      $"Search={Uri.EscapeDataString(searchText ?? string.Empty)}&" +
+                      $"Status={selectedStatus}";
+
             using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
 
-            var response = await client.GetAsync("api/Branch/getAllBranch");
-
-            var result = await response.Content.ReadFromJsonAsync<APIResponseCoustomizeList<Branch,int>>();
+            var response = await client.GetAsync(url);
+            var result = await response.Content.ReadFromJsonAsync<APIResponseCoustomizeList<SelectBranchDto, int>>();
 
             if (response.IsSuccessStatusCode)
             {
-
                 if (result != null && result.StatusCode == 2 && result.Status == true)
                 {
                     totalKiosks = result.Value;
                     return result.ValueList;
                 }
             }
-            else if ( response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
             {
                 if (result != null && result.StatusCode == 1 && result.Status == false)
                 {
-                    AlertService.ShowError("Login Failed", $"{result.Message}. Please try again.");
+                    AlertService.ShowError("Error", $"{result.Message}");
                     return null;
-
                 }
-                else
+                else if (result != null && result.StatusCode == 0 && result.Status == false)
                 {
-                    if (result != null && result.StatusCode == 0 && result.Status == false)
-                    {
-                        AlertService.ShowError($"Login Error", $"{result.Message}. Please try again.");
-                        Console.WriteLine($"Unexpected response: {response.StatusCode}");
-                        return null;
-                    }
+                    AlertService.ShowError("Error", $"{result.Message}");
+                    Console.WriteLine($"Unexpected response: {response.StatusCode}");
+                    return null;
                 }
             }
-
 
             return null;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Exception: {ex.Message}");
+            AlertService.ShowError("Error", $"API call failed: {ex.Message}");
             return null;
         }
     }
 
-    // login Branch
-    private async Task LoginInBranch(Branch branch)
+    // Handle Enter key press in search
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await OnSearchAsync();
+        }
+    }
 
+    // Event Handlers
+    private async Task OnSearchAsync()
+    {
+        currentPageNumber = 1;
+        await LoadBranchesAsync();
+    }
+
+    private async Task ClearSearchAsync()
+    {
+        searchText = string.Empty;
+        selectedStatus = string.Empty;
+        currentPageNumber = 1;
+        await LoadBranchesAsync();
+    }
+
+  
+    private string SelectedStatusText = "All Status";
+
+    private async Task OnStatusSelected(TerminalActive? status)
+    {
+        selectedStatus = status.ToString() ?? string.Empty;
+        await LoadBranchesAsync();
+        ;
+    }
+
+
+    private async Task OnPageChangedAsync(int newPageNumber)
+    {
+        if (newPageNumber < 1 || newPageNumber > totalPages)
+            return;
+
+        currentPageNumber = newPageNumber;
+        await LoadBranchesAsync();
+
+        await JS.InvokeVoidAsync("window.scrollTo", 0, 0);
+    }
+
+    private Dropdown? pageSizeDropdown;
+
+    private async Task OnPageSizeSelected(int newSize)
+    {
+        pageSize = newSize;
+        currentPageNumber = 1;
+
+        await LoadBranchesAsync();
+        await pageSizeDropdown!.HideAsync();
+    }
+
+    private int GetStartPage()
+    {
+        int startPage = Math.Max(1, currentPageNumber - 2);
+        int endPage = Math.Min(totalPages, startPage + 4);
+
+        if (endPage - startPage < 4)
+        {
+            startPage = Math.Max(1, endPage - 4);
+        }
+
+        return startPage;
+    }
+
+    private int GetEndPage()
+    {
+        int startPage = GetStartPage();
+        return Math.Min(totalPages, startPage + 4);
+    }
+
+    private async Task LoginInBranch(SelectBranchDto branch)
     {
         try
         {
             if (JWTToken != null)
             {
-
                 using var client = new HttpClient();
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", JWTToken);
+
                 var response = await client.PostAsJsonAsync($"{Settings.MainApiBaseUrl}api/Branch/LoginBranch",
-               new { branch.Id, branch.BranchId });
+                    new { branch.Id, branch.TerminalId });
 
                 var result = await response.Content.ReadFromJsonAsync<APIResponseSingleValue>();
 
                 if (response.IsSuccessStatusCode)
                 {
-
-                    if (result != null || result.StatusCode == 2 || result.Status == true)
+                    if (result != null && result.StatusCode == 2 && result.Status == true)
                     {
                         await JS.InvokeVoidAsync("localStorage.setItem", "branchToken", result.Value);
                         Navigation.NavigateTo("/branchDashbord");
@@ -296,107 +484,191 @@
                 }
                 else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
                 {
-                    if (result != null || result.StatusCode == 1 || result.Status == false)
+                    if (result != null && result.Status == false)
                     {
-                        AlertService.ShowError("Login Failed", $"{result.Message}. Please try again.");
-
-                    }
-                    else
-                    {
-                        if (result != null || result.StatusCode == 0 || result.Status == false)
-                        {
-                            AlertService.ShowError($"Login Error", $"{result.Message}. Please try again.");
-                            Console.WriteLine($"Unexpected response: {response.StatusCode}");
-                        }
+                        AlertService.ShowError("Login Failed", $"{result.Message}");
                     }
                 }
             }
             else
             {
-                AlertService.ShowError($"Login Error", $"Token is Not Found. Please try again.");
-                Console.WriteLine($"Unexpected response: Token is Not Found");
+                AlertService.ShowError("Login Error", "Token not found. Please login again.");
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Exception: {ex.Message}");
+            AlertService.ShowError("Error", $"Login failed: {ex.Message}");
         }
-
-
     }
 
 
-    
-   
-
-    private List<KioskData> GetPagedKiosks()
-    {
-        // Calculate skip and take for current page
-        int skip = (currentPageNumber - 1) * pageSize;
-        return allKiosks.Skip(skip).Take(pageSize).ToList();
-    }
-
-    private async Task OnPageChangedAsync(int newPageNumber)
-    {
-        currentPageNumber = newPageNumber;
-
-        // Optional: Scroll to top of kiosks section
-        // await JSRuntime.InvokeVoidAsync("scrollToTop");
-
-        StateHasChanged();
-    }
-
-  
-
-    private void RestartKiosk(int kioskNumber)
-    {
-        Console.WriteLine($"Restarting Kiosk #{kioskNumber}");
-        // TODO: Implement restart functionality
-    }
-
-    private void OpenSettings(int kioskNumber)
-    {
-        Console.WriteLine($"Opening settings for Kiosk #{kioskNumber}");
-        // TODO: Implement settings
-    }
-
-    // Kiosk data model
-    public class KioskData
-    {
-        public int Number { get; set; }
-        public string Status { get; set; } = string.Empty;
-        public string StatusText { get; set; } = string.Empty;
-        public string Branch { get; set; } = string.Empty;
-        public string Location { get; set; } = string.Empty;
-        public string Uptime { get; set; } = string.Empty;
-        public string LastUpdate { get; set; } = string.Empty;
-        public Branch branchDto { get; set; }
-        
-    }
-
-
-
-    public class Branch
-    {
-        public int Id { get; set; }
-        public string BranchId { get; set; }
-        public string BranchName { get; set; }
-        public string Location { get; set; }
-        public int BranchActiveStatus { get; set; }
-        public string KioskID { get; set; }
-        public string KioskVersion { get; set; }
-        public string KioskSeriNumber { get; set; }
-        public string KioskName { get; set; }
-        public string? KisokSessionKey { get; set; }
-    }
 }
 
-<style>
-    .page-info-text {
-        margin-top: 16px;
-        text-align: center;
-        color: #999;
-        font-size: 14px;
-        font-weight: 500;
+        <style>
+                /* Dropdown Styles */
+    .dropdown-container {
+        position: relative;
+        margin-left: 12px;
     }
-</style>
+
+    .dropdown-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid #3e3e3f;
+        border-radius: 6px;
+        color: white;
+        /* font-size: 13px; */
+        cursor: pointer;
+        transition: all 0.3s ease;
+        white-space: nowrap;
+    }
+
+        .dropdown-btn:hover {
+            background: rgba(149, 62, 63, 0.2);
+            border-color: #953e3f;
+            color: white;
+        }
+
+        .dropdown-btn svg {
+            color: #999;
+            transition: transform 0.3s ease;
+        }
+
+        .dropdown-btn:hover svg {
+            color: #953e3f;
+        }
+
+    .dropdown-menu {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0;
+        min-width: 240px;
+        background: #2a2a2b;
+        border: 1px solid #3e3e3f;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        overflow: hidden;
+        animation: dropdownSlide 0.2s ease;
+    }
+
+    @@keyframes dropdownSlide {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(35px);
+        }
+    }
+
+    .dropdown-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+        color: #ffffff;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border-bottom: 1px solid #3e3e3f;
+    }
+
+        .dropdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .dropdown-item:hover {
+            background: rgba(149, 62, 63, 0.2);
+        }
+
+        .dropdown-item.active {
+            background: rgba(149, 62, 63, 0.3);
+        }
+
+            .dropdown-item.active .item-title {
+                color: #953e3f;
+            }
+
+        .dropdown-item > svg {
+            color: #666;
+            flex-shrink: 0;
+        }
+
+        .dropdown-item.active > svg {
+            color: #953e3f;
+        }
+
+    .dropdown-item-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .item-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: #ffffff;
+    }
+
+    .item-subtitle {
+        font-size: 11px;
+        color: #666;
+    }
+
+    .check-icon {
+        color: #953e3f;
+        flex-shrink: 0;
+    }
+
+
+    /* Input Styles */
+
+    .input-wrapper {
+        position: relative;
+    }
+
+    .field-input {
+        width: 100%;
+        padding: 12px 20px;
+        background: rgba(0, 0, 0, 0.4);
+        border: 2px solid rgba(100, 98, 100, 0.3);
+        border-radius: 12px;
+        color: #ffffff;
+        font-size: 15px;
+        transition: all 0.3s ease;
+    }
+
+        .field-input:focus {
+            outline: none;
+            background: rgba(0, 0, 0, 0.5);
+            border-color: #953e3f;
+        }
+
+        .field-input::placeholder {
+            color: #666;
+        }
+
+    .input-glow {
+        position: absolute;
+        inset: -2px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #953e3f, #646264);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        z-index: -1;
+        filter: blur(8px);
+    }
+
+    .field-input:focus + .input-glow {
+        opacity: 0.4;
+    }
+
+
+        </style>

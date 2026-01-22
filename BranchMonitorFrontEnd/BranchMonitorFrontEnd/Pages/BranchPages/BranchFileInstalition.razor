@@ -374,7 +374,7 @@
             var branch = await getBranchDetails();
 
             _hubConnection = new HubConnectionBuilder()
-                .WithUrl($"{Settings.MainApiBaseUrl}branchHub?branchId={branch.BranchCode}&userId={user.UserId}")
+                .WithUrl($"{Settings.MainApiBaseUrl}branchHub?branchId={branch.terminalId}&userId={user.UserId}")
                 .WithAutomaticReconnect(new[] { TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10) })
                 .Build();
 

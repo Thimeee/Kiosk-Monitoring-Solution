@@ -4,6 +4,8 @@ using Microsoft.Extensions.Logging;
 
 namespace MonitoringBackend.SRHub
 {
+
+    //////////////////////////////Remeber This branchId repersent to TerminalId///////////////////////////////////////
     public class BranchHub : Hub
     {
         private static readonly ConcurrentDictionary<string, (string BranchId, string UserId, DateTime ConnectedAt)> ConnectionMap = new();
@@ -53,7 +55,7 @@ namespace MonitoringBackend.SRHub
             string branchId = http?.Request.Query["branchId"].ToString();
             string userId = http?.Request.Query["userId"].ToString();
 
-         
+
             if (!string.IsNullOrWhiteSpace(branchId))
             {
                 // Add to groups
@@ -61,7 +63,7 @@ namespace MonitoringBackend.SRHub
                 BranchConnectionCount.AddOrUpdate(branchId, 1, (key, count) => count + 1);
             }
 
-        
+
             if (!string.IsNullOrWhiteSpace(userId))
             {
                 await Groups.AddToGroupAsync(Context.ConnectionId, UserGroup(userId));

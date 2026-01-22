@@ -78,11 +78,11 @@ namespace BranchMonitorFrontEnd.Service.Auth
                     // Optional: check expiry
                     if (jwt.ValidTo > DateTime.UtcNow)
                     {
-                        var branchCode = jwt.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value;
+                        var terminalId = jwt.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value;
                         var branchId = jwt.Claims.FirstOrDefault(c => c.Type == "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier")?.Value;
 
                         respone.BranchID = branchId;
-                        respone.BranchCode = branchCode;
+                        respone.terminalId = terminalId;
                         respone.status = true;
                     }
                     else

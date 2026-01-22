@@ -458,7 +458,7 @@
 
             // string branchId = "BRANCH001";
             _hubConnection = new HubConnectionBuilder()
-         .WithUrl(Settings.MainApiBaseUrl + $"branchHub?branchId={branchId.BranchCode}&userId={user.UserId}") // use your API URL
+         .WithUrl(Settings.MainApiBaseUrl + $"branchHub?branchId={branchId.terminalId}&userId={user.UserId}") // use your API URL
          // .WithAutomaticReconnect()
          .Build();
 
@@ -911,7 +911,7 @@
             {
                 Path = path,
                 UserId = user.UserId,
-                BranchId = branchId.BranchCode
+                BranchId = branchId.terminalId
             };
             using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
@@ -1333,7 +1333,7 @@
                         if (user == null)
                             user = await getUserDetails();
 
-                        if (await TransferToServerAsync(Settings.MainApiBaseUrl, SelectedFile, token, branchId.BranchCode, branchId.BranchID, user.UserId, "branch"))
+                        if (await TransferToServerAsync(Settings.MainApiBaseUrl, SelectedFile, token, branchId.terminalId, branchId.BranchID, user.UserId, "branch"))
                         {
                             isTransferring = true;
 
@@ -1379,7 +1379,7 @@
                         if (user == null)
                             user = await getUserDetails();
 
-                        if (await TransferToServerAsync(Settings.MainApiBaseUrl, SelectedFile, token, branchId.BranchCode,branchId.BranchID, user.UserId,"server"))
+                        if (await TransferToServerAsync(Settings.MainApiBaseUrl, SelectedFile, token, branchId.terminalId, branchId.BranchID, user.UserId, "server"))
                         {
                             isTransferring = true;
 
@@ -1516,7 +1516,7 @@
                 if (user == null)
                     user = await getUserDetails();
 
-                if (await DeleteFileServerAndBarnch(Settings.MainApiBaseUrl, fullpath, token, branchId.BranchCode,branchId.BranchID, user.UserId, isServer))
+                if (await DeleteFileServerAndBarnch(Settings.MainApiBaseUrl, fullpath, token, branchId.terminalId, branchId.BranchID, user.UserId, isServer))
                 {
                     isTransferring = true;
 

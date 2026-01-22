@@ -829,6 +829,399 @@ namespace MonitoringBackend.Controllers
         }
 
 
+        [HttpGet("getSelectedPatchAllDetailsForAllBranch")]
+        public async Task<IActionResult> getSelectedPatchAllDetailsForAllBranch([FromQuery] int patchId)
+        {
+            var responseDTO = new APIResponseObjectValue<SelectedPatch>();
+            try
+            {
+                var patch = await _db.NewPatches
+                    .Where(p => p.PatchProcessLevel == 3 && p.PId == patchId)
+                    .OrderByDescending(p => p.PId)
+                    .Select(p => new SelectedPatch
+                    {
+                        PId = p.PId,
+                        PatchVersion = p.PatchVersion,
+                        PatchZipName = p.PatchZipName,
+                        CreateDate = p.CreateDate,
+                        Remark = p.Remark,
+                        PatchZipPath = p.PatchZipPath,
+                        PatchType = p.PatchType.PatchTypeName
+                    })
+                    .FirstOrDefaultAsync();
+
+                responseDTO.Status = true;
+                responseDTO.StatusCode = 2;
+                responseDTO.Message = "Operation success";
+                responseDTO.Value = patch;
+
+                return Ok(responseDTO);
+            }
+            catch (Exception ex)
+            {
+                responseDTO.Status = false;
+                responseDTO.StatusCode = 0;
+                responseDTO.Message = "Error fetching patch";
+                responseDTO.Ex = ex.Message;
+                return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
+            }
+        }
+
+
+        [HttpPost("PatchdeployAllBranches")]
+        public async Task<IActionResult> PatchdeployAllBranches(APIRequestObject<AllBranchPatchRequest> obj)
+        {
+            var responseDTO = new APIResponseObjectValue<AllBranchPatchResponse>();
+
+            try
+            {
+                // Validate request
+                if (obj?.ReqValue == null || obj.ReqValue.BranchIds == null || !obj.ReqValue.BranchIds.Any())
+                {
+                    responseDTO.Status = false;
+                    responseDTO.StatusCode = 1;
+                    responseDTO.Message = "Invalid patch request. Branch IDs are required.";
+                    return BadRequest(responseDTO);
+                }
+
+                // Get user ID from token or request
+                var userIdFromToken = User.FindFirstValue(ClaimTypes.Email);
+                var userId = !string.IsNullOrEmpty(userIdFromToken) ? userIdFromToken : obj.ReqValue.UserId;
+
+                if (string.IsNullOrEmpty(userId))
+                {
+                    responseDTO.Status = false;
+                    responseDTO.StatusCode = 1;
+                    responseDTO.Message = "User ID is required.";
+                    return BadRequest(responseDTO);
+                }
+
+                // Generate main job ID
+                var jobId = new CreateUniqId().GenarateUniqID(new List<string> { userId, DateTime.Now.Ticks.ToString() });
+
+                // Get patch details
+                var patch = await _db.NewPatches
+                    .Where(p => p.PatchProcessLevel == 3 && p.PId == obj.ReqValue.PatchId)
+                    .Select(p => new
+                    {
+                        p.PId,
+                        p.PatchVersion,
+                        p.PatchZipName,
+                        p.PatchZipPath,
+                        PTId = p.PTId,
+                        p.ServerSendChunks
+                    })
+                    .FirstOrDefaultAsync();
+
+                if (patch == null)
+                {
+                    responseDTO.Status = false;
+                    responseDTO.StatusCode = 1;
+                    responseDTO.Message = "Patch not found or not ready for deployment.";
+                    return BadRequest(responseDTO);
+                }
+
+                // Get all selected branches that are online
+                var branches = await _db.Branches
+                    .Where(b => obj.ReqValue.BranchIds.Contains(b.Id))
+                    .Where(b => b.TerminalActiveStatus == TerminalActive.TERMINAL_ONLINE)
+                    .Select(b => new
+                    {
+                        b.Id,
+                        b.BranchId,
+                        b.BranchName,
+                        b.TerminalId,
+                        b.Location
+                    })
+                    .ToListAsync();
+
+                if (!branches.Any())
+                {
+                    responseDTO.Status = false;
+                    responseDTO.StatusCode = 1;
+                    responseDTO.Message = "No active branches found for deployment.";
+                    return BadRequest(responseDTO);
+                }
+
+                // Calculate checksum for the patch
+                var zipPath = Path.Combine(patch.PatchZipPath, $"{patch.PatchZipName}.zip");
+
+                if (!System.IO.File.Exists(zipPath))
+                {
+                    responseDTO.Status = false;
+                    responseDTO.StatusCode = 1;
+                    responseDTO.Message = $"Patch file not found at: {zipPath}";
+                    return BadRequest(responseDTO);
+                }
+
+                var checksum = await GetChecksumAsync(zipPath);
+
+                // Create main job log
+                var mainJob = new Job
+                {
+                    UserId = userId,
+                    JTId = 2, // Patch deployment job type
+                    JobUId = jobId,
+                    JobMainStatus = 1,
+                    JobDate = DateTime.Now,
+                    JobStartTime = DateTime.Now,
+                    JSId = 1, // Started status
+                    JobName = $"Multi-branch patch deployment: '{patch.PatchZipName}' to {branches.Count} branch(es)",
+                    JobMassage = "Patch deployment started for multiple branches.",
+                    JobActive = 1
+                };
+
+                _db.Jobs.Add(mainJob);
+                await _db.SaveChangesAsync();
+
+                // Track deployment results
+                var deploymentResults = new List<BranchDeploymentResult>();
+                var successCount = 0;
+                var failedCount = 0;
+                var skippedCount = 0;
+
+                // Deploy to each branch
+                foreach (var branch in branches)
+                {
+                    try
+                    {
+                        // Generate unique job ID for this branch
+                        var branchJobId = new CreateUniqId().GenarateUniqID(new List<string> { jobId, branch.Id.ToString() });
+
+                        // Check if branch already has this patch successfully deployed
+                        var existingEnrollment = await _db.PatchAssignBranchs
+                            .Where(p => p.Id == branch.Id && p.PId == patch.PId)
+                            .OrderByDescending(p => p.PAB)
+                            .FirstOrDefaultAsync();
+
+                        PatchAssignBranch enrollment;
+
+                        // Skip if already successfully deployed
+                        if (existingEnrollment != null && existingEnrollment.Status == PatchStatus.SUCCESS)
+                        {
+                            deploymentResults.Add(new BranchDeploymentResult
+                            {
+                                BranchId = branch.Id,
+                                BranchCode = branch.BranchId,
+                                BranchName = branch.BranchName,
+                                Status = "Skipped",
+                                Message = "Branch already has this patch successfully deployed"
+                            });
+                            skippedCount++;
+                            continue;
+                        }
+
+                        // Create or update enrollment
+                        if (existingEnrollment == null)
+                        {
+                            enrollment = new PatchAssignBranch
+                            {
+                                Id = branch.Id,
+                                PId = patch.PId,
+                                Status = PatchStatus.INIT,
+                                ProcessLevel = PatchStep.START,
+                                StartTime = DateTime.Now,
+                                JobUId = branchJobId,
+                                SendChunksBranch = checksum,
+                                AttemptSteps = 0,
+                                Message = "Deployment initialized"
+                            };
+                            _db.PatchAssignBranchs.Add(enrollment);
+                        }
+                        else
+                        {
+                            // Retry deployment
+                            existingEnrollment.Status = existingEnrollment.AttemptSteps >= 3
+                                ? PatchStatus.INIT
+                                : PatchStatus.RESTART;
+                            existingEnrollment.ProcessLevel = existingEnrollment.AttemptSteps >= 3
+                                ? PatchStep.START
+                                : PatchStep.RESTART;
+                            existingEnrollment.JobUId = branchJobId;
+                            existingEnrollment.SendChunksBranch = checksum;
+                            existingEnrollment.StartTime = DateTime.Now;
+                            existingEnrollment.AttemptSteps++;
+                            existingEnrollment.Message = existingEnrollment.AttemptSteps >= 3
+                                ? "Deployment restarted from beginning"
+                                : "Deployment resumed";
+
+                            enrollment = existingEnrollment;
+                        }
+
+                        // Create job assignment for this branch
+                        var jobAssignment = new JobAssignBranch
+                        {
+                            Id = branch.Id,
+                            JId = mainJob.JId,
+                            IsPatch = true,
+                            ProcessLevel = 1
+                        };
+                        _db.jobAssignBranches.Add(jobAssignment);
+
+                        await _db.SaveChangesAsync();
+
+                        // Prepare MQTT payload
+                        var payload = new PatchDeploymentMqttRequest
+                        {
+                            UserId = userId,
+                            PatchId = patch.PId.ToString(),
+                            PatchZipPath = zipPath,
+                            ExpectedChecksum = checksum,
+                            Status = enrollment.Status,
+                            PatchRequestType = PatchRequestType.ALL_BRANCH_PATCH,
+                            Step = enrollment.ProcessLevel,
+                            JobId = branchJobId
+                        };
+
+                        // Publish to MQTT based on patch type
+                        var topic = $"branch/{branch.TerminalId}/PATCH/Application";
+
+                        if (patch.PTId == 1) // Application patch
+                        {
+                            await _mqtt.PublishToServer(
+                                payload,
+                                topic,
+                                MqttQualityOfServiceLevel.ExactlyOnce
+                            );
+                        }
+                        else
+                        {
+                            // Handle other patch types if needed
+                            Console.WriteLine($"Patch type {patch.PTId} deployment not yet implemented");
+                        }
+
+                        // Add successful result
+                        deploymentResults.Add(new BranchDeploymentResult
+                        {
+                            BranchId = branch.Id,
+                            BranchCode = branch.BranchId,
+                            BranchName = branch.BranchName,
+                            Status = "Initiated",
+                            Message = "Patch deployment request sent successfully"
+                        });
+
+                        successCount++;
+
+                        // Log success
+                        Console.WriteLine($"✓ Deployed patch to branch: {branch.BranchName} ({branch.BranchId})");
+                    }
+                    catch (Exception branchEx)
+                    {
+                        // Log branch-specific failure
+                        Console.WriteLine($"✗ Failed to deploy to branch {branch.BranchId}: {branchEx.Message}");
+
+                        deploymentResults.Add(new BranchDeploymentResult
+                        {
+                            BranchId = branch.Id,
+                            BranchCode = branch.BranchId,
+                            BranchName = branch.BranchName,
+                            Status = "Failed",
+                            Message = $"Deployment initiation failed: {branchEx.Message}"
+                        });
+
+                        failedCount++;
+                    }
+                }
+
+                // Update main job with summary
+                mainJob.JobMassage = $"Deployment initiated - Success: {successCount}, Failed: {failedCount}, Skipped: {skippedCount}";
+
+                if (failedCount > 0 && successCount == 0)
+                {
+                    mainJob.JSId = 4; // All failed
+                    mainJob.JobMainStatus = 2; // Error
+                    mainJob.JobActive = 0;
+                    mainJob.JobEndTime = DateTime.Now;
+                }
+                else if (successCount > 0)
+                {
+                    mainJob.JSId = 2; // In progress
+                    mainJob.JobMainStatus = 1; // Running
+                }
+
+                await _db.SaveChangesAsync();
+
+                // Prepare response
+                var totalRequested = obj.ReqValue.BranchIds.Count;
+                var offlineCount = totalRequested - branches.Count;
+
+                responseDTO.Status = true;
+                responseDTO.StatusCode = 2;
+                responseDTO.Message = successCount > 0
+                    ? "Multi-branch deployment initiated successfully"
+                    : "Deployment failed for all branches";
+
+                responseDTO.Value = new AllBranchPatchResponse
+                {
+                    JobId = jobId,
+                    PatchId = patch.PId,
+                    PatchName = patch.PatchZipName,
+                    PatchVersion = patch.PatchVersion,
+                    TotalBranches = branches.Count,
+                    TotalRequested = totalRequested,
+                    OfflineBranches = offlineCount,
+                    SuccessfulInitiations = successCount,
+                    FailedInitiations = failedCount,
+                    SkippedInitiations = skippedCount,
+                    DeploymentResults = deploymentResults
+                };
+
+                return Ok(responseDTO);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Multi-branch deployment error: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+
+                responseDTO.Status = false;
+                responseDTO.StatusCode = 0;
+                responseDTO.Message = "Multi-branch patch deployment failed";
+                responseDTO.Ex = ex.Message;
+                return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
+            }
+        }
+        public class AllBranchPatchResponse
+        {
+            public string JobId { get; set; } = string.Empty;
+            public int PatchId { get; set; }
+            public string PatchName { get; set; } = string.Empty;
+            public string PatchVersion { get; set; } = string.Empty;
+            public int TotalBranches { get; set; }
+            public int TotalRequested { get; set; }
+            public int OfflineBranches { get; set; }
+            public int SuccessfulInitiations { get; set; }
+            public int FailedInitiations { get; set; }
+            public int SkippedInitiations { get; set; }
+            public List<BranchDeploymentResult> DeploymentResults { get; set; } = new List<BranchDeploymentResult>();
+        }
+        // Deployment result per branch
+        public class BranchDeploymentResult
+        {
+            public int BranchId { get; set; }
+            public string BranchCode { get; set; } = string.Empty;
+            public string BranchName { get; set; } = string.Empty;
+            public string Status { get; set; } = string.Empty; // Initiated, Failed, Skipped
+            public string Message { get; set; } = string.Empty;
+        }
+
+        public class PatchDeploymentMqttRequest
+        {
+            public string UserId { get; set; } = string.Empty;
+            public string PatchId { get; set; } = string.Empty;
+            public string PatchZipPath { get; set; } = string.Empty;
+            public string ExpectedChecksum { get; set; } = string.Empty;
+            public PatchStatus? Status { get; set; }
+            public PatchRequestType? PatchRequestType { get; set; }
+            public PatchStep? Step { get; set; }
+            public string JobId { get; set; } = string.Empty;
+        }
+
+        public class AllBranchPatchRequest
+        {
+            public int PatchId { get; set; }
+            public List<int> BranchIds { get; set; } = new List<int>();
+            public string UserId { get; set; } = string.Empty;
+        }
 
     }
 

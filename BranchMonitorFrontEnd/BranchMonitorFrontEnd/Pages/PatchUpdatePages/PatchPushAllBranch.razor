@@ -1,0 +1,1314 @@
+﻿@page "/patchupdate/patch-update-all-Branch"
+@using Microsoft.AspNetCore.SignalR.Client
+@using Monitoring.Shared.DTO
+@using System.Net.Http.Headers
+@using System.Net
+@using Monitoring.Shared.DTO.BranchDto
+@using Monitoring.Shared.DTO.PatchsDto
+@using Monitoring.Shared.Enum
+@using Monitoring.Shared.Models
+@using static Monitoring.Shared.DTO.PatchsDto.SelectedPatch
+@inject NavigationManager Navigation
+@layout NavbarLayout
+@inject IJSRuntime JSRuntime
+@inject AlertService AlertService
+@inject AppSettings Settings
+@inject AuthCredential _auth
+@inject IJSRuntime JS
+
+<div class="Main-wrapper">
+    <main class="Main-content">
+        <section class="Main-section mt-4">
+            <div class="patch-content d-flex flex-column">
+                <div class="row">
+                    <!-- Left Panel - Patch Selection -->
+                    <div class="col-6 d-flex flex-row">
+                        <div class="patch-options col-12">
+                            <div class="row">
+                                <!-- Patch Type & Version Selection -->
+                                <div class="col-12">
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <Dropdown Size="DropdownSize.Large" Class="dropdown-btn">
+                                                <DropdownToggleButton Class="text-white">
+                                                    @selectedPatchTypeName
+                                                </DropdownToggleButton>
+                                                <DropdownMenu>
+                                                    @if (PatchTypeList != null && PatchTypeList.Any())
+                                                    {
+                                                        @foreach (var item in PatchTypeList)
+                                                        {
+                                                            <DropdownItem Type="DropdownItemType.Link" @onclick="() => OnPatchTypeSelected(item)">
+                                                                @item.Name
+                                                            </DropdownItem>
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted p-2">Loading...</span>
+                                                    }
+                                                </DropdownMenu>
+                                            </Dropdown>
+                                        </div>
+
+                                        <div class="col-6">
+                                            <Dropdown Size="DropdownSize.Large" Class="dropdown-btn" Disabled="@(SelectedPatchList == null || !SelectedPatchList.Any())">
+                                                <DropdownToggleButton Class="text-white">
+                                                    @selectedPatchName
+                                                </DropdownToggleButton>
+                                                <DropdownMenu>
+                                                    @if (SelectedPatchList != null && SelectedPatchList.Any())
+                                                    {
+                                                        @foreach (var item in SelectedPatchList)
+                                                        {
+                                                            <DropdownItem Type="DropdownItemType.Link" @onclick="() => OnPatchsSelected(item)">
+                                                                @item.Name
+                                                            </DropdownItem>
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted p-2">Select a type first</span>
+                                                    }
+                                                </DropdownMenu>
+                                            </Dropdown>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Patch Details Card -->
+                                <div class="col-12 mt-3">
+                                    @if (IsLoadingPatch)
+                                    {
+                                        <div class="loading-patch-card">
+                                            <Loder Height="40px" width="40px" />
+                                            <span class="text-muted mt-3">Loading patch details...</span>
+                                        </div>
+                                    }
+                                    else if (SelectPatch == null)
+                                    {
+                                        <div class="empty-patch-card">
+                                            <svg width="50px" height="50px" viewBox="0 0 24 24" fill="none">
+                                                <path d="M13 3H7C5.89543 3 5 3.89543 5 5V10M13 3L19 9M13 3V8C13 8.55228 13.4477 9 14 9H19M19 9V19C19 20.1046 18.1046 21 17 21H10C7.79086 21 6 19.2091 6 17V17C6 14.7909 7.79086 13 10 13H13M13 13L10 10M13 13L10 16"
+                                                      stroke="rgba(76, 175, 80, 0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                            </svg>
+                                            <span class="text-muted mt-3">Select a patch to view details</span>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="patch-detail-card">
+                                            <div class="patch-detail-header">
+                                                <svg width="40px" height="40px" viewBox="0 0 24 24" fill="none">
+                                                    <path d="M13 3H7C5.89543 3 5 3.89543 5 5V10M13 3L19 9M13 3V8C13 8.55228 13.4477 9 14 9H19M19 9V19C19 20.1046 18.1046 21 17 21H10C7.79086 21 6 19.2091 6 17V17C6 14.7909 7.79086 13 10 13H13M13 13L10 10M13 13L10 16"
+                                                          stroke="rgba(76, 175, 80, 0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                                </svg>
+                                                <div>
+                                                    <h3>@SelectPatch.PatchVersion</h3>
+                                                    <span class="version-label">Version</span>
+                                                </div>
+                                            </div>
+
+                                            <div class="patch-detail-body">
+                                                <div class="detail-row">
+                                                    <span class="detail-label">Patch Type:</span>
+                                                    <span class="detail-value">@SelectPatch.PatchType</span>
+                                                </div>
+                                                <div class="detail-row">
+                                                    <span class="detail-label">Patch Name:</span>
+                                                    <span class="detail-value">@SelectPatch.PatchZipName</span>
+                                                </div>
+                                                <div class="detail-row">
+                                                    <span class="detail-label">Zip File Path:</span>
+                                                    <span class="detail-value path-value">@($"{SelectPatch.PatchZipPath}\\{SelectPatch.PatchZipName}.zip")</span>
+                                                </div>
+                                                <div class="detail-row">
+                                                    <span class="detail-label">Date:</span>
+                                                    <span class="detail-value">@SelectPatch.CreateDate</span>
+                                                </div>
+                                                <div class="detail-row">
+                                                    <span class="detail-label">Remark:</span>
+                                                    <span class="detail-value">@(string.IsNullOrEmpty(SelectPatch.Remark) ? "No remarks" : SelectPatch.Remark)</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Panel - Branch Selection -->
+                    <div class="col-6 parent-panel">
+                        <div class="panel server-panel">
+                            <!-- Panel Header -->
+                            <div class="panel-header">
+                                <div class="header-content col-6">
+                                    <div class="icon-title">
+                                        <h2>Select Branches</h2>
+                                    </div>
+                                </div>
+                                <div class="panel-actions col-6">
+                                    <input type="text"
+                                           id="branch-search"
+                                           class="field-input text-white"
+                                           @bind="searchText"
+                                           @bind:event="oninput"
+                                           @onkeypress="HandleKeyPress"
+                                           placeholder="Search branches..." />
+                                </div>
+                            </div>
+
+                            <!-- Deployment Actions -->
+                            @if (BranchList != null && BranchList.Any())
+                            {
+                                <div class="deployment-actions">
+                                    <div class="selection-summary">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
+                                            <path d="M10.97 4.97a.235.235 0 0 0-.02.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05z" />
+                                        </svg>
+                                        <span>@SelectedBranches.Count of @BranchList.Count branch(es) selected</span>
+                                    </div>
+                                    <div class="action-buttons">
+                                        <button @onclick="SelectAllBranches" class="btn-select-action">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                                <path d="M12.354 4.354a.5.5 0 0 0-.708-.708L5 10.293 1.854 7.146a.5.5 0 1 0-.708.708l3.5 3.5a.5.5 0 0 0 .708 0l7-7zm-4.208 7-.896-.897.707-.707.543.543 6.646-6.647a.5.5 0 0 1 .708.708l-7 7a.5.5 0 0 1-.708 0z" />
+                                            </svg>
+                                            Select All
+                                        </button>
+                                        <button @onclick="DeselectAllBranches" class="btn-select-action">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                                <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z" />
+                                            </svg>
+                                            Deselect All
+                                        </button>
+                                        <button @onclick="DeployToSelectedBranches"
+                                                class="btn-deploy-all"
+                                                disabled="@(IsDeployingToAll || !SelectedBranches.Any() || SelectPatch == null)">
+                                            @if (IsDeployingToAll)
+                                            {
+                                                <Spinner Color="SpinnerColor.Light" Size="SpinnerSize.Small" />
+                                                <span class="ms-2">Deploying...</span>
+                                            }
+                                            else
+                                            {
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                                    <path d="M11.251.068a.5.5 0 0 1 .227.58L9.677 6.5H13a.5.5 0 0 1 .364.843l-8 8.5a.5.5 0 0 1-.842-.49L6.323 9.5H3a.5.5 0 0 1-.364-.843l8-8.5a.5.5 0 0 1 .615-.09z" />
+                                                </svg>
+                                                <span>Deploy to Selected (@SelectedBranches.Count)</span>
+                                            }
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+
+                            <!-- Branch List -->
+                            <div class="panel-body">
+                                @if (IsLoadingBranches)
+                                {
+                                    <div class="loading-container">
+                                        <Loder Height="50px" width="50px" />
+                                        <span class="text-muted mt-3">Loading branches...</span>
+                                    </div>
+                                }
+                                else if (BranchList == null || !BranchList.Any())
+                                {
+                                    <div class="empty-container">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" fill="currentColor" viewBox="0 0 16 16">
+                                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
+                                            <path d="M4.285 12.433a.5.5 0 0 0 .683-.183A3.498 3.498 0 0 1 8 10.5c1.295 0 2.426.703 3.032 1.75a.5.5 0 0 0 .866-.5A4.498 4.498 0 0 0 8 9.5a4.5 4.5 0 0 0-3.898 2.25.5.5 0 0 0 .183.683zM7 6.5C7 7.328 6.552 8 6 8s-1-.672-1-1.5S5.448 5 6 5s1 .672 1 1.5zm4 0c0 .828-.448 1.5-1 1.5s-1-.672-1-1.5S9.448 5 10 5s1 .672 1 1.5z" />
+                                        </svg>
+                                        <span class="text-muted mt-3">No branches found</span>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="file-tree">
+                                        @RenderAllBranch(BranchList)
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<AlertContainer />
+
+@code {
+    // ====== AUTHENTICATION & CONFIG ======
+    private string? JWTToken;
+
+    // ====== BRANCH DATA ======
+    private List<SelectBranchDto>? BranchList;
+    private List<SelectBranchDto> SelectedBranches = new();
+    private string searchText = string.Empty;
+    private bool IsLoadingBranches = false;
+
+    // ====== PATCH DATA ======
+    private List<SelectedAnyDropDownOrSamllData>? PatchTypeList;
+    private List<SelectedAnyDropDownOrSamllData>? SelectedPatchList;
+    private string selectedPatchTypeName = "Select Patch Type";
+    private string selectedPatchName = "First Select Update Type";
+    private SelectedPatch? SelectPatch;
+
+    // ====== UI STATE ======
+    private bool IsLoadingPatch { get; set; }
+    private bool IsDeployingToAll = false;
+
+    // ====== LIFECYCLE ======
+    protected override async Task OnInitializedAsync()
+    {
+        JWTToken = await GetJwtToken();
+
+        if (JWTToken != null)
+        {
+            await Task.WhenAll(
+                LoadBranchesAsync(),
+                getPatchesTypeAsync(Settings.MainApiBaseUrl, JWTToken)
+            );
+        }
+    }
+
+    // ====== BRANCH METHODS ======
+    private async Task LoadBranchesAsync()
+    {
+        IsLoadingBranches = true;
+        StateHasChanged();
+
+        try
+        {
+            if (Settings.MainApiBaseUrl != null && JWTToken != null)
+            {
+                var branchList = await getAllBranch($"{Settings.MainApiBaseUrl}", JWTToken);
+                if (branchList != null)
+                {
+                    BranchList = branchList;
+                    StateHasChanged();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception: {ex.Message}");
+            AlertService.ShowError("Error", $"Failed to load branches: {ex.Message}");
+        }
+        finally
+        {
+            IsLoadingBranches = false;
+            StateHasChanged();
+        }
+    }
+
+    private RenderFragment RenderAllBranch(List<SelectBranchDto> branch)
+    {
+        return builder =>
+        {
+            if (branch == null) return;
+
+            var sequence = 0;
+
+            foreach (var selectbranch in branch)
+            {
+                var isSelected = IsBranchSelected(selectbranch.Id);
+                var isOnline = selectbranch.TerminalActiveStatus == TerminalActive.TERMINAL_ONLINE;
+
+                // Main card container
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", $"branch-card {(isSelected ? "selected" : "")} {(!isOnline ? "disabled" : "")}");
+                builder.AddAttribute(sequence++, "onclick", EventCallback.Factory.Create(this, () => isOnline ? OnBranchClick(selectbranch) : Task.CompletedTask));
+
+                // Selection indicator
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-checkbox");
+                if (isOnline)
+                {
+                    if (isSelected)
+                    {
+                        builder.AddContent(sequence++, (MarkupString)@"
+                            <svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='currentColor' viewBox='0 0 16 16'>
+                                <path d='M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022Z'/>
+                            </svg>
+                        ");
+                    }
+                    else
+                    {
+                        builder.AddContent(sequence++, (MarkupString)@"
+                            <svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='currentColor' viewBox='0 0 16 16'>
+                                <path d='M14 1a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h12zM2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z'/>
+                            </svg>
+                        ");
+                    }
+                }
+                builder.CloseElement();
+
+                // Branch icon
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-icon");
+                builder.AddContent(sequence++, isOnline ? "🏢" : "🔒");
+                builder.CloseElement();
+
+                // Branch info container
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-info");
+
+                // Branch name
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-name");
+                builder.AddContent(sequence++, selectbranch.BranchName);
+                builder.CloseElement();
+
+                // Location
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-location");
+                builder.AddContent(sequence++, $"📍 {selectbranch.Location}");
+                builder.CloseElement();
+
+                builder.CloseElement(); // Close branch-info
+
+                // Branch details container
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-details");
+
+                // Terminal ID
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-detail-item");
+                builder.OpenElement(sequence++, "span");
+                builder.AddAttribute(sequence++, "class", "detail-label");
+                builder.AddContent(sequence++, "Terminal:");
+                builder.CloseElement();
+                builder.OpenElement(sequence++, "span");
+                builder.AddAttribute(sequence++, "class", "detail-value");
+                builder.AddContent(sequence++, selectbranch.TerminalId ?? "N/A");
+                builder.CloseElement();
+                builder.CloseElement();
+
+                // Branch ID
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-detail-item");
+                builder.OpenElement(sequence++, "span");
+                builder.AddAttribute(sequence++, "class", "detail-label");
+                builder.AddContent(sequence++, "Branch ID:");
+                builder.CloseElement();
+                builder.OpenElement(sequence++, "span");
+                builder.AddAttribute(sequence++, "class", "detail-value");
+                builder.AddContent(sequence++, selectbranch.BranchId);
+                builder.CloseElement();
+                builder.CloseElement();
+
+                // Status badge
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-detail-item");
+                builder.OpenElement(sequence++, "span");
+                builder.AddAttribute(sequence++, "class", $"status-badge {(isOnline ? "online" : "offline")}");
+                builder.AddContent(sequence++, isOnline ? "Online" : "Offline");
+                builder.CloseElement();
+                builder.CloseElement();
+
+                builder.CloseElement(); // Close branch-details
+
+                builder.CloseElement(); // Close branch-card
+            }
+        };
+    }
+
+    private async Task OnBranchClick(SelectBranchDto branch)
+    {
+        if (branch.TerminalActiveStatus != TerminalActive.TERMINAL_ONLINE)
+            return;
+
+        if (SelectedBranches.Any(b => b.Id == branch.Id))
+        {
+            SelectedBranches.RemoveAll(b => b.Id == branch.Id);
+        }
+        else
+        {
+            SelectedBranches.Add(branch);
+        }
+        StateHasChanged();
+    }
+
+    private bool IsBranchSelected(int? branchId)
+    {
+        return SelectedBranches.Any(b => b.Id == branchId);
+    }
+
+    private void SelectAllBranches()
+    {
+        if (BranchList != null)
+        {
+            SelectedBranches = BranchList
+                .Where(b => b.TerminalActiveStatus == TerminalActive.TERMINAL_ONLINE)
+                .ToList();
+            StateHasChanged();
+        }
+    }
+
+    private void DeselectAllBranches()
+    {
+        SelectedBranches.Clear();
+        StateHasChanged();
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await OnSearchAsync();
+        }
+    }
+
+    private async Task OnSearchAsync()
+    {
+        DeselectAllBranches();
+        await LoadBranchesAsync();
+    }
+
+    // ====== PATCH METHODS ======
+    private async Task OnPatchTypeSelected(SelectedAnyDropDownOrSamllData patchType)
+    {
+        selectedPatchTypeName = patchType.Name;
+        selectedPatchName = $"Select {patchType.Name}";
+        SelectedPatchList = null;
+        SelectPatch = null;
+
+        JWTToken ??= await GetJwtToken();
+
+        if (await getSelectedPatchesAsync(Settings.MainApiBaseUrl, JWTToken!, patchType.Id))
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnPatchsSelected(SelectedAnyDropDownOrSamllData patch)
+    {
+        IsLoadingPatch = true;
+        selectedPatchName = patch.Name;
+        StateHasChanged();
+
+        try
+        {
+            JWTToken ??= await GetJwtToken();
+
+            if (await getSelectedPatchAllAsync(Settings.MainApiBaseUrl, JWTToken!, patch.Id))
+            {
+                // Success
+            }
+        }
+        finally
+        {
+            IsLoadingPatch = false;
+            StateHasChanged();
+        }
+    }
+
+    // ====== DEPLOYMENT METHODS ======
+    private async Task DeployToSelectedBranches()
+    {
+        if (!SelectedBranches.Any())
+        {
+            AlertService.ShowWarning("No Branches Selected", "Please select at least one branch.");
+            return;
+        }
+
+        if (SelectPatch == null)
+        {
+            AlertService.ShowWarning("No Patch Selected", "Please select a patch first.");
+            return;
+        }
+
+        var confirmResult = await JS.InvokeAsync<bool>("confirm",
+            $"Deploy patch '{SelectPatch.PatchZipName}' to {SelectedBranches.Count} branch(es)?");
+
+        if (!confirmResult)
+            return;
+
+        IsDeployingToAll = true;
+        StateHasChanged();
+
+        try
+        {
+            JWTToken ??= await GetJwtToken();
+            var user = await getUserDetails();
+
+            var branchIds = SelectedBranches.Select(b => b.Id).ToList();
+
+            var obj = new APIRequestObject<AllBranchPatchRequest>
+            {
+                ReqValue = new AllBranchPatchRequest
+                {
+                    PatchId = SelectPatch.PId,
+                    BranchIds = branchIds,
+                    UserId = user.UserId
+                }
+            };
+
+            var result = await PatchdeployAllBranches(Settings.MainApiBaseUrl, JWTToken!, obj);
+
+            if (result != null)
+            {
+                var successMsg = $"Deployment initiated: {result.SuccessfulInitiations}/{result.TotalBranches} branches";
+                AlertService.ShowSuccess("Deployment Started", successMsg);
+
+                // Show detailed results if there were failures
+                if (result.FailedInitiations > 0)
+                {
+                    var failedBranches = result.DeploymentResults
+                        .Where(r => r.Status == "Failed")
+                        .Select(r => r.BranchName);
+
+                    var failedMsg = $"Failed branches: {string.Join(", ", failedBranches)}";
+                    AlertService.ShowWarning("Partial Deployment", failedMsg);
+                }
+
+                DeselectAllBranches();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Deploy error: {ex.Message}");
+            AlertService.ShowError("Deployment Failed", "Failed to start multi-branch patch deployment.");
+        }
+        finally
+        {
+            IsDeployingToAll = false;
+            StateHasChanged();
+        }
+    }
+
+    // ====== API CALLS ======
+    private async Task<string?> GetJwtToken()
+    {
+        try
+        {
+            var getJWT = new getJWTTokens(JSRuntime);
+            return await getJWT.GetJWTLoggedInUserAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"JWT Error: {ex.Message}");
+            return null;
+        }
+    }
+
+    private async Task<LoggedInUser> getUserDetails()
+    {
+        return await _auth.getLogginUserDetiles();
+    }
+
+    public async Task<List<SelectBranchDto>?> getAllBranch(string baseUrl, string jwtToken)
+    {
+        try
+        {
+            var url = $"api/Branch/getAllBranch?" +
+                      $"PageNumber={1}&" +
+                      $"PageSize={100}&" +
+                      $"Search={Uri.EscapeDataString(searchText ?? string.Empty)}&" +
+                      $"Status={string.Empty}";
+
+            using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
+
+            var response = await client.GetAsync(url);
+            var result = await response.Content.ReadFromJsonAsync<APIResponseCoustomizeList<SelectBranchDto, int>>();
+
+            if (response.IsSuccessStatusCode)
+            {
+                if (result != null && result.StatusCode == 2 && result.Status == true)
+                {
+                    return result.ValueList;
+                }
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                if (result != null && result.StatusCode == 1 && result.Status == false)
+                {
+                    AlertService.ShowError("Error", $"{result.Message}");
+                    return null;
+                }
+                else if (result != null && result.StatusCode == 0 && result.Status == false)
+                {
+                    AlertService.ShowError("Error", $"{result.Message}");
+                    Console.WriteLine($"Unexpected response: {response.StatusCode}");
+                    return null;
+                }
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception: {ex.Message}");
+            AlertService.ShowError("Error", $"API call failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    private async Task<bool> getPatchesTypeAsync(string baseUrl, string jwtToken)
+    {
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
+
+            var response = await client.GetAsync("api/Patches/getPatchesTypes");
+            var result = await response.Content.ReadFromJsonAsync<APIResponseCoustomizeList<SelectedAnyDropDownOrSamllData, NewPatch>>();
+
+            if (response.IsSuccessStatusCode && result?.StatusCode == 2 && result.Status == true)
+            {
+                PatchTypeList = result.ValueList;
+                return true;
+            }
+
+            HandleApiError(response, result);
+            return false;
+        }
+        catch (HttpRequestException ex)
+        {
+            AlertService.ShowError("Server Error", "Server fetch failed. Please contact support.");
+            Console.WriteLine($"HttpRequestException: {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"General Exception: {ex.Message}");
+            return false;
+        }
+    }
+
+    private async Task<bool> getSelectedPatchesAsync(string baseUrl, string jwtToken, int patchtype)
+    {
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
+
+            var response = await client.GetAsync($"api/Patches/getSelectedPatches?patchtype={patchtype}");
+            var result = await response.Content.ReadFromJsonAsync<APIResponseOnlyList<SelectedAnyDropDownOrSamllData>>();
+
+            if (response.IsSuccessStatusCode && result?.StatusCode == 2 && result.Status == true)
+            {
+                SelectedPatchList = result.ValueList;
+                return true;
+            }
+
+            HandleApiError(response, result);
+            return false;
+        }
+        catch (HttpRequestException ex)
+        {
+            AlertService.ShowError("Server Error", "Server fetch failed. Please contact support.");
+            Console.WriteLine($"HttpRequestException: {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"General Exception: {ex.Message}");
+            return false;
+        }
+    }
+
+    private async Task<bool> getSelectedPatchAllAsync(string baseUrl, string jwtToken, int patchId)
+    {
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
+
+            var response = await client.GetAsync($"api/Patches/getSelectedPatchAllDetailsForAllBranch?patchId={patchId}");
+            var result = await response.Content.ReadFromJsonAsync<APIResponseObjectValue<SelectedPatch>>();
+
+            if (response.IsSuccessStatusCode && result?.StatusCode == 2 && result.Status == true)
+            {
+                SelectPatch = result.Value;
+                return true;
+            }
+
+            HandleApiError(response, result);
+            return false;
+        }
+        catch (HttpRequestException ex)
+        {
+            AlertService.ShowError("Server Error", "Server fetch failed. Please contact support.");
+            Console.WriteLine($"HttpRequestException: {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"General Exception: {ex.Message}");
+            return false;
+        }
+    }
+
+    private async Task<AllBranchPatchResponse?> PatchdeployAllBranches(string baseUrl, string jwtToken, APIRequestObject<AllBranchPatchRequest> obj)
+    {
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
+
+            var response = await client.PostAsJsonAsync("api/Patches/PatchdeployAllBranches", obj);
+            var result = await response.Content.ReadFromJsonAsync<APIResponseObjectValue<AllBranchPatchResponse>>();
+
+            if (response.IsSuccessStatusCode && result?.StatusCode == 2 && result.Status == true)
+            {
+                return result.Value;
+            }
+
+            HandleApiError(response, result);
+            return null;
+        }
+        catch (HttpRequestException ex)
+        {
+            AlertService.ShowError("Server Error", "Server fetch failed. Please contact support.");
+            Console.WriteLine($"HttpRequestException: {ex.Message}");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"General Exception: {ex.Message}");
+            return null;
+        }
+    }
+
+    private void HandleApiError<T>(HttpResponseMessage response, T? result) where T : class
+    {
+        dynamic? dynResult = result;
+
+        switch (response.StatusCode)
+        {
+            case HttpStatusCode.BadRequest:
+            case HttpStatusCode.NotFound:
+            case HttpStatusCode.Unauthorized:
+                if (dynResult?.StatusCode == 1 && dynResult?.Status == false)
+                {
+                    AlertService.ShowError("Request Error", $"{dynResult?.Message}. Please try again.");
+                }
+                break;
+
+            case HttpStatusCode.InternalServerError:
+                if (dynResult?.StatusCode == 0 && dynResult?.Status == false)
+                {
+                    var serverMsg = dynResult?.Message ?? "Server error occurred.";
+                    Console.WriteLine($"Server 500 response: {dynResult?.Ex}");
+                    AlertService.ShowError("Server Error", $"{serverMsg}. Please contact support.");
+                }
+                break;
+        }
+    }
+
+    // ====== DATA MODELS ======
+    public class AllBranchPatchRequest
+    {
+        public int PatchId { get; set; }
+        public List<int?> BranchIds { get; set; } = new();
+        public string UserId { get; set; } = string.Empty;
+    }
+
+    public class AllBranchPatchResponse
+    {
+        public string JobId { get; set; } = string.Empty;
+        public int PatchId { get; set; }
+        public string PatchName { get; set; } = string.Empty;
+        public int TotalBranches { get; set; }
+        public int SuccessfulInitiations { get; set; }
+        public int FailedInitiations { get; set; }
+        public List<BranchDeploymentResult> DeploymentResults { get; set; } = new();
+    }
+
+    public class BranchDeploymentResult
+    {
+        public int BranchId { get; set; }
+        public string BranchCode { get; set; } = string.Empty;
+        public string BranchName { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+    }
+}
+
+<style>
+    /* ====== MAIN LAYOUT ====== */
+    .Main-wrapper {
+        min-height: 100vh;
+        background: #1e1e1f;
+    }
+
+    .Main-content {
+        padding: 20px;
+    }
+
+    .patch-content {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    /* ====== PATCH OPTIONS ====== */
+    .patch-options {
+        background: linear-gradient(135deg, #3e3e3f 0%, #2a2a2b 100%);
+        border: 2px solid rgba(100, 98, 100, 0.3);
+        border-radius: 16px;
+        padding: 20px;
+    }
+
+    /* ====== LOADING & EMPTY STATES ====== */
+    .loading-patch-card, .empty-patch-card, .loading-container, .empty-container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        min-height: 400px;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(100, 98, 100, 0.3);
+        border-radius: 12px;
+        color: #999;
+    }
+
+    /* ====== PATCH DETAIL CARD ====== */
+    .patch-detail-card {
+        background: linear-gradient(135deg, #3e3e3f 0%, #2f2f30 100%);
+        border: 1px solid rgba(100, 98, 100, 0.3);
+        border-radius: 12px;
+        padding: 24px;
+        height: 500px;
+        overflow-y: auto;
+    }
+
+    .patch-detail-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid rgba(100, 98, 100, 0.3);
+    }
+
+        .patch-detail-header h3 {
+            font-size: 24px;
+            color: #ffffff;
+            font-weight: 700;
+            margin: 0;
+        }
+
+    .version-label {
+        font-size: 12px;
+        color: #999;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .patch-detail-body {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .detail-row {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .detail-label {
+        font-size: 12px;
+        color: #999;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+    }
+
+    .detail-value {
+        font-size: 14px;
+        color: #ffffff;
+        word-break: break-word;
+    }
+
+    .path-value {
+        font-family: 'Courier New', monospace;
+        background: rgba(0, 0, 0, 0.3);
+        padding: 8px 12px;
+        border-radius: 6px;
+    }
+
+    /* ====== PANEL STYLES ====== */
+    .parent-panel {
+        display: grid;
+        gap: 20px;
+        height: calc(100vh - 200px);
+    }
+
+    .panel {
+        background: #252526;
+        border: 1px solid #3e3e3f;
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .server-panel {
+        border-left: 3px solid #953e3f;
+    }
+
+    .panel-header {
+        background: #2a2a2b;
+        border-bottom: 1px solid #3e3e3f;
+        padding: 16px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .header-content {
+        flex: 1;
+    }
+
+    .icon-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+        .icon-title h2 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #ffffff;
+            margin: 0;
+        }
+
+    .panel-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .field-input {
+        width: 100%;
+        padding: 10px 16px;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(100, 98, 100, 0.3);
+        border-radius: 8px;
+        color: #ffffff;
+        font-size: 14px;
+        transition: all 0.3s ease;
+    }
+
+        .field-input:focus {
+            outline: none;
+            border-color: #953e3f;
+            background: rgba(0, 0, 0, 0.4);
+        }
+
+        .field-input::placeholder {
+            color: #666;
+        }
+
+    .panel-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+    }
+
+    .file-tree {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    /* ====== DEPLOYMENT ACTIONS ====== */
+    .deployment-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        background: rgba(0, 0, 0, 0.3);
+        border-bottom: 1px solid rgba(100, 98, 100, 0.3);
+    }
+
+    .selection-summary {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #999;
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+        .selection-summary svg {
+            color: #667eea;
+        }
+
+    .action-buttons {
+        display: flex;
+        gap: 12px;
+    }
+
+    .btn-select-action {
+        padding: 8px 16px;
+        background: rgba(102, 126, 234, 0.2);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        border-radius: 6px;
+        color: #667eea;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+        .btn-select-action:hover {
+            background: rgba(102, 126, 234, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn-select-action svg {
+            width: 16px;
+            height: 16px;
+        }
+
+    .btn-deploy-all {
+        padding: 10px 24px;
+        background: linear-gradient(135deg, #953e3f 0%, #b04e4f 100%);
+        border: none;
+        border-radius: 6px;
+        color: white;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+        .btn-deploy-all:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(149, 62, 63, 0.4);
+        }
+
+        .btn-deploy-all:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-deploy-all svg {
+            width: 16px;
+            height: 16px;
+        }
+
+    /* ====== BRANCH CARD STYLES ====== */
+    .branch-card {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 16px;
+        background: linear-gradient(135deg, rgba(62, 62, 63, 0.4) 0%, rgba(42, 42, 43, 0.6) 100%);
+        border: 1px solid rgba(100, 98, 100, 0.3);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+
+        .branch-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .branch-card:hover:not(.disabled) {
+            transform: translateX(4px);
+            background: linear-gradient(135deg, rgba(62, 62, 63, 0.6) 0%, rgba(42, 42, 43, 0.8) 100%);
+            border-color: rgba(102, 126, 234, 0.4);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+        }
+
+            .branch-card:hover:not(.disabled)::before {
+                opacity: 1;
+            }
+
+        .branch-card.selected {
+            border-color: rgba(102, 126, 234, 0.6);
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(42, 42, 43, 0.8) 100%);
+        }
+
+            .branch-card.selected::before {
+                opacity: 1;
+            }
+
+        .branch-card.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+            .branch-card.disabled:hover {
+                transform: none;
+                box-shadow: none;
+            }
+
+    .branch-checkbox {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 24px;
+        height: 24px;
+        color: #667eea;
+    }
+
+        .branch-checkbox svg {
+            width: 20px;
+            height: 20px;
+        }
+
+    .branch-icon {
+        font-size: 32px;
+        min-width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(102, 126, 234, 0.15);
+        border-radius: 10px;
+        transition: all 0.3s ease;
+    }
+
+    .branch-card:hover:not(.disabled) .branch-icon {
+        background: rgba(102, 126, 234, 0.25);
+        transform: scale(1.1);
+    }
+
+    .branch-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    .branch-name {
+        font-size: 16px;
+        font-weight: 600;
+        color: #ffffff;
+        line-height: 1.3;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .branch-location {
+        font-size: 13px;
+        color: #999;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .branch-details {
+        display: flex;
+        gap: 20px;
+        padding: 0 12px;
+        flex-wrap: wrap;
+    }
+
+    .branch-detail-item {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .status-badge {
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+        .status-badge.online {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+        }
+
+        .status-badge.offline {
+            background: rgba(149, 62, 63, 0.2);
+            color: #ff6b6b;
+        }
+
+    /* ====== DROPDOWN STYLES ====== */
+    .dropdown-btn {
+        width: 100%;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(100, 98, 100, 0.3);
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+
+        .dropdown-btn:hover:not(:disabled) {
+            background: rgba(149, 62, 63, 0.2);
+            border-color: #953e3f;
+        }
+
+    /* ====== SCROLLBAR ====== */
+    .panel-body::-webkit-scrollbar,
+    .patch-detail-card::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .panel-body::-webkit-scrollbar-track,
+    .patch-detail-card::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 10px;
+    }
+
+    .panel-body::-webkit-scrollbar-thumb,
+    .patch-detail-card::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+    }
+
+        .panel-body::-webkit-scrollbar-thumb:hover,
+        .patch-detail-card::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+    /* ====== RESPONSIVE ====== */
+    @@media (max-width: 1200px) {
+        .row > .col-6 {
+            flex: 0 0 100%;
+            max-width: 100%;
+        }
+
+        .parent-panel {
+            height: auto;
+        }
+
+        .deployment-actions {
+            flex-direction: column;
+            gap: 12px;
+            align-items: stretch;
+        }
+
+        .action-buttons {
+            flex-direction: column;
+        }
+
+        .branch-details {
+            flex-direction: column;
+            gap: 8px;
+        }
+    }
+</style>

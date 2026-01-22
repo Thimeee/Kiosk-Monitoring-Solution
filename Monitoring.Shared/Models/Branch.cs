@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
+using Monitoring.Shared.Enum;
 
 namespace Monitoring.Shared.Models
 {
@@ -24,30 +25,33 @@ namespace Monitoring.Shared.Models
         public string Location { get; set; }
 
         [Required]
-        public int BranchActiveStatus { get; set; } = 0;
+        public TerminalActive TerminalActiveStatus { get; set; } = 0;
 
         [Required]
         [StringLength(100)]
-        public string KioskID { get; set; }
+        public string? TerminalId { get; set; }
 
         [Required]
         [StringLength(50)]
-        public string KioskVersion { get; set; }
+        public string? TerminalVersion { get; set; }
 
         [Required]
         [StringLength(150)]
-        public string KioskSeriNumber { get; set; }
+        public string? TerminalSeriNumber { get; set; }
 
         [Required]
         [StringLength(50)]
-        public string KioskName { get; set; }
+        public string? TerminalName { get; set; }
 
-        public string? KisokSessionKey { get; set; }
-        public DateTime? BranchAddDatetime { get; set; }
-        public string? BranchLicenseKey { get; set; }
+        public string? TerminalSessionKey { get; set; }
+        public DateTime? TerminalAddDatetime { get; set; }
+        public string? TerminalLicenseKey { get; set; }
 
-        public int? BranchLicenseStatus { get; set; }
+        public int? TerminalLicenseStatus { get; set; }
 
+        public string? BranchFolderpath { get; set; }
+
+        public string? ServerBranchFolderpath { get; set; }
 
         ////// Navigation
         [JsonIgnore]
