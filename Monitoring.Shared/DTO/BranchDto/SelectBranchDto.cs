@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Monitoring.Shared.Enum;
+using static Monitoring.Shared.DTO.PatchsDto.SelectedPatch;
 
 namespace Monitoring.Shared.DTO.BranchDto
 {
@@ -31,6 +32,21 @@ namespace Monitoring.Shared.DTO.BranchDto
 
     }
 
+    public class SelectBranchDtoWithSelectedPatchDto
+    {
+
+        public int? Id { get; set; }
+        public string? BranchId { get; set; }
+        public string? BranchName { get; set; }
+        public string? Location { get; set; }
+        public TerminalActive? TerminalActiveStatus { get; set; } = 0;
+        public string? TerminalId { get; set; }
+        public SelectedBranchAssingPatch? EnrollBranch { get; set; }
+        public bool SelectPatchNotEnrollPatchStatus { get; set; }
+
+
+    }
+
     public class PagedRequest
     {
         public int PageNumber { get; set; } = 1;
@@ -39,6 +55,14 @@ namespace Monitoring.Shared.DTO.BranchDto
         public string? Status { get; set; }
     }
 
+    public class RequestNotPage
+    {
+        public string? Search { get; set; }
+        public string? Status { get; set; }
+        public bool SelectPatch { get; set; }
+        public int? PatchId { get; set; }
+
+    }
 
     public class KioskData
     {

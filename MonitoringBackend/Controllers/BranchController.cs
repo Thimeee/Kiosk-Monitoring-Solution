@@ -12,6 +12,7 @@ using Monitoring.Shared.Enum;
 using Monitoring.Shared.Models;
 using MonitoringBackend.Data;
 using MonitoringBackend.DTO;
+using static Monitoring.Shared.DTO.PatchsDto.SelectedPatch;
 
 namespace MonitoringBackend.Controllers
 {
@@ -119,6 +120,111 @@ namespace MonitoringBackend.Controllers
                 return BadRequest(responseDTO);
             }
         }
+
+
+
+        [HttpGet("getAllBranchSelectedPatch")]
+        public async Task<IActionResult> GetAllBranchSelectedPatch([FromQuery] RequestNotPage request)
+        {
+            var responseDTO = new APIResponseOnlyList<SelectBranchDtoWithSelectedPatchDto>();
+
+            try
+            {
+                IQueryable<Branch> query = _db.Branches.AsNoTracking();
+
+                //  Search
+                if (!string.IsNullOrWhiteSpace(request.Search))
+                {
+                    query = query.Where(x =>
+                        x.BranchName.Contains(request.Search) ||
+                        x.BranchId.Contains(request.Search) ||
+                        x.TerminalId.Contains(request.Search) ||
+                        x.Location.Contains(request.Search));
+                }
+
+                //  Status filter
+
+
+                var branches = await query
+                    .OrderBy(x => x.Id)
+                    .Select(r => new SelectBranchDtoWithSelectedPatchDto
+                    {
+                        Id = r.Id,
+                        BranchId = r.BranchId,
+                        BranchName = r.BranchName,
+                        TerminalActiveStatus = r.TerminalActiveStatus,
+                        Location = r.Location,
+                        TerminalId = r.TerminalId
+                    })
+                    .ToListAsync();
+
+                //  Load patch assignments in ONE query
+                if (request.SelectPatch && request.PatchId > 0 && branches.Any())
+                {
+
+                    if (!string.IsNullOrWhiteSpace(request.Status) &&
+                 Enum.TryParse<TerminalActive>(request.Status, out var status))
+                    {
+                        query = query.Where(x => x.TerminalActiveStatus == status);
+                    }
+
+
+                    var branchIds = branches.Select(b => b.Id).ToList();
+
+                    var patchAssignments = await _db.PatchAssignBranchs
+                        .AsNoTracking()
+                        .Where(p => p.PId == request.PatchId && branchIds.Contains(p.Id))
+                        .Select(r => new SelectedBranchAssingPatch
+                        {
+                            PAB = r.PAB,
+                            BranchId = r.Id,
+                            PatchId = r.PId,
+                            ProcessLevel = r.ProcessLevel,
+                            Status = r.Status,
+                            Message = r.Message
+                        })
+                        .ToListAsync();
+
+
+                    //  Attach patch info
+                    foreach (var branch in branches)
+                    {
+
+                        branch.EnrollBranch = patchAssignments
+                            .FirstOrDefault(p => p.BranchId == branch.Id);
+                        if (branch.EnrollBranch == null)
+                        {
+                            branch.SelectPatchNotEnrollPatchStatus = true;
+                        }
+
+                    }
+                }
+
+                if (!branches.Any())
+                {
+                    responseDTO.Status = false;
+                    responseDTO.StatusCode = 1;
+                    responseDTO.Message = "No branches found";
+                    return Ok(responseDTO);
+                }
+
+                responseDTO.Status = true;
+                responseDTO.StatusCode = 2;
+                responseDTO.Message = "Operation Success";
+                responseDTO.ValueList = branches;
+
+                return Ok(responseDTO);
+            }
+            catch (Exception ex)
+            {
+                responseDTO.Status = false;
+                responseDTO.StatusCode = 0;
+                responseDTO.Message = "Error during Get Branches";
+                responseDTO.Ex = ex.Message;
+                return StatusCode(500, responseDTO);
+            }
+        }
+
 
 
         [HttpPost("LoginBranch")]

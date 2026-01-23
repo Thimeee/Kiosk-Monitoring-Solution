@@ -150,7 +150,7 @@ namespace MonitoringBackend.Service
             var parts = topic.Split('/');
             if (parts.Length < 3) return;
 
-            string branchId = parts[1];
+            string TerminalId = parts[1];
             string source = parts[2];
             string subTopic = parts.Length > 3 ? string.Join('/', parts.Skip(3)) : "";
 
@@ -159,18 +159,18 @@ namespace MonitoringBackend.Service
                 switch (source)
                 {
                     case "SFTP":
-                        await HandleSFTP(branchId, subTopic, payload);
+                        await HandleSFTP(TerminalId, subTopic, payload);
                         break;
 
                     case "HEALTH":
-                        await HandleHealth(branchId, payload, stoppingToken);
+                        await HandleHealth(TerminalId, payload, stoppingToken);
                         break;
                     case "PATCH":
-                        await HandlePatch(branchId, payload, stoppingToken);
+                        await HandlePatch(TerminalId, payload, stoppingToken);
                         break;
 
                     default:
-                        if (branchId == "mainServer" && source == "PATCHPROCESS")
+                        if (TerminalId == "mainServer" && source == "PATCHPROCESS")
                         {
                             await HandleServerPatchProcess(payload);
                         }
@@ -209,7 +209,7 @@ namespace MonitoringBackend.Service
             }
         }
 
-        private async Task HandlePatch(string branchId, string payload, CancellationToken stoppingToken)
+        private async Task HandlePatch(string TerminalId, string payload, CancellationToken stoppingToken)
         {
 
             var jobRes = JsonSerializer.Deserialize<PatchStatusUpdateMqttResponse>(payload);
@@ -227,7 +227,7 @@ namespace MonitoringBackend.Service
                         new string(jobRes.PatchId.TakeWhile(char.IsDigit).ToArray())
                     );
 
-                    var branch = await db.Branches.FirstOrDefaultAsync(j => j.BranchId == branchId);
+                    var branch = await db.Branches.FirstOrDefaultAsync(j => j.TerminalId == TerminalId);
 
                     var patch = await db.PatchAssignBranchs.FirstOrDefaultAsync(j => j.PId == numericPatchId && j.Id == branch.Id);
                     if (patch != null)
@@ -262,7 +262,7 @@ namespace MonitoringBackend.Service
                 if (jobRes.PatchRequestType == PatchRequestType.SINGLE_BRANCH_PATCH)
                 {
                     await _hubContext.Clients
-                        .Group(BranchHub.BranchGroup(branchId))
+                        .Group(BranchHub.BranchGroup(TerminalId))
                         .SendAsync("SingleBranchPatchResponse", jobRes, stoppingToken);
                 }
             }

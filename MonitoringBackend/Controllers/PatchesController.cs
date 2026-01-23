@@ -670,6 +670,7 @@ namespace MonitoringBackend.Controllers
                                                                           branchCode = t.BranchId,
                                                                           branchId = t.Id,
                                                                           branchName = t.BranchName,
+                                                                          TerminalId = t.TerminalId,
                                                                       })
                                                                       .FirstOrDefaultAsync();
 
@@ -778,7 +779,7 @@ namespace MonitoringBackend.Controllers
                         {
                             await _mqtt.PublishToServer(
                             payload,
-                            $"branch/{branch.branchCode}/PATCH/Application",
+                            $"branch/{branch.TerminalId}/PATCH/Application",
                             MqttQualityOfServiceLevel.ExactlyOnce
                         );
 
@@ -986,7 +987,7 @@ namespace MonitoringBackend.Controllers
                     try
                     {
                         // Generate unique job ID for this branch
-                        var branchJobId = new CreateUniqId().GenarateUniqID(new List<string> { jobId, branch.Id.ToString() });
+                        //var branchJobId = new CreateUniqId().GenarateUniqID(new List<string> { jobId, branch.Id.ToString() });
 
                         // Check if branch already has this patch successfully deployed
                         var existingEnrollment = await _db.PatchAssignBranchs
@@ -1021,7 +1022,7 @@ namespace MonitoringBackend.Controllers
                                 Status = PatchStatus.INIT,
                                 ProcessLevel = PatchStep.START,
                                 StartTime = DateTime.Now,
-                                JobUId = branchJobId,
+                                JobUId = jobId,
                                 SendChunksBranch = checksum,
                                 AttemptSteps = 0,
                                 Message = "Deployment initialized"
@@ -1037,7 +1038,7 @@ namespace MonitoringBackend.Controllers
                             existingEnrollment.ProcessLevel = existingEnrollment.AttemptSteps >= 3
                                 ? PatchStep.START
                                 : PatchStep.RESTART;
-                            existingEnrollment.JobUId = branchJobId;
+                            existingEnrollment.JobUId = jobId;
                             existingEnrollment.SendChunksBranch = checksum;
                             existingEnrollment.StartTime = DateTime.Now;
                             existingEnrollment.AttemptSteps++;
@@ -1058,7 +1059,6 @@ namespace MonitoringBackend.Controllers
                         };
                         _db.jobAssignBranches.Add(jobAssignment);
 
-                        await _db.SaveChangesAsync();
 
                         // Prepare MQTT payload
                         var payload = new PatchDeploymentMqttRequest
@@ -1070,7 +1070,7 @@ namespace MonitoringBackend.Controllers
                             Status = enrollment.Status,
                             PatchRequestType = PatchRequestType.ALL_BRANCH_PATCH,
                             Step = enrollment.ProcessLevel,
-                            JobId = branchJobId
+                            //JobId = jobId
                         };
 
                         // Publish to MQTT based on patch type
@@ -1122,6 +1122,7 @@ namespace MonitoringBackend.Controllers
                         failedCount++;
                     }
                 }
+                await _db.SaveChangesAsync();
 
                 // Update main job with summary
                 mainJob.JobMassage = $"Deployment initiated - Success: {successCount}, Failed: {failedCount}, Skipped: {skippedCount}";
