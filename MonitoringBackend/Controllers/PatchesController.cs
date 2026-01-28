@@ -5,10 +5,12 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Unicode;
+using Azure.Core;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Monitoring.Shared.DTO;
+using Monitoring.Shared.DTO.BranchDto;
 using Monitoring.Shared.DTO.PatchsDto;
 using Monitoring.Shared.Enum;
 using Monitoring.Shared.Models;
@@ -294,6 +296,95 @@ namespace MonitoringBackend.Controllers
                 responseDTO.Message = "Error fetching patches";
                 responseDTO.Ex = ex.Message;
                 return StatusCode(StatusCodes.Status500InternalServerError, responseDTO);
+            }
+        }
+
+
+
+        [HttpGet("getSelectedAndAllPatches")]
+        public async Task<IActionResult> GetSelectedAndAllPatches([FromQuery] int? patchId)
+        {
+            var responseDTO = new APIResponseOnlyList<SelectedBranchAssingPatchWithBranchDto>();
+
+            try
+            {
+                var query = _db.PatchAssignBranchs.AsQueryable();
+
+                // Filter
+                if (patchId == null)
+                {
+                    var last3Days = DateTime.Now.AddDays(-3);
+                    query = query.Where(r => r.StartTime >= last3Days);
+                }
+                else
+                {
+                    query = query.Where(r => r.PId == patchId);
+                }
+
+                // Query + Join + Ordering
+                responseDTO.ValueList = await query
+                    .Join(
+                        _db.Branches,
+                        pab => pab.Id,
+                        b => b.Id,
+                        (pab, b) => new { pab, b }
+                    )
+                    .OrderBy(x =>
+                        x.pab.Status == PatchStatus.IN_PROGRESS ? 0 :
+                        x.pab.Status == PatchStatus.RESTART ? 1 :
+                        x.pab.Status == PatchStatus.FAILED ? 2 :
+                        x.pab.Status == PatchStatus.ROLLBACK ? 3 :
+                        x.pab.Status == PatchStatus.SUCCESS ? 4 :
+                                                                  5)
+                    .Select(x => new SelectedBranchAssingPatchWithBranchDto
+                    {
+                        //BranchId = x.pab.Id,
+                        PAB = x.pab.PAB,
+                        PatchId = x.pab.PId,
+                        ProcessLevel = x.pab.ProcessLevel,
+                        Status = x.pab.Status,
+                        Message = x.pab.Message,
+                        StartTime = x.pab.StartTime,
+                        Endtime = x.pab.Endtime,
+                        Progress = x.pab.Progress,
+
+                        branch = new SelectBranchDto
+                        {
+                            Id = x.b.Id,
+                            BranchId = x.b.BranchId,
+                            BranchName = x.b.BranchName,
+                            Location = x.b.Location,
+                            TerminalActiveStatus = x.b.TerminalActiveStatus,
+                            TerminalId = x.b.TerminalId,
+                            TerminalSeriNumber = x.b.TerminalSeriNumber,
+                            TerminalVersion = x.b.TerminalVersion,
+                            TerminalName = x.b.TerminalName,
+                            TerminalAddDatetime = x.b.TerminalAddDatetime
+                        }
+                    })
+                    .ToListAsync();
+
+                //Empty check
+                //if (!responseDTO.ValueList.Any())
+                //{
+                //    responseDTO.Status = false;
+                //    responseDTO.StatusCode = 1;
+                //    responseDTO.Message = "No Branches Found";
+                //    return Ok(responseDTO);
+                //}
+
+                responseDTO.Status = true;
+                responseDTO.StatusCode = 2;
+                responseDTO.Message = "Operation Success";
+                return Ok(responseDTO);
+            }
+            catch (Exception ex)
+            {
+                responseDTO.Status = false;
+                responseDTO.StatusCode = 0;
+                responseDTO.Message = "Error during Get Branches";
+                responseDTO.Ex = ex.Message;
+                return BadRequest(responseDTO);
             }
         }
 
@@ -1025,17 +1116,18 @@ namespace MonitoringBackend.Controllers
                                 JobUId = jobId,
                                 SendChunksBranch = checksum,
                                 AttemptSteps = 0,
-                                Message = "Deployment initialized"
+                                Message = "Deployment initialized",
+                                Progress = 0
                             };
                             _db.PatchAssignBranchs.Add(enrollment);
                         }
                         else
                         {
                             // Retry deployment
-                            existingEnrollment.Status = existingEnrollment.AttemptSteps >= 3
+                            existingEnrollment.Status = existingEnrollment.AttemptSteps >= 0
                                 ? PatchStatus.INIT
                                 : PatchStatus.RESTART;
-                            existingEnrollment.ProcessLevel = existingEnrollment.AttemptSteps >= 3
+                            existingEnrollment.ProcessLevel = existingEnrollment.AttemptSteps >= 0
                                 ? PatchStep.START
                                 : PatchStep.RESTART;
                             existingEnrollment.JobUId = jobId;

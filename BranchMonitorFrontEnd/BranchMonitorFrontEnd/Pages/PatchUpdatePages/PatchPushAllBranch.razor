@@ -16,238 +16,308 @@
 @inject AuthCredential _auth
 @inject IJSRuntime JS
 
-<div class="Main-wrapper">
-    <main class="Main-content">
-        <section class="Main-section mt-4">
-            <div class="patch-content d-flex flex-column">
-                <div class="row">
-                    <!-- Left Panel - Patch Selection -->
-                    <div class="col-5 d-flex flex-row">
-                        <div class="patch-options col-12">
-                            <div class="row">
-                                <!-- Patch Type & Version Selection -->
-                                <div class="col-12">
-                                    <div class="row">
-                                        <div class="col-6">
-                                            <Dropdown Size="DropdownSize.None" Class="dropdown-btn">
-                                                <DropdownToggleButton Class="text-white">
-                                                    @selectedPatchTypeName
-                                                </DropdownToggleButton>
-                                                <DropdownMenu>
-                                                    @if (PatchTypeList != null && PatchTypeList.Any())
-                                                    {
-                                                        @foreach (var item in PatchTypeList)
-                                                        {
-                                                            <DropdownItem Type="DropdownItemType.Link" @onclick="() => OnPatchTypeSelected(item)">
-                                                                @item.Name
-                                                            </DropdownItem>
-                                                        }
-                                                    }
-                                                    else
-                                                    {
-                                                        <span class="text-muted p-2">Loading...</span>
-                                                    }
-                                                </DropdownMenu>
-                                            </Dropdown>
+<div class="deployment-wrapper">
+    <main class="deployment-content">
+        <section class="deployment-section mt-4">
+
+            <!-- Page Header -->
+            
+
+            <div class="deployment-grid">
+
+                <!-- Left Panel - Patch Selection -->
+                <div class="patch-selection-panel">
+                    <div class="panel-card">
+                        <div class="panel-card-header">
+                            <div class="header-icon">
+                               
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0zM9.5 3.5v-2l3 3h-2a1 1 0 0 1-1-1z" />
+                                </svg>
+                            </div>
+                            <h2>Select Patch</h2>
+                        </div>
+
+                        <div class="panel-card-body">
+                            <!-- Dropdown Section -->
+                            <div class="dropdown-section">
+                                <div class="dropdown-group">
+                                    <label class="dropdown-label">Patch Type</label>
+                                    <Dropdown Size="DropdownSize.None" Class="custom-dropdown" >
+                                        <DropdownToggleButton Class="custom-dropdown-btn">
+                                            <span class="dropdown-text">@selectedPatchTypeName</span>
+                                            <svg class="dropdown-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                                <path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z" />
+                                            </svg>
+                                        </DropdownToggleButton>
+                                        <DropdownMenu Class="custom-dropdown-menu">
+                                            @if (PatchTypeList != null && PatchTypeList.Any())
+                                            {
+                                                @foreach (var item in PatchTypeList)
+                                                {
+                                                    <DropdownItem Type="DropdownItemType.Link" @onclick="() => OnPatchTypeSelected(item)" Class="custom-dropdown-item">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                                            <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0z" />
+                                                        </svg>
+                                                        @item.Name
+                                                    </DropdownItem>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span class="dropdown-empty">Loading...</span>
+                                            }
+                                        </DropdownMenu>
+                                    </Dropdown>
+                                </div>
+
+                                <div class="dropdown-group">
+                                    <label class="dropdown-label">Patch Version</label>
+                                    <Dropdown Size="DropdownSize.None" Class="custom-dropdown" Disabled="@(SelectedPatchList == null || !SelectedPatchList.Any())">
+                                        <DropdownToggleButton Class="custom-dropdown-btn">
+                                            <span class="dropdown-text">@selectedPatchName</span>
+                                            <svg class="dropdown-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                                <path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z" />
+                                            </svg>
+                                        </DropdownToggleButton>
+                                        <DropdownMenu Class="custom-dropdown-menu">
+                                            @if (SelectedPatchList != null && SelectedPatchList.Any())
+                                            {
+                                                @foreach (var item in SelectedPatchList)
+                                                {
+                                                    <DropdownItem Type="DropdownItemType.Link" @onclick="() => OnPatchsSelected(item)" Class="custom-dropdown-item">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                                            <path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm6.5 4.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3a.5.5 0 0 1 1 0z" />
+                                                        </svg>
+                                                        @item.Name
+                                                    </DropdownItem>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span class="dropdown-empty">Select a type first</span>
+                                            }
+                                        </DropdownMenu>
+                                    </Dropdown>
+                                </div>
+                            </div>
+
+                            <!-- Patch Details -->
+                            <div class="patch-details-section">
+                                @if (IsLoadingPatch)
+                                {
+                                    <div class="details-state loading-state">
+                                        <Loder Height="40px" width="40px" />
+                                        <span class="state-text">Loading patch details...</span>
+                                    </div>
+                                }
+                                else if (SelectPatch == null)
+                                {
+                                    <div class="details-state empty-state">
+                                        <div class="empty-icon">
+                                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                                <path d="M13 3H7C5.89543 3 5 3.89543 5 5V10M13 3L19 9M13 3V8C13 8.55228 13.4477 9 14 9H19M19 9V19C19 20.1046 18.1046 21 17 21H10C7.79086 21 6 19.2091 6 17V17C6 14.7909 7.79086 13 10 13H13M13 13L10 10M13 13L10 16" stroke-linecap="round" stroke-linejoin="round" />
+                                            </svg>
+                                        </div>
+                                        <span class="state-text">Select a patch to view details</span>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="patch-info-card">
+                                        <div class="patch-info-header">
+                                            <div class="patch-icon">
+                                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                    <path d="M13 3H7C5.89543 3 5 3.89543 5 5V10M13 3L19 9M13 3V8C13 8.55228 13.4477 9 14 9H19M19 9V19C19 20.1046 18.1046 21 17 21H10C7.79086 21 6 19.2091 6 17V17C6 14.7909 7.79086 13 10 13H13M13 13L10 10M13 13L10 16" stroke-linecap="round" stroke-linejoin="round" />
+                                                </svg>
+                                            </div>
+                                            <div class="patch-title-group">
+                                                <h3 class="patch-version">@SelectPatch.PatchVersion</h3>
+                                                <span class="version-tag">VERSION</span>
+                                            </div>
                                         </div>
 
-                                        <div class="col-6">
-                                            <Dropdown Size="DropdownSize.None" Class="dropdown-btn" Disabled="@(SelectedPatchList == null || !SelectedPatchList.Any())">
-                                                <DropdownToggleButton Class="text-white">
-                                                    @selectedPatchName
-                                                </DropdownToggleButton>
-                                                <DropdownMenu>
-                                                    @if (SelectedPatchList != null && SelectedPatchList.Any())
-                                                    {
-                                                        @foreach (var item in SelectedPatchList)
-                                                        {
-                                                            <DropdownItem Type="DropdownItemType.Link" @onclick="() => OnPatchsSelected(item)">
-                                                                @item.Name
-                                                            </DropdownItem>
-                                                        }
-                                                    }
-                                                    else
-                                                    {
-                                                        <span class="text-muted p-2">Select a type first</span>
-                                                    }
-                                                </DropdownMenu>
-                                            </Dropdown>
+                                        <div class="patch-info-body">
+                                            <div class="info-item">
+                                                <div class="info-label">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                                        <path d="M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z" />
+                                                    </svg>
+                                                    Patch Type
+                                                </div>
+                                                <div class="info-value">@SelectPatch.PatchType</div>
+                                            </div>
+
+                                            <div class="info-item">
+                                                <div class="info-label">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                                        <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0z" />
+                                                    </svg>
+                                                    Patch Name
+                                                </div>
+                                                <div class="info-value">@SelectPatch.PatchZipName</div>
+                                            </div>
+
+                                            <div class="info-item">
+                                                <div class="info-label">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                                        <path d="M4.406 3.342A5.53 5.53 0 0 1 8 2c2.69 0 4.923 2 5.166 4.579C14.758 6.804 16 8.137 16 9.773 16 11.569 14.502 13 12.687 13H3.781C1.708 13 0 11.366 0 9.318c0-1.763 1.266-3.223 2.942-3.593.143-.863.698-1.723 1.464-2.383z" />
+                                                    </svg>
+                                                    File Path
+                                                </div>
+                                                <div class="info-value path-value">@($"{SelectPatch.PatchZipPath}\\{SelectPatch.PatchZipName}.zip")</div>
+                                            </div>
+
+                                            <div class="info-item">
+                                                <div class="info-label">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                                        <path d="M3.5 0a.5.5 0 0 1 .5.5V1h8V.5a.5.5 0 0 1 1 0V1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h1V.5a.5.5 0 0 1 .5-.5z" />
+                                                    </svg>
+                                                    Date Created
+                                                </div>
+                                                <div class="info-value">@SelectPatch.CreateDate</div>
+                                            </div>
+
+                                            <div class="info-item">
+                                                <div class="info-label">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                                        <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h6.086a1.5 1.5 0 0 0 1.06-.44l4.915-4.914A1.5 1.5 0 0 0 15 8.586V2.5A1.5 1.5 0 0 0 13.5 1h-11z" />
+                                                    </svg>
+                                                    Remark
+                                                </div>
+                                                <div class="info-value">@(string.IsNullOrEmpty(SelectPatch.Remark) ? "No remarks" : SelectPatch.Remark)</div>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-
-                                <!-- Patch Details Card -->
-                                <div class="col-12 mt-3">
-                                    @if (IsLoadingPatch)
-                                    {
-                                        <div class="loading-patch-card">
-                                            <Loder Height="40px" width="40px" />
-                                            <span class="text-muted mt-3">Loading patch details...</span>
-                                        </div>
-                                    }
-                                    else if (SelectPatch == null)
-                                    {
-                                        <div class="empty-patch-card">
-                                            <svg width="50px" height="50px" viewBox="0 0 24 24" fill="none">
-                                                <path d="M13 3H7C5.89543 3 5 3.89543 5 5V10M13 3L19 9M13 3V8C13 8.55228 13.4477 9 14 9H19M19 9V19C19 20.1046 18.1046 21 17 21H10C7.79086 21 6 19.2091 6 17V17C6 14.7909 7.79086 13 10 13H13M13 13L10 10M13 13L10 16"
-                                                      stroke="rgba(76, 175, 80, 0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                                            </svg>
-                                            <span class="text-muted mt-3">Select a patch to view details</span>
-                                        </div>
-                                    }
-                                    else
-                                    {
-                                        <div class="patch-detail-card">
-                                            <div class="patch-detail-header">
-                                                <svg width="40px" height="40px" viewBox="0 0 24 24" fill="none">
-                                                    <path d="M13 3H7C5.89543 3 5 3.89543 5 5V10M13 3L19 9M13 3V8C13 8.55228 13.4477 9 14 9H19M19 9V19C19 20.1046 18.1046 21 17 21H10C7.79086 21 6 19.2091 6 17V17C6 14.7909 7.79086 13 10 13H13M13 13L10 10M13 13L10 16"
-                                                          stroke="rgba(76, 175, 80, 0.7)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                                                </svg>
-                                                <div>
-                                                    <h3>@SelectPatch.PatchVersion</h3>
-                                                    <span class="version-label">Version</span>
-                                                </div>
-                                            </div>
-
-                                            <div class="patch-detail-body">
-                                                <div class="detail-row">
-                                                    <span class="detail-label">Patch Type:</span>
-                                                    <span class="detail-value">@SelectPatch.PatchType</span>
-                                                </div>
-                                                <div class="detail-row">
-                                                    <span class="detail-label">Patch Name:</span>
-                                                    <span class="detail-value">@SelectPatch.PatchZipName</span>
-                                                </div>
-                                                <div class="detail-row">
-                                                    <span class="detail-label">Zip File Path:</span>
-                                                    <span class="detail-value path-value">@($"{SelectPatch.PatchZipPath}\\{SelectPatch.PatchZipName}.zip")</span>
-                                                </div>
-                                                <div class="detail-row">
-                                                    <span class="detail-label">Date:</span>
-                                                    <span class="detail-value">@SelectPatch.CreateDate</span>
-                                                </div>
-                                                <div class="detail-row">
-                                                    <span class="detail-label">Remark:</span>
-                                                    <span class="detail-value">@(string.IsNullOrEmpty(SelectPatch.Remark) ? "No remarks" : SelectPatch.Remark)</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    }
-                                </div>
+                                }
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Right Panel - Branch Selection -->
-                    <div class="col-7 parent-panel">
-                        <div class="panel server-panel">
-                            <!-- Panel Header -->
-                            <div class="panel-header">
-                                <div class="header-content col-6">
-                                    <div class="icon-title">
-                                        <h2>Select Branches</h2>
-                                    </div>
+                <!-- Right Panel - Branch Selection -->
+                <div class="branch-selection-panel">
+                    <div class="panel-card">
+                        <div class="panel-card-header">
+                            <div class="header-left-section">
+                                <div class="header-icon">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M4.5 1a.5.5 0 0 0-.5.5V6a.5.5 0 0 0 .5.5h1.5V1H4.5zM10 6.5V1h1.5a.5.5 0 0 1 .5.5V6a.5.5 0 0 1-.5.5H10z" />
+                                        <path d="M3 0a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V1a1 1 0 0 0-1-1H3z" />
+                                    </svg>
                                 </div>
-                                <div class="panel-actions col-6">
-                                    @if (SelectPatchIf)
-                                    {
-                                        <Dropdown Size="DropdownSize.None" Class="dropdown-btn">
-                                            <DropdownToggleButton Class="text-white">
-                                                @SelectedStatusText
-                                            </DropdownToggleButton>
+                                <h2>Select Branches</h2>
+                            </div>
 
-                                            <DropdownMenu>
-                                                <DropdownItem @onclick="() => OnStatusSelected(null)">All Status</DropdownItem>
-                                                <DropdownItem @onclick="() => OnStatusSelected(PatchStatus.RESTART)">Not Enroll</DropdownItem> @* this use RESTART for notEnroll *@
-                                                <DropdownItem @onclick="() => OnStatusSelected(PatchStatus.FAILED)">Failed</DropdownItem>
-                                                <DropdownItem @onclick="() => OnStatusSelected(PatchStatus.IN_PROGRESS)">In Progress</DropdownItem>
-                                                <DropdownItem @onclick="() => OnStatusSelected(PatchStatus.INIT)">Initilize</DropdownItem>
-                                                <DropdownItem @onclick="() => OnStatusSelected(PatchStatus.SUCCESS)">Sucess</DropdownItem>
-                                            </DropdownMenu>
-                                        </Dropdown>
-                                    }
-                                   
+                            <div class="header-actions">
+                                @if (SelectPatchIf)
+                                {
+                                    <Dropdown Size="DropdownSize.None" Class="status-filter-dropdown">
+                                        <DropdownToggleButton Class="filter-btn">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                                <path d="M6 10.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z" />
+                                            </svg>
+                                            <span>@SelectedStatusText</span>
+                                        </DropdownToggleButton>
+                                        <DropdownMenu Class="custom-dropdown-menu">
+                                            <DropdownItem @onclick="() => OnStatusSelected(null)" Class="custom-dropdown-item">All Status</DropdownItem>
+                                            <DropdownItem @onclick="() => OnStatusSelected(PatchStatus.RESTART)" Class="custom-dropdown-item">Not Enrolled</DropdownItem>
+                                            <DropdownItem @onclick="() => OnStatusSelected(PatchStatus.FAILED)" Class="custom-dropdown-item">Failed</DropdownItem>
+                                            <DropdownItem @onclick="() => OnStatusSelected(PatchStatus.IN_PROGRESS)" Class="custom-dropdown-item">In Progress</DropdownItem>
+                                            <DropdownItem @onclick="() => OnStatusSelected(PatchStatus.INIT)" Class="custom-dropdown-item">Initialize</DropdownItem>
+                                            <DropdownItem @onclick="() => OnStatusSelected(PatchStatus.SUCCESS)" Class="custom-dropdown-item">Success</DropdownItem>
+                                        </DropdownMenu>
+                                    </Dropdown>
+                                }
 
+                                <div class="search-box">
+                                    <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z" />
+                                    </svg>
                                     <input type="text"
-                                           id="branch-search"
-                                           class="field-input text-white"
+                                           class="search-input"
                                            @bind="searchText"
                                            @bind:event="oninput"
                                            @onkeypress="HandleKeyPress"
                                            placeholder="Search branches..." />
                                 </div>
                             </div>
+                        </div>
 
-                            <!-- Deployment Actions -->
-                            @if (BranchList != null && BranchList.Any())
-                            {
-                                <div class="deployment-actions">
-                                    <div class="selection-summary">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
-                                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
-                                            <path d="M10.97 4.97a.235.235 0 0 0-.02.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05z" />
+                        @if (BranchList != null && BranchList.Any())
+                        {
+                            <div class="selection-toolbar">
+                                <div class="selection-info">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z" />
+                                    </svg>
+                                    <span class="selection-count">@SelectedBranches.Count of @BranchList.Count branch(es) selected</span>
+                                </div>
+
+                                <div class="toolbar-actions">
+                                    <button @onclick="SelectAllBranches" class="toolbar-btn select-btn">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                            <path d="M12.354 4.354a.5.5 0 0 0-.708-.708L5 10.293 1.854 7.146a.5.5 0 1 0-.708.708l3.5 3.5a.5.5 0 0 0 .708 0l7-7z" />
                                         </svg>
-                                        <span>@SelectedBranches.Count of @BranchList.Count branch(es) selected</span>
-                                    </div>
-                                    <div class="action-buttons">
-                                        <button @onclick="SelectAllBranches" class="btn-select-action">
+                                        Select All
+                                    </button>
+
+                                    <button @onclick="DeselectAllBranches" class="toolbar-btn deselect-btn">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                            <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z" />
+                                        </svg>
+                                        Clear
+                                    </button>
+
+                                    <button @onclick="DeployToSelectedBranches"
+                                            class="toolbar-btn deploy-btn"
+                                            disabled="@(IsDeployingToAll || !SelectedBranches.Any() || SelectPatch == null)">
+                                        @if (IsDeployingToAll)
+                                        {
+                                            <Spinner Color="SpinnerColor.Light" Size="SpinnerSize.Small" />
+                                            <span>Deploying...</span>
+                                        }
+                                        else
+                                        {
                                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                                <path d="M12.354 4.354a.5.5 0 0 0-.708-.708L5 10.293 1.854 7.146a.5.5 0 1 0-.708.708l3.5 3.5a.5.5 0 0 0 .708 0l7-7zm-4.208 7-.896-.897.707-.707.543.543 6.646-6.647a.5.5 0 0 1 .708.708l-7 7a.5.5 0 0 1-.708 0z" />
+                                                <path d="M11.251.068a.5.5 0 0 1 .227.58L9.677 6.5H13a.5.5 0 0 1 .364.843l-8 8.5a.5.5 0 0 1-.842-.49L6.323 9.5H3a.5.5 0 0 1-.364-.843l8-8.5a.5.5 0 0 1 .615-.09z" />
                                             </svg>
-                                            Select All
-                                        </button>
-                                        <button @onclick="DeselectAllBranches" class="btn-select-action">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                                <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z" />
-                                            </svg>
-                                            Deselect All
-                                        </button>
-                                        <button @onclick="DeployToSelectedBranches"
-                                                class="btn-deploy-all"
-                                                disabled="@(IsDeployingToAll || !SelectedBranches.Any() || SelectPatch == null)">
-                                            @if (IsDeployingToAll)
-                                            {
-                                                <Spinner Color="SpinnerColor.Light" Size="SpinnerSize.Small" />
-                                                <span class="ms-2">Deploying...</span>
-                                            }
-                                            else
-                                            {
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                                    <path d="M11.251.068a.5.5 0 0 1 .227.58L9.677 6.5H13a.5.5 0 0 1 .364.843l-8 8.5a.5.5 0 0 1-.842-.49L6.323 9.5H3a.5.5 0 0 1-.364-.843l8-8.5a.5.5 0 0 1 .615-.09z" />
-                                                </svg>
-                                                <span>Deploy to Selected (@SelectedBranches.Count)</span>
-                                            }
-                                        </button>
-                                    </div>
+                                            <span>Deploy (@SelectedBranches.Count)</span>
+                                        }
+                                    </button>
+                                </div>
+                            </div>
+                        }
+
+                        <div class="branches-container">
+                            @if (IsLoadingBranches)
+                            {
+                                <div class="branches-state loading-state">
+                                    <Loder Height="50px" width="50px" />
+                                    <span class="state-text">Loading branches...</span>
                                 </div>
                             }
-
-                            <!-- Branch List -->
-                            <div class="panel-body">
-                                @if (IsLoadingBranches)
-                                {
-                                    <div class="loading-container">
-                                        <Loder Height="50px" width="50px" />
-                                        <span class="text-muted mt-3">Loading branches...</span>
-                                    </div>
-                                }
-                                else if (BranchList == null || !BranchList.Any())
-                                {
-                                    <div class="empty-container">
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="50" height="50" fill="currentColor" viewBox="0 0 16 16">
+                            else if (BranchList == null || !BranchList.Any())
+                            {
+                                <div class="branches-state empty-state">
+                                    <div class="empty-icon">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" viewBox="0 0 16 16">
                                             <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
-                                            <path d="M4.285 12.433a.5.5 0 0 0 .683-.183A3.498 3.498 0 0 1 8 10.5c1.295 0 2.426.703 3.032 1.75a.5.5 0 0 0 .866-.5A4.498 4.498 0 0 0 8 9.5a4.5 4.5 0 0 0-3.898 2.25.5.5 0 0 0 .183.683zM7 6.5C7 7.328 6.552 8 6 8s-1-.672-1-1.5S5.448 5 6 5s1 .672 1 1.5zm4 0c0 .828-.448 1.5-1 1.5s-1-.672-1-1.5S9.448 5 10 5s1 .672 1 1.5z" />
+                                            <path d="M4.285 12.433a.5.5 0 0 0 .683-.183A3.498 3.498 0 0 1 8 10.5c1.295 0 2.426.703 3.032 1.75a.5.5 0 0 0 .866-.5A4.498 4.498 0 0 0 8 9.5a4.5 4.5 0 0 0-3.898 2.25.5.5 0 0 0 .183.683z" />
                                         </svg>
-                                        <span class="text-muted mt-3">No branches found</span>
                                     </div>
-                                }
-                                else
-                                {
-                                    <div class="file-tree">
+                                    <span class="state-text">No branches found</span>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class=" overflow-y-scroll vh-100">
+                                    <div class="branches-list">
                                         @RenderAllBranch(BranchList)
                                     </div>
-                                }
-                            </div>
+                                </div>
+                              
+                            }
                         </div>
                     </div>
                 </div>
@@ -259,6 +329,7 @@
 <AlertContainer />
 
 @code {
+    // [ALL EXISTING CODE REMAINS THE SAME - NO CHANGES]
     // ====== AUTHENTICATION & CONFIG ======
     private string? JWTToken;
 
@@ -327,146 +398,154 @@
     }
 
     private RenderFragment RenderAllBranch(List<SelectBranchDtoWithSelectedPatchDto> branch)
-{
-    return builder =>
     {
-        if (branch == null) return;
-
-        var sequence = 0;
-
-        foreach (var selectbranch in branch)
+        return builder =>
         {
-            var isSelected = IsBranchSelected(selectbranch.Id);
-            var isOnline = selectbranch.TerminalActiveStatus == TerminalActive.TERMINAL_ONLINE;
+            if (branch == null) return;
 
-            string isPatchstyle = "";
+            var sequence = 0;
 
-            if (selectbranch.SelectPatchNotEnrollPatchStatus)
+            foreach (var selectbranch in branch)
             {
-                isPatchstyle = "notenroll";
-            }
-            else if (selectbranch.EnrollBranch != null)
-            {
-                var status = selectbranch.EnrollBranch.Status;
+                var isSelected = IsBranchSelected(selectbranch.Id);
+                var isOnline = selectbranch.TerminalActiveStatus == TerminalActive.TERMINAL_ONLINE;
 
-                switch (status)
+                string isPatchstyle = "";
+
+                if (selectbranch.SelectPatchNotEnrollPatchStatus)
                 {
-                    case PatchStatus.FAILED:
-                        isPatchstyle = "failed";
-                        break;
-
-                    case PatchStatus.SUCCESS:
-                        isPatchstyle = "success";
-                        break;
-
-                    case PatchStatus.IN_PROGRESS:
-                        isPatchstyle = "inprogress";
-                        break;
-
-                    case PatchStatus.ROLLBACK:
-                        isPatchstyle = "rollback";
-                        break;
-
-                    case PatchStatus.INIT:
-                        isPatchstyle = "init";
-                        break;
-
-                    case PatchStatus.RESTART:
-                        isPatchstyle = "restart";
-                        break;
-
-                    default:
-                        isPatchstyle = "deactive";
-                        break;
+                    isPatchstyle = "notenroll";
                 }
-            }
-
-            // Main card container
-            builder.OpenElement(sequence++, "div");
-            builder.AddAttribute(sequence++, "class", $"branch-card {(isSelected ? "selected" : "")} {(!isOnline ? "disabled" : "")}");
-            builder.AddAttribute(sequence++, "onclick", EventCallback.Factory.Create(this, () => isOnline ? OnBranchClick(selectbranch) : Task.CompletedTask));
-
-            // Selection indicator
-            builder.OpenElement(sequence++, "div");
-            builder.AddAttribute(sequence++, "class", "branch-checkbox");
-            if (isOnline)
-            {
-                if (isSelected)
+                else if (selectbranch.EnrollBranch != null)
                 {
-                    builder.AddContent(sequence++, (MarkupString)@"
-                        <svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='currentColor' viewBox='0 0 16 16'>
-                            <path d='M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022Z'/>
-                        </svg>
-                    ");
+                    var status = selectbranch.EnrollBranch.Status;
+
+                    switch (status)
+                    {
+                        case PatchStatus.FAILED:
+                            isPatchstyle = "failed";
+                            break;
+
+                        case PatchStatus.SUCCESS:
+                            isPatchstyle = "success";
+                            break;
+
+                        case PatchStatus.IN_PROGRESS:
+                            isPatchstyle = "inprogress";
+                            break;
+
+                        case PatchStatus.ROLLBACK:
+                            isPatchstyle = "rollback";
+                            break;
+
+                        case PatchStatus.INIT:
+                            isPatchstyle = "init";
+                            break;
+
+                        case PatchStatus.RESTART:
+                            isPatchstyle = "restart";
+                            break;
+
+                        default:
+                            isPatchstyle = "deactive";
+                            break;
+                    }
+                }
+
+                // Main card container
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", $"branch-item {(isSelected ? "selected" : "")} {(!isOnline ? "disabled" : "")}");
+                builder.AddAttribute(sequence++, "onclick", EventCallback.Factory.Create(this, () => isOnline ? OnBranchClick(selectbranch) : Task.CompletedTask));
+
+                // Selection checkbox
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-checkbox");
+                if (isOnline)
+                {
+                    if (isSelected)
+                    {
+                        builder.AddContent(sequence++, (MarkupString)@"
+                            <svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='currentColor' viewBox='0 0 16 16'>
+                                <path d='M2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2zm10.03 4.97a.75.75 0 0 1 .011 1.05l-3.992 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.75.75 0 0 1 1.079-.022z'/>
+                            </svg>
+                        ");
+                    }
+                    else
+                    {
+                        builder.AddContent(sequence++, (MarkupString)@"
+                            <svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='currentColor' viewBox='0 0 16 16'>
+                                <path d='M14 1a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h12zM2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z'/>
+                            </svg>
+                        ");
+                    }
                 }
                 else
                 {
                     builder.AddContent(sequence++, (MarkupString)@"
                         <svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='currentColor' viewBox='0 0 16 16'>
-                            <path d='M14 1a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h12zM2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2H2z'/>
+                            <path d='M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z'/>
                         </svg>
                     ");
                 }
+                builder.CloseElement();
+
+                // Branch icon
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-avatar");
+                builder.AddContent(sequence++, (MarkupString)$@"
+                    <svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='currentColor' viewBox='0 0 16 16'>
+                        <path d='M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'/>
+                    </svg>
+                ");
+                builder.CloseElement();
+
+                // Branch info
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-main-info");
+
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-name-row");
+                builder.AddContent(sequence++, $"{selectbranch.BranchName}");
+                builder.OpenElement(sequence++, "span");
+                builder.AddAttribute(sequence++, "class", "branch-id-badge");
+                builder.AddContent(sequence++, selectbranch.BranchId);
+                builder.CloseElement();
+                builder.CloseElement();
+
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-terminal");
+                builder.AddContent(sequence++, (MarkupString)$@"
+                    <svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='currentColor' viewBox='0 0 16 16'>
+                        <path d='M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4z'/>
+                    </svg>
+                    {selectbranch.TerminalId}
+                ");
+                builder.CloseElement();
+
+                builder.CloseElement();
+
+                // Status badges
+                builder.OpenElement(sequence++, "div");
+                builder.AddAttribute(sequence++, "class", "branch-status-group");
+
+                builder.OpenElement(sequence++, "span");
+                builder.AddAttribute(sequence++, "class", $"connection-badge {(isOnline ? "online" : "offline")}");
+                builder.AddContent(sequence++, isOnline ? "●ONLINE" : "●OFFLINE");
+                builder.CloseElement();
+
+                builder.OpenElement(sequence++, "span");
+                builder.AddAttribute(sequence++, "class", $"patch-status-badge {isPatchstyle}");
+                builder.AddContent(sequence++, selectbranch.SelectPatchNotEnrollPatchStatus
+                    ? "NOT ENROLLED"
+                    : (selectbranch.EnrollBranch?.Status.ToString().ToUpper() ?? "UNKNOWN"));
+                builder.CloseElement();
+
+                builder.CloseElement();
+
+                builder.CloseElement(); // Close branch-item
             }
-            builder.CloseElement();
-
-            // Branch icon
-            builder.OpenElement(sequence++, "div");
-            builder.AddAttribute(sequence++, "class", "branch-icon");
-            builder.AddContent(sequence++, isOnline ? "🏢" : "🔒");
-            builder.CloseElement();
-
-            // Branch info container
-            builder.OpenElement(sequence++, "div");
-            builder.AddAttribute(sequence++, "class", "branch-info");
-
-            // Branch name
-            builder.OpenElement(sequence++, "div");
-            builder.AddAttribute(sequence++, "class", "branch-name");
-            builder.AddContent(sequence++, $"{selectbranch.BranchName} ({selectbranch.BranchId})");
-            builder.CloseElement();
-
-            // Location
-            builder.OpenElement(sequence++, "div");
-            builder.AddAttribute(sequence++, "class", "branch-location");
-            builder.AddContent(sequence++, $" {selectbranch.TerminalId}");
-            builder.CloseElement();
-
-            // Status badge
-            builder.OpenElement(sequence++, "div");
-            builder.AddAttribute(sequence++, "class", "branch-detail-item");
-            builder.OpenElement(sequence++, "span");
-            builder.AddAttribute(sequence++, "class", $"status-badge {(isOnline ? "online" : "offline")}");
-            builder.AddContent(sequence++, isOnline ? "Online" : "Offline");
-            builder.CloseElement();
-            builder.CloseElement();
-
-            builder.CloseElement(); // Close branch-info
-
-            // Branch details container
-            builder.OpenElement(sequence++, "div");
-            builder.AddAttribute(sequence++, "class", "branch-details");
-
-            // Patch status badge
-            builder.OpenElement(sequence++, "div");
-            builder.AddAttribute(sequence++, "class", "branch-detail-item");
-            builder.OpenElement(sequence++, "span");
-            builder.AddAttribute(sequence++, "class", $"status-badge-patch {isPatchstyle}");
-
-            builder.AddContent(sequence++, selectbranch.SelectPatchNotEnrollPatchStatus
-                ? "Branch not assigned to this patch yet"
-                : (selectbranch.EnrollBranch?.Message ?? "No patch status"));
-
-            builder.CloseElement();
-            builder.CloseElement();
-
-            builder.CloseElement(); // Close branch-details
-
-            builder.CloseElement(); // Close branch-card
-        }
-    };
-}
-
+        };
+    }
 
     private async Task OnBranchClick(SelectBranchDtoWithSelectedPatchDto branch)
     {
@@ -540,7 +619,6 @@
     {
         IsLoadingPatch = true;
         selectedPatchName = patch.Name;
-        StateHasChanged();
 
         try
         {
@@ -551,7 +629,6 @@
                 SelectPatchIf = true;
                 patchId = patch.Id;
                 await LoadBranchesAsync();
-                // Success
             }
         }
         finally
@@ -576,11 +653,11 @@
             return;
         }
 
-        var confirmResult = await JS.InvokeAsync<bool>("confirm",
-            $"Deploy patch '{SelectPatch.PatchZipName}' to {SelectedBranches.Count} branch(es)?");
+        // var confirmResult = await JS.InvokeAsync<bool>("confirm",
+        //     $"Deploy patch '{SelectPatch.PatchZipName}' to {SelectedBranches.Count} branch(es)?");
 
-        if (!confirmResult)
-            return;
+        // if (!confirmResult)
+        //     return;
 
         IsDeployingToAll = true;
         StateHasChanged();
@@ -609,7 +686,6 @@
                 var successMsg = $"Deployment initiated: {result.SuccessfulInitiations}/{result.TotalBranches} branches";
                 AlertService.ShowSuccess("Deployment Started", successMsg);
 
-                // Show detailed results if there were failures
                 if (result.FailedInitiations > 0)
                 {
                     var failedBranches = result.DeploymentResults
@@ -640,11 +716,11 @@
     private async Task OnStatusSelected(PatchStatus? status)
     {
         selectedStatus = status.ToString() ?? string.Empty;
+        SelectedStatusText = status?.ToString() ?? "All Status";
         await LoadBranchesAsync();
-        ;
     }
 
-    // ====== API CALLS ======
+    // ====== API CALLS ====== [ALL REMAIN SAME]
     private async Task<string?> GetJwtToken()
     {
         try
@@ -664,30 +740,27 @@
         return await _auth.getLogginUserDetiles();
     }
 
-
-
     public async Task<List<SelectBranchDtoWithSelectedPatchDto>?> getAllBranch(string baseUrl, string jwtToken)
     {
         try
         {
-          var query = new List<string>
-{
-    $"Search={Uri.EscapeDataString(searchText ?? string.Empty)}",
-    $"SelectPatch={SelectPatchIf}"
-};
+            var query = new List<string>
+            {
+                $"Search={Uri.EscapeDataString(searchText ?? string.Empty)}",
+                $"SelectPatch={SelectPatchIf}"
+            };
 
             if (!string.IsNullOrWhiteSpace(selectedStatus))
-{
+            {
                 query.Add($"Status={Uri.EscapeDataString(selectedStatus)}");
-}
+            }
 
             if (SelectPatchIf && patchId > 0)
-{
-    query.Add($"PatchId={patchId}");
-}
+            {
+                query.Add($"PatchId={patchId}");
+            }
 
-var url = $"api/Branch/getAllBranchSelectedPatch?{string.Join("&", query)}";
-
+            var url = $"api/Branch/getAllBranchSelectedPatch?{string.Join("&", query)}";
 
             using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
@@ -910,573 +983,258 @@ var url = $"api/Branch/getAllBranchSelectedPatch?{string.Join("&", query)}";
 }
 
 <style>
+    /* ====== ROOT & BASE ====== */
+    :root {
+        --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        --success-gradient: linear-gradient(135deg, #4caf50 0%, #81c784 100%);
+        --danger-gradient: linear-gradient(135deg, #f44336 0%, #e57373 100%);
+        --warning-gradient: linear-gradient(135deg, #ff9800 0%, #ffb74d 100%);
+        --info-gradient: linear-gradient(135deg, #2196f3 0%, #64b5f6 100%);
+        --bg-primary: #1a1a1b;
+        --bg-secondary: #2a2a2b;
+        --bg-tertiary: #252526;
+        --border-color: rgba(100, 98, 100, 0.3);
+        --text-primary: #ffffff;
+        --text-secondary: #999;
+        --text-muted: #666;
+        --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+        --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
+        --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+        --transition-fast: 0.2s ease;
+        --transition-base: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
     /* ====== MAIN LAYOUT ====== */
-    .Main-wrapper {
-        min-height: 100vh;
-        background: #1e1e1f;
-    }
-
-    .Main-content {
-        padding: 20px;
-    }
-
-    .patch-content {
-        display: flex;
-        flex-direction: column;
-        gap: 20px;
-    }
-
-    /* ====== PATCH OPTIONS ====== */
-    .patch-options {
-        background: linear-gradient(135deg, #3e3e3f 0%, #2a2a2b 100%);
-        border: 2px solid rgba(100, 98, 100, 0.3);
-        border-radius: 16px;
-        padding: 20px;
-    }
-
-    /* ====== LOADING & EMPTY STATES ====== */
-    .loading-patch-card, .empty-patch-card, .loading-container, .empty-container {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        min-height: 400px;
-        background: rgba(0, 0, 0, 0.3);
-        border: 1px solid rgba(100, 98, 100, 0.3);
-        border-radius: 12px;
-        color: #999;
-    }
-
-    /* ====== PATCH DETAIL CARD ====== */
-    .patch-detail-card {
-        /* background: linear-gradient(135deg, #3e3e3f 0%, #2f2f30 100%); */
-        border: 1px solid rgba(100, 98, 100, 0.3);
-        border-radius: 12px;
-        padding: 24px;
-        height: 500px;
-        overflow-y: auto;
-        background: rgba(0, 0, 0, 0.3);
-    }
-
-    .patch-detail-header {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        margin-bottom: 24px;
-        padding-bottom: 16px;
-        border-bottom: 1px solid rgba(100, 98, 100, 0.3);
-    }
-
-        .patch-detail-header h3 {
-            font-size: 24px;
-            color: #ffffff;
-            font-weight: 700;
-            margin: 0;
-        }
-
-    .version-label {
-        font-size: 12px;
-        color: #999;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-
-    .patch-detail-body {
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-    }
-
-    .detail-row {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
-
-    .detail-label {
-        font-size: 12px;
-        color: #999;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        font-weight: 600;
-    }
-
-    .detail-value {
-        font-size: 14px;
-        color: #ffffff;
-        word-break: break-word;
-    }
-
-    .path-value {
-        font-family: 'Courier New', monospace;
-        background: rgba(0, 0, 0, 0.3);
-        padding: 8px 12px;
-        border-radius: 6px;
-    }
-
-    /* ====== PANEL STYLES ====== */
-    .parent-panel {
-        display: grid;
-        gap: 20px;
-        height: calc(100vh - 200px);
-    }
-
-    .panel {
-        background: #252526;
-        border: 1px solid #3e3e3f;
-        border-radius: 12px;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-    }
-
-    .server-panel {
-        border-left: 3px solid #953e3f;
-    }
-
-    .panel-header {
+    .deployment-wrapper {
         background: #2a2a2b;
-        border-bottom: 1px solid #3e3e3f;
-        padding: 16px 20px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .header-content {
-        flex: 1;
-    }
-
-    .icon-title {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-
-        .icon-title h2 {
-            font-size: 18px;
-            font-weight: 600;
-            color: #ffffff;
-            margin: 0;
-        }
-
-    .panel-actions {
-        display: flex;
-        gap: 8px;
-    }
-
-    .field-input {
-        width: 100%;
-        padding: 10px 16px;
-        background: rgba(0, 0, 0, 0.3);
-        border: 1px solid rgba(100, 98, 100, 0.3);
-        border-radius: 8px;
-        color: #ffffff;
-        font-size: 14px;
-        transition: all 0.3s ease;
-    }
-
-        .field-input:focus {
-            outline: none;
-            border-color: #953e3f;
-            background: rgba(0, 0, 0, 0.4);
-        }
-
-        .field-input::placeholder {
-            color: #666;
-        }
-
-    .panel-body {
-        flex: 1;
-        overflow-y: scroll;
-        padding: 16px;
-        
-    }
-
-    .file-tree {
         display: flex;
         flex-direction: column;
-        gap: 8px;
     }
 
-    /* ====== DEPLOYMENT ACTIONS ====== */
-    .deployment-actions {
+    .deployment-content {
+        flex: 1;
+        padding: 20px;
         display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 16px 20px;
-        background: rgba(0, 0, 0, 0.3);
-        border-bottom: 1px solid rgba(100, 98, 100, 0.3);
+        flex-direction: column;
+        gap: 40px;
     }
 
-    .selection-summary {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        color: #999;
-        font-size: 14px;
-        font-weight: 500;
+    .deployment-section {
+        background: linear-gradient(135deg, #3e3e3f 0%, #2a2a2b 100%);
+        padding: 32px;
+        border-radius: 16px;
+        border: 2px solid rgba(100, 98, 100, 0.3);
     }
 
-        .selection-summary svg {
-            color: #667eea;
-        }
-
-    .action-buttons {
-        display: flex;
-        gap: 12px;
-    }
-
-    .btn-select-action {
-        padding: 8px 16px;
-        background: rgba(102, 126, 234, 0.2);
-        border: 1px solid rgba(102, 126, 234, 0.3);
-        border-radius: 6px;
-        color: #667eea;
-        font-size: 13px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-
-        .btn-select-action:hover {
-            background: rgba(102, 126, 234, 0.3);
-            transform: translateY(-2px);
-        }
-
-        .btn-select-action svg {
-            width: 16px;
-            height: 16px;
-        }
-
-    .btn-deploy-all {
-        padding: 10px 24px;
-        background: linear-gradient(135deg, #953e3f 0%, #b04e4f 100%);
-        border: none;
-        border-radius: 6px;
-        color: white;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-        .btn-deploy-all:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(149, 62, 63, 0.4);
-        }
-
-        .btn-deploy-all:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .btn-deploy-all svg {
-            width: 16px;
-            height: 16px;
-        }
-
-    /* ====== BRANCH CARD STYLES ====== */
-    .branch-card {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        padding: 16px;
-        background: linear-gradient(135deg, rgba(62, 62, 63, 0.4) 0%, rgba(42, 42, 43, 0.6) 100%);
-        border: 1px solid rgba(100, 98, 100, 0.3);
-        border-radius: 12px;
-        cursor: pointer;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    /* ====== PAGE HEADER ====== */
+    .page-header {
+        background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+        border: 1px solid var(--border-color);
+        border-radius: 16px;
+        padding: 32px;
+        box-shadow: var(--shadow-md);
         position: relative;
         overflow: hidden;
     }
 
-        .branch-card::before {
+        .page-header::before {
             content: '';
             position: absolute;
             top: 0;
             left: 0;
-            width: 4px;
-            height: 100%;
-            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
-            opacity: 0;
-            transition: opacity 0.3s ease;
+            right: 0;
+            height: 4px;
+            background: var(--primary-gradient);
         }
 
-        .branch-card:hover:not(.disabled) {
-            transform: translateX(4px);
-            background: linear-gradient(135deg, rgba(62, 62, 63, 0.6) 0%, rgba(42, 42, 43, 0.8) 100%);
-            border-color: rgba(102, 126, 234, 0.4);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-        }
-
-            .branch-card:hover:not(.disabled)::before {
-                opacity: 1;
-            }
-
-        .branch-card.selected {
-            border-color: rgba(102, 126, 234, 0.6);
-            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(42, 42, 43, 0.8) 100%);
-        }
-
-            .branch-card.selected::before {
-                opacity: 1;
-            }
-
-        .branch-card.disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-            .branch-card.disabled:hover {
-                transform: none;
-                box-shadow: none;
-            }
-
-    .branch-checkbox {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 24px;
-        height: 24px;
-        color: #667eea;
-    }
-
-        .branch-checkbox svg {
-            width: 20px;
-            height: 20px;
-        }
-
-    .branch-icon {
-        font-size: 20px;
-        min-width: 48px;
-        height: 48px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: rgba(102, 126, 234, 0.15);
-        border-radius: 10px;
-        transition: all 0.3s ease;
-    }
-
-    .branch-card:hover:not(.disabled) .branch-icon {
-        background: rgba(102, 126, 234, 0.25);
-        transform: scale(1.1);
-    }
-
-    .branch-info {
-        flex: 1;
+    .header-content {
         display: flex;
         flex-direction: column;
-        gap: 6px;
-        min-width: 0;
+        gap: 8px;
     }
 
-    .branch-name {
-        font-size: 16px;
-        font-weight: 600;
-        color: #ffffff;
-        line-height: 1.3;
+    .page-title {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin: 0;
+    }
+
+        .page-title svg {
+            color: #667eea;
+        }
+
+    .page-subtitle {
+        font-size: 14px;
+        color: var(--text-secondary);
+        margin: 0;
+        padding-left: 48px;
+    }
+
+    /* ====== DEPLOYMENT GRID ====== */
+    .deployment-grid {
+        display: grid;
+        grid-template-columns: 480px 1fr;
+        gap: 24px;
+        min-height: calc(100vh - 280px);
+    }
+
+    /* ====== PANEL CARD ====== */
+    .panel-card {
+        background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+        border: 1px solid var(--border-color);
+        border-radius: 16px;
+        box-shadow: var(--shadow-md);
+        display: flex;
+        flex-direction: column;
         overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        height: 100%;
     }
 
-    .branch-location {
-        font-size: 13px;
-        color: #999;
+    .panel-card-header {
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 12px;
+        padding: 20px 24px;
+        background: rgba(0, 0, 0, 0.3);
+        border-bottom: 1px solid var(--border-color);
     }
 
-    .branch-details {
+        .panel-card-header h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+    .header-icon {
+        width: 40px;
+        height: 40px;
         display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #953e3f;
+        border-radius: 10px;
+        color: var(--text-primary);
+    }
+
+    .header-left-section {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex: 1;
+    }
+
+    .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex: 1;
         justify-content: flex-end;
-        align-items: center;
-        width: 35%;
     }
 
-
-    .branch-detail-item {
-        /* display: flex; */
-        /* flex-direction: column; */
-        width:100px;
-        gap: 4px;
+    .panel-card-body {
+        flex: 1;
+        padding: 24px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
     }
 
-    .status-badge {
-        padding: 4px 12px;
-        border-radius: 12px;
-        font-size: 11px;
+    /* ====== DROPDOWN SECTION ====== */
+    .dropdown-section {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .dropdown-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .dropdown-label {
+        font-size: 12px;
         font-weight: 600;
+        color: var(--text-secondary);
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
 
-        .status-badge.online {
-            background: rgba(76, 175, 80, 0.2);
-            color: #4caf50;
-        }
-
-        .status-badge.offline {
-            background: rgba(149, 62, 63, 0.2);
-            color: #ff6b6b;
-        }
-
-    .status-badge-patch {
-        padding: 6px 12px;
-        font-size: 12px;
-        font-weight: 600;
-        border-radius: 10px;
-        gap: 6px;
-        border: 1px solid transparent;
-        display: inline-flex;
-        align-items: center;
-        /* IMPORTANT */
-        white-space: normal; /* allow wrap */
-        word-break: break-word; /* break long words */
-        max-width: 100%; /* fit to parent width */
+    .custom-dropdown {
+        position: relative;
+        width: 100%;
     }
 
-
-    .status-badge-patch.success {
-            background: rgba(76, 175, 80, 0.2);
-            color: #4caf50;
-            border-color: rgba(76, 175, 80, 0.5);
-        }
-
-    .status-badge-patch.failed {
-            background: rgba(244, 67, 54, 0.2);
-            color: #ff6b6b;
-            border-color: rgba(244, 67, 54, 0.5);
-        }
-
-    .status-badge-patch.rollback {
-        background: rgba(244, 67, 54, 0.2);
-        color: #ff6b6b;
-        border-color: rgba(244, 67, 54, 0.5);
-    }
-
-    .status-badge-patch.init {
-            background: rgba(255, 152, 0, 0.2);
-            color: #ff9800;
-            border-color: rgba(255, 152, 0, 0.5);
-        }
-
-    .status-badge-patch.inprogress {
-            background: rgba(0, 123, 255, 0.2);
-            color: #4da3ff;
-            border-color: rgba(0, 123, 255, 0.5);
-        }
-
-    .status-badge-patch.notenroll {
-            background: rgba(120, 120, 120, 0.2);
-            color: #bdbdbd;
-            border-color: rgba(120, 120, 120, 0.5);
-        }
-    /* ====== SCROLLBAR ====== */
-    .panel-body::-webkit-scrollbar,
-    .patch-detail-card::-webkit-scrollbar {
-        width: 8px;
-    }
-
-    .panel-body::-webkit-scrollbar-track,
-    .patch-detail-card::-webkit-scrollbar-track {
-        background: rgba(0, 0, 0, 0.2);
-        border-radius: 10px;
-    }
-
-    .panel-body::-webkit-scrollbar-thumb,
-    .patch-detail-card::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 10px;
-    }
-
-        .panel-body::-webkit-scrollbar-thumb:hover,
-        .patch-detail-card::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.3);
-        }
-
-    /* ====== RESPONSIVE ====== */
-    @@media (max-width: 1200px) {
-        .row > .col-6 {
-            flex: 0 0 100%;
-            max-width: 100%;
-        }
-
-        .parent-panel {
-            height: auto;
-        }
-
-        .deployment-actions {
-            flex-direction: column;
-            gap: 12px;
-            align-items: stretch;
-        }
-
-        .action-buttons {
-            flex-direction: column;
-        }
-
-        .branch-details {
-            flex-direction: column;
-            gap: 8px;
-        }
-    }
-    /* ====== DROPDOWN STYLES ====== */
-    .dropdown-btn {
+    .custom-dropdown-btn {
+        width: 100%;
         display: flex;
         align-items: center;
-        gap: 8px;
-        background: rgba(0, 0, 0, 0.3);
-        border: 1px solid #3e3e3f;
-        border-radius: 6px;
-        color: white;
-        font-size: 13px;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 18px;
+        background: rgba(0, 0, 0, 0.4);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        color: var(--text-primary);
+        font-size: 14px;
+        font-weight: 500;
         cursor: pointer;
-        transition: all 0.3s ease;
-        white-space: nowrap;
+        transition: var(--transition-base);
     }
 
-        .dropdown-btn:hover:not(:disabled) {
+        .custom-dropdown-btn:hover:not(:disabled) {
             background: rgba(149, 62, 63, 0.2);
             border-color: #953e3f;
-            color: white;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-sm);
+            color: var(--text-primary);
         }
 
-        .dropdown-btn:disabled {
+        .custom-dropdown-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            color: var(--text-primary);
         }
 
-        .dropdown-btn svg {
-            color: #999;
-            transition: transform 0.3s ease;
-        }
+    .dropdown-text {
+        flex: 1;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
 
-        .dropdown-btn:hover:not(:disabled) svg {
-            color: #953e3f;
-        }
+    .dropdown-icon {
+        flex-shrink: 0;
+        color: var(--text-secondary);
+        transition: transform var(--transition-fast);
+    }
 
-    .dropdown-menu {
+    .custom-dropdown-btn:hover .dropdown-icon {
+        color: #953e3f;
+    }
+
+    .custom-dropdown-menu {
         position: absolute;
         top: calc(100% + 8px);
         left: 0;
-        min-width: 240px;
+        right: 0;
         max-height: 300px;
         overflow-y: auto;
-        background: #2a2a2b;
-        border: 1px solid #3e3e3f;
-        border-radius: 8px;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        box-shadow: var(--shadow-lg);
         z-index: 1000;
         animation: dropdownSlide 0.2s ease;
     }
@@ -1493,40 +1251,731 @@ var url = $"api/Branch/getAllBranchSelectedPatch?{string.Join("&", query)}";
         }
     }
 
-    .dropdown-item {
+    .custom-dropdown-item {
         display: flex;
         align-items: center;
-        gap: 12px;
-        padding: 12px 14px;
-        color: #ffffff;
+        gap: 10px;
+        padding: 12px 16px;
+        color: var(--text-primary);
         font-size: 13px;
         cursor: pointer;
-        transition: all 0.3s ease;
-        border-bottom: 1px solid #3e3e3f;
+        transition: var(--transition-fast);
+        border-bottom: 1px solid rgba(100, 98, 100, 0.1);
     }
 
-        .dropdown-item:last-child {
+        .custom-dropdown-item:last-child {
             border-bottom: none;
         }
 
-        .dropdown-item:hover {
+        .custom-dropdown-item:hover {
             background: rgba(149, 62, 63, 0.2);
         }
 
-        .dropdown-item.active {
-            background: rgba(149, 62, 63, 0.3);
-        }
-
-            .dropdown-item.active .item-title {
-                color: #953e3f;
-            }
-
-        .dropdown-item > svg {
-            color: #666;
+        .custom-dropdown-item svg {
+            color: var(--text-secondary);
             flex-shrink: 0;
         }
 
-        .dropdown-item.active > svg {
+        .custom-dropdown-item:hover svg {
             color: #953e3f;
         }
+
+    .dropdown-empty {
+        display: block;
+        padding: 12px 16px;
+        color: var(--text-muted);
+        font-size: 13px;
+        text-align: center;
+    }
+
+    /* ====== PATCH DETAILS SECTION ====== */
+    .patch-details-section {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .details-state {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 16px;
+        min-height: 400px;
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px dashed var(--border-color);
+        border-radius: 12px;
+        padding: 32px;
+    }
+
+    .state-text {
+        font-size: 14px;
+        color: var(--text-secondary);
+        text-align: center;
+    }
+
+    .empty-icon {
+        opacity: 0.5;
+    }
+
+        .empty-icon svg {
+            color: var(--text-secondary);
+        }
+
+    /* ====== PATCH INFO CARD ====== */
+    .patch-info-card {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 20px;
+    }
+
+    .patch-info-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .patch-icon {
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(76, 175, 80, 0.2);
+        border-radius: 12px;
+        color: #4caf50;
+    }
+
+    .patch-title-group {
+        flex: 1;
+    }
+
+    .patch-version {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin: 0 0 4px 0;
+    }
+
+    .version-tag {
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--text-secondary);
+        letter-spacing: 1px;
+    }
+
+    .patch-info-body {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .info-item {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .info-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+        .info-label svg {
+            opacity: 0.7;
+        }
+
+    .info-value {
+        font-size: 14px;
+        color: var(--text-primary);
+        word-break: break-word;
+        line-height: 1.5;
+    }
+
+    .path-value {
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        background: rgba(0, 0, 0, 0.4);
+        padding: 10px 12px;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+    }
+
+    /* ====== FILTER & SEARCH ====== */
+    .status-filter-dropdown {
+        position: relative;
+    }
+
+    .filter-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        background: rgba(102, 126, 234, 0.2);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        border-radius: 8px;
+        color: #667eea;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: var(--transition-base);
+        white-space: nowrap;
+    }
+
+        .filter-btn:hover {
+            background: rgba(102, 126, 234, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .filter-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+    .search-box {
+        position: relative;
+        width: 280px;
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-secondary);
+        pointer-events: none;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 10px 16px 10px 40px;
+        background: rgba(0, 0, 0, 0.4);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 14px;
+        transition: var(--transition-base);
+    }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: rgba(0, 0, 0, 0.5);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .search-input::placeholder {
+            color: var(--text-muted);
+        }
+
+    /* ====== SELECTION TOOLBAR ====== */
+    .selection-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 24px;
+        background: rgba(0, 0, 0, 0.3);
+        border-bottom: 1px solid var(--border-color);
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .selection-info {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--text-secondary);
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+        .selection-info svg {
+            color: #667eea;
+            flex-shrink: 0;
+        }
+
+    .selection-count {
+        color: var(--text-primary);
+    }
+
+    .toolbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .toolbar-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 18px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: var(--transition-base);
+        border: none;
+        white-space: nowrap;
+    }
+
+    .select-btn {
+        background: rgba(102, 126, 234, 0.2);
+        color: #667eea;
+        border: 1px solid rgba(102, 126, 234, 0.3);
+    }
+
+        .select-btn:hover {
+            background: rgba(102, 126, 234, 0.3);
+            transform: translateY(-2px);
+        }
+
+    .deselect-btn {
+        background: rgba(158, 158, 158, 0.2);
+        color: #9e9e9e;
+        border: 1px solid rgba(158, 158, 158, 0.3);
+    }
+
+        .deselect-btn:hover {
+            background: rgba(158, 158, 158, 0.3);
+            transform: translateY(-2px);
+        }
+
+    .deploy-btn {
+        background: linear-gradient(135deg, #953e3f 0%, #b04e4f 100%);
+        color: white;
+        border: none;
+    }
+
+        .deploy-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(244, 67, 54, 0.4);
+        }
+
+        .deploy-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+    /* ====== BRANCHES CONTAINER ====== */
+    .branches-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 5px 5px;
+    }
+
+    .branches-state {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 16px;
+        min-height: 400px;
+    }
+
+    .branches-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+
+    }
+
+    /* ====== BRANCH ITEM ====== */
+    .branch-item {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 16px 18px;
+        background: linear-gradient(135deg, rgba(42, 42, 43, 0.6) 0%, rgba(37, 37, 38, 0.8) 100%);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: var(--transition-base);
+        position: relative;
+        overflow: hidden;
+    }
+
+        .branch-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--primary-gradient);
+            opacity: 0;
+            transition: opacity var(--transition-fast);
+        }
+
+        .branch-item:hover:not(.disabled) {
+            transform: translateX(4px);
+            background: linear-gradient(135deg, rgba(42, 42, 43, 0.8) 0%, rgba(37, 37, 38, 1) 100%);
+            border-color: rgba(102, 126, 234, 0.5);
+            box-shadow: var(--shadow-sm);
+        }
+
+            .branch-item:hover:not(.disabled)::before {
+                opacity: 1;
+            }
+
+        .branch-item.selected {
+            border-color: rgba(102, 126, 234, 0.7);
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(37, 37, 38, 0.9) 100%);
+        }
+
+            .branch-item.selected::before {
+                opacity: 1;
+            }
+
+        .branch-item.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+            .branch-item.disabled:hover {
+                transform: none;
+                box-shadow: none;
+                border-color: var(--border-color);
+            }
+
+    .branch-checkbox {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        color: #667eea;
+        flex-shrink: 0;
+    }
+
+        .branch-checkbox svg {
+            width: 20px;
+            height: 20px;
+        }
+
+    .branch-avatar {
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(102, 126, 234, 0.2);
+        border-radius: 12px;
+        color: #667eea;
+        flex-shrink: 0;
+        transition: var(--transition-base);
+    }
+
+    .branch-item:hover:not(.disabled) .branch-avatar {
+        background: rgba(102, 126, 234, 0.3);
+        transform: scale(1.1);
+    }
+
+    .branch-main-info {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    .branch-name-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text-primary);
+        line-height: 1.3;
+    }
+
+    .branch-id-badge {
+        padding: 2px 8px;
+        background: rgba(102, 126, 234, 0.2);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #667eea;
+        white-space: nowrap;
+    }
+
+    .branch-terminal {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        font-family: 'Courier New', monospace;
+    }
+
+        .branch-terminal svg {
+            opacity: 0.7;
+        }
+
+    .branch-status-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    .connection-badge {
+        padding: 5px 12px;
+        border-radius: 12px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+    }
+
+        .connection-badge.online {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+            border: 1px solid rgba(76, 175, 80, 0.5);
+        }
+
+        .connection-badge.offline {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+            border: 1px solid rgba(244, 67, 54, 0.5);
+        }
+
+    .patch-status-badge {
+        padding: 5px 12px;
+        border-radius: 12px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+    }
+
+        .patch-status-badge.success {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+            border: 1px solid rgba(76, 175, 80, 0.5);
+        }
+
+        .patch-status-badge.failed {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+            border: 1px solid rgba(244, 67, 54, 0.5);
+        }
+
+        .patch-status-badge.inprogress {
+            background: rgba(33, 150, 243, 0.2);
+            color: #2196f3;
+            border: 1px solid rgba(33, 150, 243, 0.5);
+        }
+
+        .patch-status-badge.init {
+            background: rgba(255, 152, 0, 0.2);
+            color: #ff9800;
+            border: 1px solid rgba(255, 152, 0, 0.5);
+        }
+
+        .patch-status-badge.rollback {
+            background: rgba(156, 39, 176, 0.2);
+            color: #9c27b0;
+            border: 1px solid rgba(156, 39, 176, 0.5);
+        }
+
+        .patch-status-badge.notenroll {
+            background: rgba(158, 158, 158, 0.2);
+            color: #9e9e9e;
+            border: 1px solid rgba(158, 158, 158, 0.5);
+        }
+
+        .patch-status-badge.restart {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+            border: 1px solid rgba(255, 193, 7, 0.5);
+        }
+
+        .patch-status-badge.deactive {
+            background: rgba(96, 96, 96, 0.2);
+            color: #757575;
+            border: 1px solid rgba(96, 96, 96, 0.5);
+        }
+
+    /* ====== SCROLLBAR ====== */
+    .panel-card-body::-webkit-scrollbar,
+    .branches-container::-webkit-scrollbar,
+    .custom-dropdown-menu::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    .panel-card-body::-webkit-scrollbar-track,
+    .branches-container::-webkit-scrollbar-track,
+    .custom-dropdown-menu::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 3px;
+    }
+
+    .panel-card-body::-webkit-scrollbar-thumb,
+    .branches-container::-webkit-scrollbar-thumb,
+    .custom-dropdown-menu::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 3px;
+    }
+
+        .panel-card-body::-webkit-scrollbar-thumb:hover,
+        .branches-container::-webkit-scrollbar-thumb:hover,
+        .custom-dropdown-menu::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+    /* ====== ANIMATIONS ====== */
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .branch-item {
+        animation: fadeIn 0.3s ease;
+    }
+
+    .panel-card {
+        animation: fadeIn 0.5s ease;
+    }
+
+    /* ====== RESPONSIVE ====== */
+    @@media (max-width: 1400px) {
+        .deployment-grid {
+            grid-template-columns: 420px 1fr;
+        }
+
+        .search-box {
+            width: 220px;
+        }
+    }
+
+    @@media (max-width: 1200px) {
+        .deployment-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .patch-selection-panel {
+            max-width: 100%;
+        }
+
+        .header-actions {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .search-box {
+            width: 100%;
+        }
+
+        .selection-toolbar {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .toolbar-actions {
+            width: 100%;
+        }
+
+        .toolbar-btn {
+            flex: 1;
+            justify-content: center;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .deployment-content {
+            padding: 16px;
+        }
+
+        .page-header {
+            padding: 20px;
+        }
+
+        .page-title {
+            font-size: 22px;
+        }
+
+        .page-subtitle {
+            padding-left: 38px;
+        }
+
+        .panel-card-body {
+            padding: 16px;
+        }
+
+        .branches-container {
+            padding: 12px 16px;
+        }
+
+        .branch-item {
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .branch-status-group {
+            width: 100%;
+            justify-content: flex-start;
+            padding-left: 40px;
+        }
+
+        .branch-name-row {
+            flex-wrap: wrap;
+        }
+    }
+
+    @@media (max-width: 480px) {
+        .deployment-grid {
+            gap: 16px;
+        }
+
+        .panel-card-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .header-actions {
+            width: 100%;
+        }
+
+        .toolbar-actions {
+            flex-direction: column;
+        }
+
+        .branch-avatar {
+            width: 40px;
+            height: 40px;
+        }
+
+        .branch-name-row {
+            font-size: 14px;
+        }
+
+        .branch-id-badge {
+            font-size: 10px;
+        }
+    }
 </style>

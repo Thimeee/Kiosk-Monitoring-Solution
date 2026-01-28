@@ -1,0 +1,1867 @@
+﻿@page "/patchupdate/patch-update-all-events"
+@using Microsoft.AspNetCore.SignalR.Client
+@using Monitoring.Shared.DTO
+@using Monitoring.Shared.DTO.BranchDto
+@using Monitoring.Shared.DTO.PatchsDto
+@using Monitoring.Shared.Enum
+@using Monitoring.Shared.Models
+@using System.Net.Http.Headers
+@using System.Net
+@using static Monitoring.Shared.DTO.PatchsDto.SelectedPatch
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject AlertService AlertService
+@inject AppSettings Settings
+@inject AuthCredential _auth
+@layout NavbarLayout
+@implements IAsyncDisposable
+
+<div class="Main-wrapper">
+    <main class="Main-content">
+        <section class="Main-section mt-4">
+            <!-- Header with Filters -->
+            <div class="monitoring-header">
+                <div class="header-left">
+                    <h1 class="page-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
+                            <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z" />
+                        </svg>
+                      Patch Monitoring
+
+                      
+                    </h1>
+                    @if (hubConnection?.State == HubConnectionState.Connected)
+                    {
+                        <div class="connection-status connected">
+                            <span class="status-dot"></span>
+                            <span>Live</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="connection-status disconnected">
+                            <span class="status-dot"></span>
+                            <span>Disconnected</span>
+                        </div>
+                    }
+                  
+                </div>
+
+                <div class="header-right">
+                    <!-- Patch Selector -->
+                    <div class="dropdown-group">
+                        <label class="dropdown-label">Select Patch</label>
+                        <Dropdown Size="DropdownSize.None" Class="custom-dropdown">
+                            <DropdownToggleButton Class="custom-dropdown-btn">
+                                <span class="dropdown-text">@selectedPatchTypeName</span>
+                                <svg class="dropdown-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z" />
+                                </svg>
+                            </DropdownToggleButton>
+                            <DropdownMenu Class="custom-dropdown-menu">
+                                @if (PatchTypeList != null && PatchTypeList.Any())
+                                {
+                                    @foreach (var item in PatchTypeList)
+                                    {
+                                        <DropdownItem Type="DropdownItemType.Link" @onclick="() => OnPatchTypeSelected(item)" Class="custom-dropdown-item">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                                <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0z" />
+                                            </svg>
+                                            @item.Name
+                                        </DropdownItem>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="dropdown-empty">No patches available</span>
+                                }
+                            </DropdownMenu>
+                        </Dropdown>
+                    </div>
+
+                     <!-- Patch Selector -->
+                    <div class="dropdown-group">
+                        <label class="dropdown-label">Select Patch</label>
+                        <Dropdown Size="DropdownSize.None" Class="custom-dropdown" Disabled="@(SelectedPatchList == null || !SelectedPatchList.Any())">
+                            <DropdownToggleButton Class="custom-dropdown-btn">
+                                <span class="dropdown-text">@selectedPatchName</span>
+                                <svg class="dropdown-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z" />
+                                </svg>
+                            </DropdownToggleButton>
+                            <DropdownMenu Class="custom-dropdown-menu">
+                                @if (SelectedPatchList != null && SelectedPatchList.Any())
+                                {
+                                    @foreach (var item in SelectedPatchList)
+                                    {
+                                        <DropdownItem Type="DropdownItemType.Link" @onclick="() => OnPatchsSelected(item)" Class="custom-dropdown-item">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                                <path d="M9.293 0H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4.707A1 1 0 0 0 13.707 4L10 .293A1 1 0 0 0 9.293 0z" />
+                                            </svg>
+                                            @item.Name
+                                        </DropdownItem>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="dropdown-empty">No patches available</span>
+                                }
+                            </DropdownMenu>
+                        </Dropdown>
+                    </div>
+                    <!-- Status Filter -->
+                    <div class="dropdown-group">
+                        <label class="dropdown-label">Filter Status</label>
+                        <Dropdown Size="DropdownSize.None" Class="custom-dropdown">
+                            <DropdownToggleButton Class="custom-dropdown-btn">
+                                <span class="dropdown-text">@selectedStatusText</span>
+                                <svg class="dropdown-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z" />
+                                </svg>
+                            </DropdownToggleButton>
+                            <DropdownMenu Class="custom-dropdown-menu">
+                                <DropdownItem @onclick="() => OnStatusFilterChanged(null)" Class="custom-dropdown-item">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
+                                    </svg>
+                                    All Status
+                                </DropdownItem>
+                                <DropdownItem @onclick="() => OnStatusFilterChanged(PatchStatus.INIT)" Class="custom-dropdown-item">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
+                                    </svg>
+                                    Initialize
+                                </DropdownItem>
+                                <DropdownItem @onclick="() => OnStatusFilterChanged(PatchStatus.IN_PROGRESS)" Class="custom-dropdown-item">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
+                                    </svg>
+                                    In Progress
+                                </DropdownItem>
+                                <DropdownItem @onclick="() => OnStatusFilterChanged(PatchStatus.SUCCESS)" Class="custom-dropdown-item">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z" />
+                                    </svg>
+                                    Success
+                                </DropdownItem>
+                                <DropdownItem @onclick="() => OnStatusFilterChanged(PatchStatus.FAILED)" Class="custom-dropdown-item">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM5.354 4.646a.5.5 0 1 0-.708.708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293 5.354 4.646z" />
+                                    </svg>
+                                    Failed
+                                </DropdownItem>
+                                <DropdownItem @onclick="() => OnStatusFilterChanged(PatchStatus.ROLLBACK)" Class="custom-dropdown-item">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2v1z" />
+                                    </svg>
+                                    Rollback
+                                </DropdownItem>
+                            </DropdownMenu>
+                        </Dropdown>
+                    </div>
+
+                    <!-- Search -->
+                    <div class="search-group">
+                        <label class="dropdown-label">Search</label>
+                        <div class="search-box">
+                            <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z" />
+                            </svg>
+                            <input type="text"
+                                   class="search-input"
+                                   @bind="searchText"
+                                   @bind:event="oninput"
+                                   placeholder="Search branches..." />
+                        </div>
+                    </div>
+
+                    <!-- Clear Logs -->
+                    <button @onclick="ClearAllLogs" class="btn-clear">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+                            <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+                        </svg>
+                        Clear 
+                    </button>
+                    
+                </div>
+            </div>
+
+            <!-- Statistics Cards -->
+            <div class="stats-container">
+                <div class="stat-card stat-total">
+                    <div class="stat-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">@BranchSummaries.Count</div>
+                        <div class="stat-label">Total Branches</div>
+                    </div>
+                </div>
+
+                <div class="stat-card stat-success">
+                    <div class="stat-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-.01-1.05z" />
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">@GetStatusCount(PatchStatus.SUCCESS)</div>
+                        <div class="stat-label">Success</div>
+                    </div>
+                </div>
+
+                <div class="stat-card stat-progress">
+                    <div class="stat-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
+                            <path d="M7.5 3a.5.5 0 0 1 .5.5v5.21l3.248 1.856a.5.5 0 0 1-.496.868l-3.5-2A.5.5 0 0 1 7 9V3.5a.5.5 0 0 1 .5-.5z" />
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">@GetStatusCount(PatchStatus.IN_PROGRESS)</div>
+                        <div class="stat-label">In Progress</div>
+                    </div>
+                </div>
+
+                <div class="stat-card stat-failed">
+                    <div class="stat-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM5.354 4.646a.5.5 0 1 0-.708.708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293 5.354 4.646z" />
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">@GetStatusCount(PatchStatus.FAILED)</div>
+                        <div class="stat-label">Failed</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Branch Cards Grid -->
+            <div class="branches-grid">
+                @if (IsLoading)
+                {
+                    <div class="loading-state">
+                        <Loder Height="60px" width="60px" />
+                        <span class="text-muted mt-3">Loading branch data...</span>
+                    </div>
+                }
+                else if (!FilteredBranchSummaries.Any())
+                {
+                    <div class="empty-state">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
+                            <path d="M4.285 12.433a.5.5 0 0 0 .683-.183A3.498 3.498 0 0 1 8 10.5c1.295 0 2.426.703 3.032 1.75a.5.5 0 0 0 .866-.5A4.498 4.498 0 0 0 8 9.5a4.5 4.5 0 0 0-3.898 2.25.5.5 0 0 0 .183.683zM7 6.5C7 7.328 6.552 8 6 8s-1-.672-1-1.5S5.448 5 6 5s1 .672 1 1.5zm4 0c0 .828-.448 1.5-1 1.5s-1-.672-1-1.5S9.448 5 10 5s1 .672 1 1.5z" />
+                        </svg>
+                        <span class="text-muted mt-3">No branches found with current filters</span>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var summary in FilteredBranchSummaries)
+                    {
+                        <div class="branch-monitoring-card @GetStatusClass(summary.Status)">
+                            <!-- Card Header -->
+                            <div class="card-header">
+                                <div class="branch-info">
+                                    <div class="branch-icon @GetStatusClass(summary.Status)">
+                                        @GetStatusIcon(summary.Status)
+                                    </div>
+                                    <div class="branch-details">
+                                        <h3 class="branch-name">@summary.branch.BranchName</h3>
+                                        <span class="branch-code">@summary.branch.BranchId</span>
+                                    </div>
+                                </div>
+                                <div class="status-badge @GetStatusClass(summary.Status)">
+                                    @summary.Status.ToString()
+                                </div>
+                            </div>
+
+                            <!-- Progress Bar -->
+                            <div class="progress-container">
+                                <div class="progress-bar">
+                                    <div class="progress-fill @GetStatusClass(summary.Status)"
+                                         style="width: @(summary.Progress)%"></div>
+                                </div>
+                                <span class="progress-text">@summary.Progress%</span>
+                            </div>
+
+                            <!-- Latest Message -->
+                            <div class="latest-message">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
+                                    <path d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286zm1.557 5.763c0 .533.425.927 1.01.927.609 0 1.028-.394 1.028-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94z" />
+                                </svg>
+                                <span>@summary.Message</span>
+                            </div>
+          
+                        </div>
+                    }
+                }
+            </div>
+        </section>
+    </main>
+</div>
+
+<AlertContainer />
+
+@code {
+    // ====== AUTHENTICATION & CONFIG ======
+    private string? JWTToken;
+    // ====== SIGNALR CONNECTION ======
+    private HubConnection? hubConnection;
+    private bool IsLoading = true;
+
+    // ====== DATA ======
+    private List<SelectedBranchAssingPatchWithBranchDto> BranchSummaries = new();
+    private int? selectedPatchId;
+    private PatchStatus? selectedStatus;
+    private string selectedStatusText = "All Status";
+    private string searchText = string.Empty;
+    private HashSet<int?> ExpandedBranches = new();
+
+    // ====== PATCH DATA ======
+    private List<SelectedAnyDropDownOrSamllData>? PatchTypeList;
+    private List<SelectedAnyDropDownOrSamllData>? SelectedPatchList;
+    private string selectedPatchTypeName = "Select Patch Type";
+    private string selectedPatchName = "First Select Update Type";
+    // private SelectedPatch? SelectPatch;
+    // ====== COMPUTED ======
+    private IEnumerable<SelectedBranchAssingPatchWithBranchDto?> FilteredBranchSummaries =>
+        BranchSummaries
+            .Where(b =>
+                (selectedStatus == null || b.Status == selectedStatus) &&
+                (string.IsNullOrEmpty(searchText) ||
+                 b.branch.BranchName.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                 b.branch.BranchId.Contains(searchText, StringComparison.OrdinalIgnoreCase)))
+            .OrderByDescending(b => b.StartTime);
+
+    // ====== LIFECYCLE ======
+    protected override async Task OnInitializedAsync()
+    {
+        JWTToken = await GetJwtToken();
+
+        if (JWTToken != null)
+        {
+            await Task.WhenAll(
+                LoadBranchesAsync(selectedPatchId),
+                getPatchesTypeAsync(Settings.MainApiBaseUrl, JWTToken)
+            );
+        }
+
+        await InitializeSignalR();
+        // await fhbgh();
+    }
+
+    private async Task LoadBranchesAsync(int? selectedPatchId)
+    {
+        IsLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            if (Settings.MainApiBaseUrl != null && JWTToken != null)
+            {
+                var branchList = await getAllBranch($"{Settings.MainApiBaseUrl}", JWTToken, selectedPatchId);
+                if (branchList != null)
+                {
+
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception: {ex.Message}");
+            AlertService.ShowError("Error", $"Failed to load branches: {ex.Message}");
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+   
+
+    // ====== SIGNALR SETUP ======
+    private async Task InitializeSignalR()
+    {
+        try
+        {
+            var jwtToken = await GetJwtToken();
+
+            hubConnection = new HubConnectionBuilder()
+                .WithUrl(Settings.MainApiBaseUrl + "branchHub")
+                .WithAutomaticReconnect(new[] { TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30) })
+                .Build();
+
+            // ✅ Handle incoming real-time updates
+            hubConnection.On<SelectedBranchAssingPatchWithBranchDto>("AllBranchPatchResponse", (res) =>
+            {
+                InvokeAsync(() =>
+                {
+                    UpdateBranchSummary(res);
+                    StateHasChanged();
+                });
+            });
+
+            // ✅ Handle reconnection
+            hubConnection.Reconnecting += (error) =>
+            {
+                InvokeAsync(() =>
+                {
+                    AlertService.ShowWarning("Connection Lost", "Reconnecting...");
+                    StateHasChanged();
+                });
+                return Task.CompletedTask;
+            };
+
+            hubConnection.Reconnected += (connectionId) =>
+            {
+                InvokeAsync(() =>
+                {
+                    AlertService.ShowSuccess("Reconnected", "Live updates resumed");
+                    StateHasChanged();
+                });
+                return Task.CompletedTask;
+            };
+
+            await hubConnection.StartAsync();
+            Console.WriteLine("✓ SignalR connected successfully");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"SignalR connection error: {ex.Message}");
+            AlertService.ShowError("Connection Error", "Failed to connect to real-time updates");
+        }
+    }
+
+    // ====== UPDATE BRANCH SUMMARY ======
+    private void UpdateBranchSummary(SelectedBranchAssingPatchWithBranchDto res)
+    {
+        var summary = BranchSummaries.FirstOrDefault(b =>
+        b.PatchId == res.PatchId &&
+        b.branch.Id == res.branch.Id
+    );
+
+        if (summary == null)
+        {
+
+            BranchSummaries.Add(res);
+        }
+        else
+        {
+            // Update existing summary (only if newer)
+            if (res.branch != null)
+            {
+                if (res.branch.Id == summary.branch.Id)
+                {
+                    summary.Status = res.Status;
+                    summary.Progress = res.Progress;
+                    summary.Message = res.Message;
+
+                    if (res.Status == PatchStatus.SUCCESS ||
+                        res.Status == PatchStatus.FAILED ||
+                        res.Status == PatchStatus.ROLLBACK)
+                    {
+                        summary.Endtime = res.Endtime;
+                    }
+                }
+            }
+            
+        }
+    }
+
+    // ====== PATCH SELECTION ======
+    // private async Task OnPatchSelected(SelectedAnyDropDownOrSamllData patch)
+    // {
+    //     selectedPatchId = patch.Id;
+    //     selectedPatchName = patch.Name;
+    //     BranchSummaries.Clear();
+    //     ExpandedBranches.Clear();
+    //     JWTToken ??= await GetJwtToken();
+
+    //     if (await getSelectedPatchesAsync(Settings.MainApiBaseUrl, JWTToken!, patch.Id))
+    //     {
+    //         StateHasChanged();
+    //     }
+    //     StateHasChanged();
+    // }
+
+    private async Task OnPatchTypeSelected(SelectedAnyDropDownOrSamllData patchType)
+    {
+        selectedPatchTypeName = patchType.Name;
+        selectedPatchName = $"Select {patchType.Name}";
+        SelectedPatchList = null;
+        // SelectPatch = null;
+
+        JWTToken ??= await GetJwtToken();
+
+        if (await getSelectedPatchesAsync(Settings.MainApiBaseUrl, JWTToken!, patchType.Id))
+        {
+        }
+    }
+
+
+    private async Task OnPatchsSelected(SelectedAnyDropDownOrSamllData patch)
+    {
+
+        try
+        {
+            if (patch == null)
+                return;
+
+            selectedPatchName = patch.Name;
+
+            JWTToken ??= await GetJwtToken();
+
+            await LoadBranchesAsync(patch.Id);
+        }catch (Exception e)
+        {
+
+        }
+    }
+    // ====== STATUS FILTER ======
+    private void OnStatusFilterChanged(PatchStatus? status)
+    {
+        selectedStatus = status;
+        selectedStatusText = status?.ToString() ?? "All Status";
+        StateHasChanged();
+    }
+
+
+
+    // ====== CLEAR LOGS ======
+    private async Task ClearAllLogs()
+    {
+        SelectedPatchList = null;
+        selectedPatchTypeName = "Select Patch Type";
+        selectedPatchName = "First Select Update Type";
+        searchText = string.Empty;
+        await LoadBranchesAsync(null);
+        OnStatusFilterChanged(null);
+        StateHasChanged();
+    }
+
+    // ====== HELPERS ======
+    private int GetStatusCount(PatchStatus status) =>
+        BranchSummaries.Count(b => b.Status == status);
+
+    private string GetStatusClass(PatchStatus? status) => status switch
+    {
+        PatchStatus.SUCCESS => "status-success",
+        PatchStatus.FAILED => "status-failed",
+        PatchStatus.ROLLBACK => "status-rollback",
+        PatchStatus.IN_PROGRESS => "status-progress",
+        PatchStatus.INIT => "status-init",
+        _ => "status-default"
+    };
+
+    private MarkupString GetStatusIcon(PatchStatus? status) => status switch
+    {
+        PatchStatus.SUCCESS => (MarkupString)"✓",
+        PatchStatus.FAILED => (MarkupString)"✗",
+        PatchStatus.ROLLBACK => (MarkupString)"↶",
+        PatchStatus.IN_PROGRESS => (MarkupString)"⟳",
+        PatchStatus.INIT => (MarkupString)"◆",
+        _ => (MarkupString)"○"
+    };
+
+    // ====== API CALLS ======
+
+    private async Task<bool> getPatchesTypeAsync(string baseUrl, string jwtToken)
+    {
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
+
+            var response = await client.GetAsync("api/Patches/getPatchesTypes");
+            var result = await response.Content.ReadFromJsonAsync<APIResponseCoustomizeList<SelectedAnyDropDownOrSamllData, NewPatch>>();
+
+            if (response.IsSuccessStatusCode && result?.StatusCode == 2 && result.Status == true)
+            {
+                PatchTypeList = result.ValueList;
+                return true;
+            }
+
+            HandleApiError(response, result);
+            return false;
+        }
+        catch (HttpRequestException ex)
+        {
+            AlertService.ShowError("Server Error", "Server fetch failed. Please contact support.");
+            Console.WriteLine($"HttpRequestException: {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"General Exception: {ex.Message}");
+            return false;
+        }
+    }
+
+    private async Task<bool> getSelectedPatchesAsync(string baseUrl, string jwtToken, int patchtype)
+    {
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
+
+            var response = await client.GetAsync($"api/Patches/getSelectedPatches?patchtype={patchtype}");
+            var result = await response.Content.ReadFromJsonAsync<APIResponseOnlyList<SelectedAnyDropDownOrSamllData>>();
+
+            if (response.IsSuccessStatusCode && result?.StatusCode == 2 && result.Status == true)
+            {
+                SelectedPatchList = result.ValueList;
+                return true;
+            }
+
+            HandleApiError(response, result);
+            return false;
+        }
+        catch (HttpRequestException ex)
+        {
+            AlertService.ShowError("Server Error", "Server fetch failed. Please contact support.");
+            Console.WriteLine($"HttpRequestException: {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"General Exception: {ex.Message}");
+            return false;
+        }
+    }
+
+
+    public async Task<bool?> getAllBranch(string baseUrl, string jwtToken, int? patchId)
+    {
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(baseUrl) };
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwtToken);
+
+            var response = await client.GetAsync($"api/Patches/getSelectedAndAllPatches?patchId={patchId}");
+            var result = await response.Content.ReadFromJsonAsync<APIResponseOnlyList<SelectedBranchAssingPatchWithBranchDto>>();
+
+            if (response.IsSuccessStatusCode && result?.StatusCode == 2 && result.Status == true)
+            {
+                if(result.ValueList != null)
+                {
+                    BranchSummaries = result.ValueList;
+                    return true;
+                }
+            
+            }
+
+            HandleApiError(response, result);
+            return false;
+        }
+        catch (HttpRequestException ex)
+        {
+            AlertService.ShowError("Server Error", "Server fetch failed. Please contact support.");
+            Console.WriteLine($"HttpRequestException: {ex.Message}");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"General Exception: {ex.Message}");
+            return false;
+        }
+    }
+
+    
+
+    private void HandleApiError<T>(HttpResponseMessage response, T? result) where T : class
+    {
+        dynamic? dynResult = result;
+
+        switch (response.StatusCode)
+        {
+            case HttpStatusCode.BadRequest:
+            case HttpStatusCode.NotFound:
+            case HttpStatusCode.Unauthorized:
+                if (dynResult?.StatusCode == 1 && dynResult?.Status == false)
+                {
+                    AlertService.ShowError("Request Error", $"{dynResult?.Message}. Please try again.");
+                }
+                break;
+
+            case HttpStatusCode.InternalServerError:
+                if (dynResult?.StatusCode == 0 && dynResult?.Status == false)
+                {
+                    var serverMsg = dynResult?.Message ?? "Server error occurred.";
+                    Console.WriteLine($"Server 500 response: {dynResult?.Ex}");
+                    AlertService.ShowError("Server Error", $"{serverMsg}. Please contact support.");
+                }
+                break;
+        }
+    }
+
+    private async Task<string?> GetJwtToken()
+    {
+        try
+        {
+            var getJWT = new getJWTTokens(JSRuntime);
+            return await getJWT.GetJWTLoggedInUserAsync();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    // ====== CLEANUP ======
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection != null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+
+
+
+    // public class PatchStatusUpdateMqttResponse
+    // {
+    //     public string UserId { get; set; } = string.Empty;
+    //     public string PatchId { get; set; } = string.Empty;
+    //     public string JobId { get; set; } = string.Empty;
+    //     public int BranchId { get; set; }
+    //     public string BranchCode { get; set; } = string.Empty;
+    //     public string BranchName { get; set; } = string.Empty;
+    //     public PatchRequestType PatchRequestType { get; set; }
+    //     public PatchStatus Status { get; set; }
+    //     public PatchStep Step { get; set; }
+    //     public string Message { get; set; } = string.Empty;
+    //     public int Progress { get; set; }
+    //     public int SequenceNumber { get; set; }
+    //     public DateTime Timestamp { get; set; }
+    // }
+
+    // Real-time log entry for UI
+    // public class PatchLiveLog
+    // {
+    //     public int BranchId { get; set; }
+    //     public string BranchCode { get; set; } = string.Empty;
+    //     public string BranchName { get; set; } = string.Empty;
+    //     public PatchStatus Status { get; set; }
+    //     public PatchStep Step { get; set; }
+    //     public string Message { get; set; } = string.Empty;
+    //     public int Progress { get; set; }
+    //     public int SequenceNumber { get; set; }
+    //     public DateTime Time { get; set; }
+    //     public string TimeFormatted => Time.ToString("HH:mm:ss");
+    // }
+
+    // Branch deployment summary
+    // public class BranchPatchSummary
+    // {
+    //     public int BranchId { get; set; }
+    //     public string BranchCode { get; set; } = string.Empty;
+    //     public string BranchName { get; set; } = string.Empty;
+    //     public PatchStatus CurrentStatus { get; set; }
+    //     public int Progress { get; set; }
+    //     public string LatestMessage { get; set; } = string.Empty;
+    //     public DateTime StartTime { get; set; }
+    //     public DateTime? EndTime { get; set; }
+    //     public List<PatchLiveLog> Logs { get; set; } = new();
+    // }
+}
+
+<style>
+    /* ====== ROOT VARIABLES ====== */
+    :root {
+      
+        --primary-gradient: linear-gradient(135deg, rgba(149, 62, 63, 0.2) 0%, #953e3f 100%);
+        --success-gradient: linear-gradient(135deg, #4caf50 0%, #81c784 100%);
+        --danger-gradient: linear-gradient(135deg, #f44336 0%, #e57373 100%);
+        --warning-gradient: linear-gradient(135deg, #ff9800 0%, #ffb74d 100%);
+        --info-gradient: linear-gradient(135deg, #2196f3 0%, #64b5f6 100%);
+        --bg-primary: #1a1a1b;
+        --bg-secondary: #2a2a2b;
+        --bg-tertiary: #252526;
+        --border-color: rgba(100, 98, 100, 0.3);
+        --text-primary: #ffffff;
+        --text-secondary: #999;
+        --text-muted: #666;
+        --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+        --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
+        --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+        --transition-fast: 0.2s ease;
+        --transition-base: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* ====== BASE STYLES ====== */
+    * {
+        box-sizing: border-box;
+    }
+
+    .Main-wrapper {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #1a1a1b 0%, #2d2d30 100%);
+    }
+
+    .Main-content {
+        
+        width: 100%;
+        margin: 0 auto;
+    }
+
+    .Main-section {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    /* ====== MONITORING HEADER ====== */
+    .monitoring-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 24px;
+        background: linear-gradient(135deg, #2a2a2b 0%, #252526 100%);
+    
+        border: 1px solid #3e3e3f;
+        border-radius: 16px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+        gap: 24px;
+        flex-wrap: wrap;
+        position: relative;
+        width: 100%;
+    }
+
+        .monitoring-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--primary-gradient);
+        }
+
+    .header-left {
+        display: flex;
+        align-items: center;
+        flex-direction:column;
+        gap: 20px;
+        flex: 1;
+        min-width: 10%;
+    }
+
+    .page-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 24px;
+        font-weight: 700;
+        color: #ffffff;
+        margin: 0;
+    }
+
+        .page-title svg {
+            color: #667eea;
+        }
+
+    .connection-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+        .connection-status.connected {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+            border: 1px solid rgba(76, 175, 80, 0.5);
+        }
+
+        .connection-status.disconnected {
+            background: rgba(149, 62, 63, 0.2);
+            color: #ff9999;
+            border: 1px solid rgba(244, 67, 54, 0.5);
+        }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: pulse 2s infinite;
+    }
+
+    @@keyframes pulse {
+        0%, 100% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: 0.5;
+        }
+    }
+
+    .header-right {
+        display: flex;
+        align-items: flex-end;
+        gap: 16px;
+        @* flex-wrap: wrap; *@
+        min-width: 80%;
+    }
+
+    /* ====== DROPDOWN GROUP ====== */
+    .dropdown-group,
+    .search-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 200px;
+    }
+
+    .dropdown-label {
+        font-size: 11px;
+        font-weight: 600;
+        color: #999;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* ====== CUSTOM DROPDOWN ====== */
+    .custom-dropdown {
+        position: relative;
+        width: 100%;
+    }
+
+    .custom-dropdown-btn {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 16px;
+        background: rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(100, 98, 100, 0.3);
+        border-radius: 8px;
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        min-height: 42px;
+    }
+
+        .custom-dropdown-btn:hover:not(:disabled) {
+            background: rgba(149, 62, 63, 0.2);
+            border-color: #953e3f;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .custom-dropdown-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            color:white;
+        }
+
+    .dropdown-text {
+        flex: 1;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .dropdown-icon {
+        flex-shrink: 0;
+        color: #999;
+        transition: transform 0.2s ease;
+    }
+
+    .custom-dropdown-btn:hover .dropdown-icon {
+        color: #953e3f;
+    }
+
+    /* ====== DROPDOWN MENU ====== */
+    .custom-dropdown-menu {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0;
+        right: 0;
+        max-height: 300px;
+        overflow-y: auto;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        box-shadow: var(--shadow-lg);
+        z-index: 1000;
+        animation: dropdownSlide 0.2s ease;
+    }
+
+    @@keyframes dropdownSlide {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .custom-dropdown-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        color: #ffffff;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border-bottom: 1px solid rgba(100, 98, 100, 0.1);
+    }
+
+        .custom-dropdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .custom-dropdown-item:hover {
+            background: rgba(102, 126, 234, 0.2);
+        }
+
+        .custom-dropdown-item svg {
+            color: #953e3f;
+            flex-shrink: 0;
+        }
+
+        .custom-dropdown-item:hover svg {
+            color: #667eea;
+        }
+
+    .dropdown-empty {
+        display: block;
+        padding: 12px 16px;
+        color: #666;
+        font-size: 13px;
+        text-align: center;
+    }
+
+    /* ====== SEARCH BOX ====== */
+    .search-box {
+        position: relative;
+        width: 100%;
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #999;
+        pointer-events: none;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 10px 16px 10px 38px;
+        background: rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(100, 98, 100, 0.3);
+        border-radius: 8px;
+        color: #ffffff;
+        font-size: 13px;
+        transition: all 0.3s ease;
+        min-height: 42px;
+    }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: rgba(0, 0, 0, 0.5);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .search-input::placeholder {
+            color: #666;
+        }
+
+    /* ====== CLEAR BUTTON ====== */
+    .btn-clear {
+        padding: 10px 18px;
+        background: rgba(149, 62, 63, 0.2);
+        border: 1px solid rgba(244, 67, 54, 0.3);
+        border-radius: 8px;
+        color: #ff9999;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+        min-height: 42px;
+        margin-top: 24px;
+    }
+
+        .btn-clear:hover {
+            background: rgba(244, 67, 54, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn-clear svg {
+            width: 16px;
+            height: 16px;
+        }
+
+    /* ====== STATISTICS CARDS ====== */
+    .stats-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+    }
+
+    .stat-card {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 24px;
+        background: linear-gradient(135deg, #2a2a2b 0%, #252526 100%);
+        border: 1px solid #3e3e3f;
+        border-radius: 12px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+        animation: fadeIn 0.5s ease;
+    }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+            .stat-card:hover::before {
+                opacity: 1;
+            }
+
+    .stat-total::before {
+        background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .stat-success::before {
+        background: linear-gradient(180deg, #4caf50 0%, #81c784 100%);
+    }
+
+    .stat-progress::before {
+        background: linear-gradient(180deg, #2196f3 0%, #64b5f6 100%);
+    }
+
+    .stat-failed::before {
+        background: linear-gradient(180deg, #f44336 0%, #e57373 100%);
+    }
+
+    .stat-icon {
+        width: 56px;
+        height: 56px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        transition: all 0.3s ease;
+    }
+
+    .stat-total .stat-icon {
+        background: rgba(102, 126, 234, 0.2);
+        color: #667eea;
+    }
+
+    .stat-success .stat-icon {
+        background: rgba(76, 175, 80, 0.2);
+        color: #4caf50;
+    }
+
+    .stat-progress .stat-icon {
+        background: rgba(33, 150, 243, 0.2);
+        color: #2196f3;
+    }
+
+    .stat-failed .stat-icon {
+        background: rgba(149, 62, 63, 0.2);
+        color: #ff9999;
+    }
+
+    .stat-card:hover .stat-icon {
+        transform: scale(1.1) rotate(5deg);
+    }
+
+    .stat-content {
+        flex: 1;
+    }
+
+    .stat-value {
+        font-size: 32px;
+        font-weight: 700;
+        color: #ffffff;
+        line-height: 1;
+        margin-bottom: 8px;
+    }
+
+    .stat-label {
+        font-size: 13px;
+        color: #999;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+    }
+
+    /* ====== BRANCHES GRID ====== */
+    .branches-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+        gap: 20px;
+    }
+
+    /* ====== BRANCH MONITORING CARD ====== */
+    .branch-monitoring-card {
+        background: linear-gradient(135deg, #2a2a2b 0%, #252526 100%);
+        border: 1px solid #3e3e3f;
+        border-radius: 16px;
+        padding: 24px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+        cursor: pointer;
+        animation: fadeIn 0.5s ease;
+    }
+
+        .branch-monitoring-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .branch-monitoring-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+            .branch-monitoring-card:hover::before {
+                opacity: 1;
+            }
+
+        .branch-monitoring-card.status-success::before {
+            background: linear-gradient(180deg, #4caf50 0%, #81c784 100%);
+        }
+
+        .branch-monitoring-card.status-failed::before {
+            background: linear-gradient(180deg, #f44336 0%, #e57373 100%);
+        }
+
+        .branch-monitoring-card.status-progress::before {
+            background: linear-gradient(180deg, #2196f3 0%, #64b5f6 100%);
+        }
+
+        .branch-monitoring-card.status-init::before {
+            background: linear-gradient(180deg, #ff9800 0%, #ffb74d 100%);
+        }
+
+        .branch-monitoring-card.status-rollback::before {
+            background: linear-gradient(180deg, #9c27b0 0%, #ba68c8 100%);
+        }
+
+    /* ====== CARD HEADER ====== */
+    .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .branch-info {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .branch-icon {
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        font-size: 24px;
+        font-weight: 700;
+        transition: all 0.3s ease;
+    }
+
+        .branch-icon.status-success {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+        }
+
+        .branch-icon.status-failed {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+        }
+
+        .branch-icon.status-progress {
+            background: rgba(33, 150, 243, 0.2);
+            color: #2196f3;
+        }
+
+        .branch-icon.status-init {
+            background: rgba(255, 152, 0, 0.2);
+            color: #ff9800;
+        }
+
+        .branch-icon.status-rollback {
+            background: rgba(156, 39, 176, 0.2);
+            color: #9c27b0;
+        }
+
+    .branch-monitoring-card:hover .branch-icon {
+        transform: scale(1.1);
+    }
+
+    .branch-details {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .branch-name {
+        font-size: 18px;
+        font-weight: 700;
+        color: #ffffff;
+        margin: 0 0 4px 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .branch-code {
+        font-size: 13px;
+        color: #999;
+        font-family: 'Courier New', monospace;
+    }
+
+    /* ====== STATUS BADGE ====== */
+    .status-badge {
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        white-space: nowrap;
+    }
+
+        .status-badge.status-success {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+            border: 1px solid rgba(76, 175, 80, 0.5);
+        }
+
+        .status-badge.status-failed {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+            border: 1px solid rgba(244, 67, 54, 0.5);
+        }
+
+        .status-badge.status-progress {
+            background: rgba(33, 150, 243, 0.2);
+            color: #2196f3;
+            border: 1px solid rgba(33, 150, 243, 0.5);
+        }
+
+        .status-badge.status-init {
+            background: rgba(255, 152, 0, 0.2);
+            color: #ff9800;
+            border: 1px solid rgba(255, 152, 0, 0.5);
+        }
+
+        .status-badge.status-rollback {
+            background: rgba(156, 39, 176, 0.2);
+            color: #9c27b0;
+            border: 1px solid rgba(156, 39, 176, 0.5);
+        }
+
+    /* ====== PROGRESS BAR ====== */
+    .progress-container {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .progress-bar {
+        flex: 1;
+        height: 8px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 4px;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .progress-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.5s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+    @@keyframes shimmer {
+        0% {
+            transform: translateX(-100%);
+        }
+
+        100% {
+            transform: translateX(100%);
+        }
+    }
+
+    .progress-fill.status-success {
+        background: linear-gradient(90deg, #4caf50 0%, #81c784 100%);
+    }
+
+    .progress-fill.status-failed {
+        background: linear-gradient(90deg, #f44336 0%, #e57373 100%);
+    }
+
+    .progress-fill.status-progress {
+        background: linear-gradient(90deg, #2196f3 0%, #64b5f6 100%);
+    }
+
+    .progress-fill.status-init {
+        background: linear-gradient(90deg, #ff9800 0%, #ffb74d 100%);
+    }
+
+    .progress-fill.status-rollback {
+        background: linear-gradient(90deg, #9c27b0 0%, #ba68c8 100%);
+    }
+
+    .progress-text {
+        font-size: 13px;
+        font-weight: 700;
+        color: #ffffff;
+        min-width: 40px;
+        text-align: right;
+    }
+
+    /* ====== LATEST MESSAGE ====== */
+    .latest-message {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 8px;
+        margin-bottom: 16px;
+    }
+
+        .latest-message svg {
+            color: #667eea;
+            flex-shrink: 0;
+        }
+
+        .latest-message span {
+            font-size: 13px;
+            color: #ccc;
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+    /* ====== LOGS SECTION ====== */
+    .logs-section {
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid #3e3e3f;
+    }
+
+    .logs-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .logs-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #ffffff;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .logs-count {
+        font-size: 12px;
+        color: #999;
+    }
+
+    .logs-container {
+        max-height: 400px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+        .logs-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .logs-container::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 3px;
+        }
+
+        .logs-container::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+
+            .logs-container::-webkit-scrollbar-thumb:hover {
+                background: rgba(255, 255, 255, 0.3);
+            }
+
+    /* ====== LOG ENTRY ====== */
+    .log-entry {
+        display: grid;
+        grid-template-columns: 70px 120px 1fr 50px;
+        gap: 12px;
+        padding: 12px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 8px;
+        border-left: 3px solid transparent;
+        transition: all 0.3s ease;
+        align-items: center;
+    }
+
+        .log-entry:hover {
+            background: rgba(0, 0, 0, 0.4);
+            transform: translateX(4px);
+        }
+
+        .log-entry.status-success {
+            border-left-color: #4caf50;
+        }
+
+        .log-entry.status-failed {
+            border-left-color: #f44336;
+        }
+
+        .log-entry.status-progress {
+            border-left-color: #2196f3;
+        }
+
+        .log-entry.status-init {
+            border-left-color: #ff9800;
+        }
+
+        .log-entry.status-rollback {
+            border-left-color: #9c27b0;
+        }
+
+    .log-time {
+        font-size: 12px;
+        font-weight: 600;
+        color: #999;
+        font-family: 'Courier New', monospace;
+    }
+
+    .log-step {
+        font-size: 11px;
+        font-weight: 700;
+        color: #667eea;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .log-message {
+        font-size: 13px;
+        color: #ccc;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .log-progress {
+        font-size: 12px;
+        font-weight: 700;
+        color: #ffffff;
+        text-align: right;
+    }
+
+    /* ====== EXPAND BUTTON ====== */
+    .expand-btn {
+        width: 100%;
+        padding: 10px;
+        background: rgba(102, 126, 234, 0.1);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        border-radius: 8px;
+        color: #667eea;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 16px;
+    }
+
+        .expand-btn:hover {
+            background: rgba(102, 126, 234, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .expand-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+    /* ====== LOADING & EMPTY STATES ====== */
+    .loading-state, .empty-state {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        min-height: 400px;
+        grid-column: 1 / -1;
+        background: linear-gradient(135deg, #2a2a2b 0%, #252526 100%);
+        border: 1px solid #3e3e3f;
+        border-radius: 16px;
+        color: #999;
+    }
+
+        .loading-state svg, .empty-state svg {
+            opacity: 0.5;
+            margin-bottom: 16px;
+        }
+
+    /* ====== SCROLLBAR FOR DROPDOWN ====== */
+    .custom-dropdown-menu::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .custom-dropdown-menu::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 3px;
+    }
+
+    .custom-dropdown-menu::-webkit-scrollbar-thumb {
+        background: rgba(102, 126, 234, 0.4);
+        border-radius: 3px;
+    }
+
+        .custom-dropdown-menu::-webkit-scrollbar-thumb:hover {
+            background: rgba(102, 126, 234, 0.6);
+        }
+
+    /* ====== ANIMATIONS ====== */
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .branch-monitoring-card {
+        animation: fadeIn 0.5s ease;
+    }
+
+    .stat-card {
+        animation: fadeIn 0.5s ease;
+    }
+
+        .stat-card:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+
+        .stat-card:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .stat-card:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        .stat-card:nth-child(4) {
+            animation-delay: 0.4s;
+        }
+
+    /* ====== RESPONSIVE DESIGN ====== */
+    @@media (max-width: 1400px) {
+        .branches-grid {
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+        }
+
+        .header-right {
+            width: 100%;
+        }
+
+        .dropdown-group,
+        .search-group {
+            flex: 1;
+            min-width: 180px;
+        }
+    }
+
+    @@media (max-width: 1024px) {
+        .monitoring-header {
+            flex-direction: column;
+        }
+
+        .header-left {
+            width: 100%;
+        }
+
+        .header-right {
+            width: 100%;
+        }
+
+        .dropdown-group,
+        .search-group {
+            width: 100%;
+        }
+
+        .btn-clear {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .stats-container {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .branches-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .Main-content {
+            padding: 16px;
+        }
+
+        .header-right {
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .dropdown-group,
+        .search-group {
+            width: 100%;
+        }
+
+        .stats-container {
+            grid-template-columns: 1fr;
+        }
+
+        .log-entry {
+            grid-template-columns: 60px 100px 1fr 45px;
+            gap: 8px;
+            padding: 10px;
+        }
+
+        .page-title {
+            font-size: 20px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+        }
+    }
+
+    @@media (max-width: 480px) {
+        .monitoring-header {
+            padding: 16px;
+        }
+
+        .header-left {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .page-title {
+            font-size: 18px;
+        }
+
+        .connection-status {
+            align-self: flex-start;
+        }
+
+        .branch-monitoring-card {
+            padding: 16px;
+        }
+
+        .branch-name {
+            font-size: 16px;
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+        }
+
+        .log-entry {
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+
+        .log-time,
+        .log-step,
+        .log-message,
+        .log-progress {
+            font-size: 11px;
+        }
+    }
+</style>

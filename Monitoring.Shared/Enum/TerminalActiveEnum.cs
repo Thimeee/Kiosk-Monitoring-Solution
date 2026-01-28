@@ -12,5 +12,6 @@ namespace Monitoring.Shared.Enum
         TERMINAL_NOT_VERIFY,
         TERMINAL_ONLINE,
         TERMINAL_OFFLINE,
+        //TERMINAL_OFFLINE,
     }
 }

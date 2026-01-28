@@ -61,5 +61,8 @@ namespace Monitoring.Shared.Models
 
         [ForeignKey("PId")]
         public NewPatch? NewPatch { get; set; }
+
+        [Column("Progress")]
+        public int? Progress { get; set; }
     }
 }

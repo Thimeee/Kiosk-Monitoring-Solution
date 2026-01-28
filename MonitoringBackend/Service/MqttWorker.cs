@@ -7,12 +7,14 @@ using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Monitoring.Shared.DTO;
+using Monitoring.Shared.DTO.BranchDto;
 using Monitoring.Shared.Enum;
 using Monitoring.Shared.Models;
 using MonitoringBackend.Data;
 using MonitoringBackend.Helper;
 using MonitoringBackend.SRHub;
 using MQTTnet.Protocol;
+using static Monitoring.Shared.DTO.PatchsDto.SelectedPatch;
 
 namespace MonitoringBackend.Service
 {
@@ -158,6 +160,9 @@ namespace MonitoringBackend.Service
             {
                 switch (source)
                 {
+                    case "STATUS":
+                        await HandleStatus(TerminalId, subTopic, payload, stoppingToken);
+                        break;
                     case "SFTP":
                         await HandleSFTP(TerminalId, subTopic, payload);
                         break;
@@ -183,6 +188,23 @@ namespace MonitoringBackend.Service
             }
         }
 
+        private async Task HandleStatus(string branchId, string subTopic, string payload, CancellationToken stoppingToken)
+        {
+            try
+            {
+                await _log.WriteLog(
+        "MQTT STATUS",
+        $"Branch={branchId}, {subTopic}={payload}"
+    );
+                //await _hubContext.Clients
+                //    .Group(BranchHub.BranchGroup(branchId))
+                //    .SendAsync("PerformanceUpdate", payload, stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                await _log.WriteLog("SignalR Send Error", $"Branch: {branchId}, Error: {ex.Message}", 3);
+            }
+        }
         private async Task HandleHealth(string branchId, string payload, CancellationToken stoppingToken)
         {
             // Throttle health updates per branch
@@ -211,60 +233,105 @@ namespace MonitoringBackend.Service
 
         private async Task HandlePatch(string TerminalId, string payload, CancellationToken stoppingToken)
         {
-
             var jobRes = JsonSerializer.Deserialize<PatchStatusUpdateMqttResponse>(payload);
-            if (jobRes != null)
+            if (jobRes == null) return;
+
+            // Variables for SignalR (outside semaphore)
+            Branch branch = null;
+            PatchAssignBranch patch = null;
+
+            // STEP 1: Wait for semaphore
+            await _semaphore.WaitAsync();
+            try
             {
-                // Use semaphore for DB operations (heavy)
-                await _semaphore.WaitAsync();
-                try
+                // STEP 2: DB operations (sequential, blocking)
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                int numericPatchId = int.Parse(
+                    new string(jobRes.PatchId.TakeWhile(char.IsDigit).ToArray())
+                );
+
+                branch = await db.Branches.FirstOrDefaultAsync(j => j.TerminalId == TerminalId);
+                if (branch == null)
                 {
-                    using var scope = _scopeFactory.CreateScope();
-                    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                    // Don't return early - let finally block execute
+                    return; // This goes to finally block first!
+                }
 
+                patch = await db.PatchAssignBranchs.FirstOrDefaultAsync(
+                    j => j.PId == numericPatchId && j.Id == branch.Id);
 
-                    int numericPatchId = int.Parse(
-                        new string(jobRes.PatchId.TakeWhile(char.IsDigit).ToArray())
-                    );
-
-                    var branch = await db.Branches.FirstOrDefaultAsync(j => j.TerminalId == TerminalId);
-
-                    var patch = await db.PatchAssignBranchs.FirstOrDefaultAsync(j => j.PId == numericPatchId && j.Id == branch.Id);
-                    if (patch != null)
+                if (patch == null)
+                {
+                    return; // Goes to finally block first!
+                }
+                if (patch.Status == PatchStatus.SUCCESS || patch.Status == PatchStatus.FAILED || patch.Status == PatchStatus.ROLLBACK)
+                {
+                    return;
+                }
+                else
+                {
+                    var job = await db.Jobs.FirstOrDefaultAsync(j => j.JobUId == patch.JobUId);
+                    if (job == null)
                     {
-                        var job = await db.Jobs.FirstOrDefaultAsync(j => j.JobUId == patch.JobUId);
-
-                        if (job != null)
-                        {
-                            if (jobRes.Step == PatchStep.COMPLETE || jobRes.Step == PatchStep.ERROR)
-                            {
-                                patch.Endtime = jobRes.Timestamp;
-                                job.JobEndTime = jobRes.Timestamp;
-                                job.JSId = 3;
-
-                            }
-                            patch.Status = jobRes.Status;
-                            patch.ProcessLevel = jobRes.Step;
-                            patch.Message = jobRes.Message;
-
-                            job.JobActive = 2;
-                            job.JSId = 2;
-
-                            await db.SaveChangesAsync();
-                        }
-
+                        return; // Goes to finally block first!
                     }
+
+                    // Update patch status
+                    if (jobRes.Step == PatchStep.COMPLETE || jobRes.Step == PatchStep.ERROR)
+                    {
+                        patch.Endtime = jobRes.Timestamp;
+                        job.JobEndTime = jobRes.Timestamp;
+                        job.JSId = 3;
+                    }
+
+                    patch.Status = jobRes.Status;
+                    patch.ProcessLevel = jobRes.Step;
+                    patch.Message = jobRes.Message;
+                    patch.Progress = jobRes.Progress;
+
+                    job.JobActive = 2;
+                    job.JSId = 2;
+
+                    await db.SaveChangesAsync();
                 }
-                finally
+            }
+            finally
+            {
+                //  Always release semaphore (even if early return)
+                _semaphore.Release();
+            }
+
+            // SignalR (sequential, AFTER DB completes and semaphore released)
+            if (branch == null || patch == null) return;
+
+            if (jobRes.PatchRequestType == PatchRequestType.SINGLE_BRANCH_PATCH)
+            {
+                await _hubContext.Clients
+                    .Group(BranchHub.BranchGroup(TerminalId))
+                    .SendAsync("SingleBranchPatchResponse", jobRes, stoppingToken);
+            }
+            else if (jobRes.PatchRequestType == PatchRequestType.ALL_BRANCH_PATCH)
+            {
+                var resobj = new SelectedBranchAssingPatchWithBranchDto
                 {
-                    _semaphore.Release();
-                }
-                if (jobRes.PatchRequestType == PatchRequestType.SINGLE_BRANCH_PATCH)
-                {
-                    await _hubContext.Clients
-                        .Group(BranchHub.BranchGroup(TerminalId))
-                        .SendAsync("SingleBranchPatchResponse", jobRes, stoppingToken);
-                }
+                    PatchId = patch.PId,
+                    Progress = jobRes.Progress,
+                    Message = jobRes.Message,
+                    Status = jobRes.Status,
+                    Endtime = patch.Endtime,
+                    branch = new SelectBranchDto
+                    {
+                        Id = branch.Id,
+                        BranchId = branch.BranchId,
+                        BranchName = branch.BranchName,
+                        TerminalActiveStatus = branch.TerminalActiveStatus,
+                    }
+
+                };
+
+                await _hubContext.Clients.All.SendAsync("AllBranchPatchResponse", resobj, stoppingToken);
             }
         }
 
@@ -391,6 +458,7 @@ namespace MonitoringBackend.Service
             await _hubContext.Clients
                 .Group(BranchHub.BranchGroup(branchId))
                 .SendAsync("DownloadFile", payload);
+
         }
 
         private async Task HandleUploadResponse(string branchId, string payload)

@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Monitoring.Shared.DTO.BranchDto;
 using Monitoring.Shared.Enum;
 
 namespace Monitoring.Shared.DTO.PatchsDto
@@ -39,5 +41,20 @@ namespace Monitoring.Shared.DTO.PatchsDto
 
         }
 
+        public class SelectedBranchAssingPatchWithBranchDto
+        {
+            public long PAB { get; set; }
+            public int? PatchId { get; set; }
+            public int? Progress { get; set; }
+            public PatchStep? ProcessLevel { get; set; }
+            public PatchStatus? Status { get; set; }
+            public string? Message { get; set; }
+            public string? ExtraValue { get; set; }
+            public DateTime? StartTime { get; set; }
+            public DateTime? Endtime { get; set; }
+            public SelectBranchDto? branch { get; set; }
+
+
+        }
     }
 }

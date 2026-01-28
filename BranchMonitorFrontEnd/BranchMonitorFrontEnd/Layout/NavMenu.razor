@@ -47,8 +47,8 @@ else
                             </svg>
                         </div>
                         <div class="brand-text">
-                            <h1>Kiosk Monitor</h1>
-                            <span class="brand-subtitle">Dashboard</span>
+                            <h1>Sampath Bank</h1>
+                            <span class="brand-subtitle">CDK Monitoring</span>
                         </div>
                     </div>
                 </div>
@@ -270,29 +270,32 @@ else
             Name = "Patch Update All Branch",
             URL = "/patchupdate/patch-update-all-Branch",
             Icon = "fas fa-desktop"
-        },
-        new SubMenuModel
+        }
+        ,
+          new SubMenuModel
         {
-            Name = "Patch History",
-            URL = "/patchupdate/history",
+            Name = "Patch Monitoring",
+            URL = "/patchupdate/patch-update-all-events",
             Icon = "fas fa-history"
         }
+        
+
     }
 },
 
-            new MenuModel {
-                Id = "5",
-                Name = "Analytics",
-                URL = "#",
-                Icon = "fas fa-chart-line",
-                HasSubMenu = true,
-                SubMenus = new List<SubMenuModel>
-                {
-                    new SubMenuModel { Name = "Health Analytics", URL = "/health-analytics", Icon = "fas fa-heartbeat" },
-                    new SubMenuModel { Name = "Reports", URL = "/reports", Icon = "fas fa-file-alt" },
-                    new SubMenuModel { Name = "Logs", URL = "/logs", Icon = "fas fa-file-contract" }
-                }
-            },
+            // new MenuModel {
+            //     Id = "5",
+            //     Name = "Analytics",
+            //     URL = "#",
+            //     Icon = "fas fa-chart-line",
+            //     HasSubMenu = true,
+            //     SubMenus = new List<SubMenuModel>
+            //     {
+            //         new SubMenuModel { Name = "Health Analytics", URL = "/health-analytics", Icon = "fas fa-heartbeat" },
+            //         new SubMenuModel { Name = "Reports", URL = "/reports", Icon = "fas fa-file-alt" },
+            //         new SubMenuModel { Name = "Logs", URL = "/logs", Icon = "fas fa-file-contract" }
+            //     }
+            // },
 
              new MenuModel {
                 Id = "6",

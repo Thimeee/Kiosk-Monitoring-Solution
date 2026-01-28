@@ -4,6 +4,8 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Monitoring.Shared.Enum;
+using Monitoring.Shared.Models;
 using MQTTnet;
 using MQTTnet.LowLevelClient;
 using MQTTnet.Protocol;
@@ -65,8 +67,12 @@ namespace SFTPService.Helper
                     .WithClientId(branchId)
                     .WithTcpServer(host, port)
                     .WithCredentials(user, pass)
-                    .WithKeepAlivePeriod(TimeSpan.FromSeconds(30))
+                    .WithKeepAlivePeriod(TimeSpan.FromSeconds(10))
                     .WithCleanSession(false) //  Persist sessions for reliability
+                    .WithWillTopic($"server/{branchId}/STATUS/MQTTStatus")
+.WithWillPayload(((int)MQTTConnectionStatus.OFFLINE).ToString())
+.WithWillRetain(true)
+.WithWillQualityOfServiceLevel(MqttQualityOfServiceLevel.ExactlyOnce)
                     .WithTimeout(TimeSpan.FromSeconds(ConnectionTimeoutSeconds))
                     .Build();
 
@@ -143,6 +149,12 @@ namespace SFTPService.Helper
 
             var reason = e.Reason.ToString();
 
+            if (e.ClientWasConnected && !_client.IsConnected)
+            {
+                await SafeLog("MQTT", $"Network lost or broker unreachable, triggering reconnect", 2);
+                _ = Task.Run(async () => await TryReconnectAsync());
+                return;
+            }
             // Handle different disconnect scenarios
             if (e.Reason == MqttClientDisconnectReason.NormalDisconnection)
             {
@@ -457,18 +469,38 @@ namespace SFTPService.Helper
         // NEW: Public method to gracefully shutdown
         public async Task ShutdownAsync()
         {
+            string branchId = _config["BranchId"] ?? "BR001";
             _isShuttingDown = true;
 
             await SafeLog("MQTT", "Graceful shutdown initiated");
 
-            // Cancel reconnect attempts
-            _reconnectCts?.Cancel();
+            if (_client != null && _client.IsConnected)
+            {
+                //// Publish OFFLINE manually
+                //var offlineMessage = new MqttApplicationMessageBuilder()
+                //    .WithTopic($"server/{branchId}/STATUS/MQTTStatus")
+                //    .WithPayload(MQTTConnectionStatus.MANUAL_OFFLINE)
+                //    .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.ExactlyOnce)
+                //    .Build();
 
-            // Stop health check
+                //await _client.PublishAsync(offlineMessage, CancellationToken.None);
+                //Send MQTT ReOnline Status
+                await PublishAsync(
+        $"server/{branchId}/STATUS/MQTTStatus",
+        ((int)MQTTConnectionStatus.MANUAL_OFFLINE).ToString(),
+        MqttQualityOfServiceLevel.ExactlyOnce,
+         CancellationToken.None
+    );
+
+            }
+
+            // Stop reconnects and health checks
+            _reconnectCts?.Cancel();
             _healthCheckTimer?.Dispose();
 
             await CleanupAsync();
         }
+
 
         public async Task CleanupAsync()
         {

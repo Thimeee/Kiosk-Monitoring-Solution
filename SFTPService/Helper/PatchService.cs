@@ -63,9 +63,9 @@ namespace SFTPService.Helper
         }
 
         public async Task<bool> ApplyPatchAsync(
-            PatchDeploymentMqttRequest request,
-            string branchId,
-            CancellationToken cancellationToken)
+     PatchDeploymentMqttRequest request,
+     string branchId,
+     CancellationToken cancellationToken)
         {
             string backupPath = null;
 
@@ -74,153 +74,178 @@ namespace SFTPService.Helper
                 await _log.WriteLog("Patch", $"Starting patch deployment: JobId={request.PatchId}");
 
                 // PHASE 1: DOWNLOAD (0-15%)
-                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
-                    PatchStep.DOWNLOAD, "Downloading patch file", 5, cancellationToken);
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                    PatchStatus.IN_PROGRESS, PatchStep.DOWNLOAD, "Downloading patch file", 5, cancellationToken);
 
                 string downloadedZip = await DownloadPatchAsync(request, branchId, cancellationToken);
                 if (downloadedZip == null)
                 {
-                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.FAILED,
-                        PatchStep.DOWNLOAD, "Failed to download patch", 5, cancellationToken);
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                        PatchStatus.FAILED, PatchStep.DOWNLOAD, "Failed to download patch", 5, cancellationToken);
+                    await Task.Delay(1000, cancellationToken);
                     return false;
                 }
 
                 // PHASE 2: VALIDATE (15-20%)
-                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
-                    PatchStep.VALIDATE, "Validating checksum", 15, cancellationToken);
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                    PatchStatus.IN_PROGRESS, PatchStep.VALIDATE, "Validating checksum", 15, cancellationToken);
 
                 if (!await ValidateChecksumAsync(downloadedZip, request.ExpectedChecksum))
                 {
-                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.FAILED,
-                        PatchStep.VALIDATE, "Checksum validation failed", 15, cancellationToken);
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                        PatchStatus.FAILED, PatchStep.VALIDATE, "Checksum validation failed", 15, cancellationToken);
+                    await Task.Delay(1000, cancellationToken);
                     return false;
                 }
 
                 // PHASE 3: EXTRACT (20-30%)
-                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
-                    PatchStep.EXTRACT, "Extracting patch files", 20, cancellationToken);
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                    PatchStatus.IN_PROGRESS, PatchStep.EXTRACT, "Extracting patch files", 20, cancellationToken);
 
                 if (!await ExtractPatchAsync(downloadedZip, cancellationToken))
                 {
-                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.FAILED,
-                        PatchStep.EXTRACT, "Failed to extract patch", 20, cancellationToken);
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                        PatchStatus.FAILED, PatchStep.EXTRACT, "Failed to extract patch", 20, cancellationToken);
+                    await Task.Delay(1000, cancellationToken);
                     return false;
                 }
 
-                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
-                    PatchStep.EXTRACT, "Patch extracted successfully", 30, cancellationToken);
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                    PatchStatus.IN_PROGRESS, PatchStep.EXTRACT, "Patch extracted successfully", 30, cancellationToken);
 
                 // PHASE 4: STOP APPLICATION (30-40%)
-                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
-                    PatchStep.STOP_APP, "Stopping application", 35, cancellationToken);
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                    PatchStatus.IN_PROGRESS, PatchStep.STOP_APP, "Stopping applications", 35, cancellationToken);
 
                 if (!await StopApplicationAsync(_processName))
                 {
-                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.FAILED,
-                        PatchStep.STOP_APP, "Failed to stop application", 35, cancellationToken);
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                        PatchStatus.FAILED, PatchStep.STOP_APP, "Failed to stop main application", 35, cancellationToken);
+                    await Task.Delay(1000, cancellationToken);
                     return false;
                 }
 
                 if (!await StopApplicationAsync(_SecprocessName))
                 {
-                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.FAILED,
-                        PatchStep.STOP_APP, "Failed to stop application", 35, cancellationToken);
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                        PatchStatus.FAILED, PatchStep.STOP_APP, "Failed to stop secondary application", 35, cancellationToken);
+                    await Task.Delay(1000, cancellationToken);
                     return false;
                 }
 
-                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
-                    PatchStep.STOP_APP, "Application stopped successfully", 40, cancellationToken);
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                    PatchStatus.IN_PROGRESS, PatchStep.STOP_APP, "Applications stopped successfully", 40, cancellationToken);
 
                 // PHASE 5: BACKUP (40-55%)
-                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
-                    PatchStep.BACKUP, "Creating backup", 45, cancellationToken);
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                    PatchStatus.IN_PROGRESS, PatchStep.BACKUP, "Creating backup", 45, cancellationToken);
 
                 backupPath = await CreateBackupAsync(cancellationToken);
                 if (string.IsNullOrEmpty(backupPath))
                 {
-                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.FAILED,
-                        PatchStep.BACKUP, "Backup creation failed", 45, cancellationToken);
-
-                    // Try to restart app even if backup failed
-                    await StartApplicationAsync(cancellationToken);
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                        PatchStatus.FAILED, PatchStep.BACKUP, "Backup creation failed", 45, cancellationToken);
+                    await Task.Delay(1000, cancellationToken);
                     return false;
                 }
 
-                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
-                    PatchStep.BACKUP, $"Backup created: {Path.GetFileName(backupPath)}", 55, cancellationToken);
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                    PatchStatus.IN_PROGRESS, PatchStep.BACKUP, $"Backup created: {Path.GetFileName(backupPath)}", 55, cancellationToken);
 
                 // PHASE 6: APPLY UPDATE (55-75%)
-                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
-                    PatchStep.UPDATE, "Applying update", 60, cancellationToken);
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                    PatchStatus.IN_PROGRESS, PatchStep.UPDATE, "Applying update", 60, cancellationToken);
 
                 if (!await ApplyUpdateAsync(cancellationToken))
                 {
-                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
-                        PatchStep.ROLLBACK, "Update failed - starting rollback", 65, cancellationToken);
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                        PatchStatus.IN_PROGRESS, PatchStep.ROLLBACK, "Update failed - starting rollback", 65, cancellationToken);
 
                     await RollbackAsync(backupPath, cancellationToken);
 
-                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.ROLLBACK,
-                        PatchStep.COMPLETE, "Rollback completed", 100, cancellationToken);
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                        PatchStatus.ROLLBACK, PatchStep.COMPLETE, "Rollback completed. System will restart.", 100, cancellationToken);
+
+                    await Task.Delay(2000, cancellationToken);
+                    await ScheduleSystemRestartAsync(cancellationToken);
                     return false;
                 }
 
-                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
-                    PatchStep.UPDATE, "Update applied successfully", 75, cancellationToken);
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                    PatchStatus.IN_PROGRESS, PatchStep.UPDATE, "Update applied successfully", 75, cancellationToken);
 
-                // PHASE 7: START APPLICATION (75-90%)
-                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
-                    PatchStep.START_APP, "Starting application", 80, cancellationToken);
+                // PHASE 7: START APP CHECK (75-80%) - Just verify files
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                    PatchStatus.IN_PROGRESS, PatchStep.START_APP, "Verifying updated files", 78, cancellationToken);
 
                 if (!await StartApplicationAsync(cancellationToken))
                 {
-                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
-                        PatchStep.ROLLBACK, "Application failed to start - rolling back", 85, cancellationToken);
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                        PatchStatus.IN_PROGRESS, PatchStep.ROLLBACK, "File verification failed - rolling back", 80, cancellationToken);
 
                     await RollbackAsync(backupPath, cancellationToken);
 
-                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.ROLLBACK,
-                        PatchStep.COMPLETE, "Rollback completed", 100, cancellationToken);
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                        PatchStatus.ROLLBACK, PatchStep.COMPLETE, "Rollback completed. System will restart.", 100, cancellationToken);
+
+                    await Task.Delay(2000, cancellationToken);
+                    await ScheduleSystemRestartAsync(cancellationToken);
                     return false;
                 }
 
-                // PHASE 8: VERIFY (90-95%)
-                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
-                    PatchStep.VERIFY, "Verifying application", 90, cancellationToken);
+                // PHASE 8: VERIFY (80-90%)
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                    PatchStatus.IN_PROGRESS, PatchStep.VERIFY, "Verifying application integrity", 85, cancellationToken);
 
                 if (!await VerifyApplicationAsync(cancellationToken))
                 {
-                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
-                        PatchStep.ROLLBACK, "Verification failed - rolling back", 92, cancellationToken);
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                        PatchStatus.IN_PROGRESS, PatchStep.ROLLBACK, "Verification failed - rolling back", 88, cancellationToken);
 
                     await RollbackAsync(backupPath, cancellationToken);
 
-                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.ROLLBACK,
-                        PatchStep.COMPLETE, "Rollback completed", 100, cancellationToken);
+                    await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                        PatchStatus.ROLLBACK, PatchStep.COMPLETE, "Rollback completed. System will restart.", 100, cancellationToken);
+
+                    await Task.Delay(2000, cancellationToken);
+                    await ScheduleSystemRestartAsync(cancellationToken);
                     return false;
                 }
 
-                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
-                    PatchStep.VERIFY, "Application verified successfully", 95, cancellationToken);
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                    PatchStatus.IN_PROGRESS, PatchStep.VERIFY, "Application verified successfully", 90, cancellationToken);
 
-                // PHASE 9: CLEANUP (95-100%)
-                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.IN_PROGRESS,
-                    PatchStep.CLEANUP, "Cleaning up", 97, cancellationToken);
+                // PHASE 9: CLEANUP (90-95%)
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                    PatchStatus.IN_PROGRESS, PatchStep.CLEANUP, "Cleaning up temporary files", 92, cancellationToken);
 
                 await CleanupAsync(downloadedZip);
 
-                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.SUCCESS,
-                    PatchStep.COMPLETE, "Patch applied successfully", 100, cancellationToken);
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                    PatchStatus.IN_PROGRESS, PatchStep.CLEANUP, "Cleanup completed", 95, cancellationToken);
 
-                await _log.WriteLog("Patch", $"Patch completed successfully: JobId={request.PatchId}");
+                // ✅ PHASE 10: COMPLETE (95-100%) - SEND SUCCESS **BEFORE** RESTARTING
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                    PatchStatus.SUCCESS, PatchStep.COMPLETE, "Patch applied successfully. System will restart.", 100, cancellationToken);
+
+                await _log.WriteLog("Patch", $"✓ Patch completed successfully: JobId={request.PatchId}");
+
+                // ✅ Critical: Wait longer to ensure QoS 2 message is delivered
+                await Task.Delay(3000, cancellationToken);
+
+                // ✅ NOW schedule the restart (after everything is done)
+                await ScheduleSystemRestartAsync(cancellationToken);
+
                 return true;
             }
             catch (Exception ex)
             {
                 await _log.WriteLog("Patch Error", $"JobId={request.PatchId}, Error: {ex}", 3);
 
-                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId, PatchStatus.FAILED,
-                    PatchStep.ERROR, $"Unexpected error: {ex.Message}", 0, cancellationToken);
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                    PatchStatus.FAILED, PatchStep.ERROR, $"Unexpected error: {ex.Message}", 0, cancellationToken);
+
+                await Task.Delay(2000, cancellationToken);
 
                 // Attempt rollback if we have a backup
                 if (!string.IsNullOrEmpty(backupPath))
@@ -228,6 +253,8 @@ namespace SFTPService.Helper
                     try
                     {
                         await RollbackAsync(backupPath, cancellationToken);
+                        await Task.Delay(2000, cancellationToken);
+                        await ScheduleSystemRestartAsync(cancellationToken);
                     }
                     catch (Exception rollbackEx)
                     {
@@ -662,40 +689,8 @@ namespace SFTPService.Helper
 
                 await _log.WriteLog("Patch Start", $"Application updated: {appPath}");
 
-                // CREATE POWERSHELL SCRIPT TO STOP SERVICE AND RESTART
-                string scriptPath = Path.Combine(Path.GetTempPath(), "restart_after_patch.ps1");
-
-                string serviceName = _config["ServiceName"] ?? "MCS_BranchService";
-
-                string scriptContent = $@"
-# Stop the service gracefully
-Write-Output 'Stopping service: {serviceName}'
-Stop-Service -Name '{serviceName}' -Force -ErrorAction SilentlyContinue
-
-# Wait for service to stop
-Start-Sleep -Seconds 3
-
-# Restart computer
-Write-Output 'Restarting computer in 5 seconds...'
-shutdown.exe /r /t 5 /c 'Application update completed. Restarting...'
-";
-
-                await File.WriteAllTextAsync(scriptPath, scriptContent, cancellationToken);
-
-                await _log.WriteLog("Patch Start", "Executing graceful service stop + restart...");
-
-                // Execute PowerShell script in background (detached)
-                var psi = new ProcessStartInfo
-                {
-                    FileName = "powershell.exe",
-                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\"",
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-
-                Process.Start(psi);
-
-                await _log.WriteLog("Patch Start", "Service stop + restart initiated");
+                // ✅ DON'T restart here - let the main flow complete first
+                await _log.WriteLog("Patch Start", "Application files updated successfully");
 
                 return true;
             }
@@ -705,17 +700,17 @@ shutdown.exe /r /t 5 /c 'Application update completed. Restarting...'
                 return false;
             }
         }
+
         private async Task<bool> VerifyApplicationAsync(CancellationToken cancellationToken)
         {
             try
             {
-                // Just verify the file exists (can't verify running since we're restarting)
+                // Just verify the file exists
                 string appPath = Path.Combine(_appFolder, _appName);
 
                 if (File.Exists(appPath))
                 {
                     await _log.WriteLog("Patch Verify", $"✓ Application file verified: {_appName}");
-                    await _log.WriteLog("Patch Verify", "System will restart - user must start application manually");
                     return true;
                 }
                 else
@@ -728,6 +723,55 @@ shutdown.exe /r /t 5 /c 'Application update completed. Restarting...'
             {
                 await _log.WriteLog("Patch Verify Error", $"{ex}", 3);
                 return false;
+            }
+        }
+
+
+        private async Task ScheduleSystemRestartAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                await _log.WriteLog("Patch Restart", "Scheduling system restart...");
+
+                string scriptPath = Path.Combine(Path.GetTempPath(), "restart_after_patch.ps1");
+                string serviceName = _config["ServiceName"] ?? "MCS_BranchService";
+
+                string scriptContent = $@"
+# ✅ Wait longer to ensure all MQTT messages are delivered
+Start-Sleep -Seconds 5
+
+# Stop the service gracefully
+Write-Output 'Stopping service: {serviceName}'
+Stop-Service -Name '{serviceName}' -Force -ErrorAction SilentlyContinue
+
+# Wait for service to stop completely
+Start-Sleep -Seconds 3
+
+# Restart computer
+Write-Output 'Restarting computer now...'
+shutdown.exe /r /t 1 /c 'Application update completed. Restarting...'
+";
+
+                await File.WriteAllTextAsync(scriptPath, scriptContent, cancellationToken);
+
+                await _log.WriteLog("Patch Restart", "✓ Restart script created - executing in 5 seconds...");
+
+                // Execute PowerShell script in background (detached)
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                Process.Start(psi);
+
+                await _log.WriteLog("Patch Restart", "✓ Restart scheduled - service will stop in 5 seconds");
+            }
+            catch (Exception ex)
+            {
+                await _log.WriteLog("Patch Restart Error", $"{ex}", 3);
             }
         }
 
@@ -765,7 +809,7 @@ shutdown.exe /r /t 5 /c 'Application update completed. Restarting...'
 
                 await _log.WriteLog("Patch Rollback", "Rollback completed - forcing system restart...");
 
-                // ✅ CREATE POWERSHELL SCRIPT TO STOP SERVICE AND RESTART
+                //  CREATE POWERSHELL SCRIPT TO STOP SERVICE AND RESTART
                 string scriptPath = Path.Combine(Path.GetTempPath(), "restart_after_rollback.ps1");
                 string serviceName = _config["ServiceName"] ?? "MCS_BranchService";
 
@@ -779,7 +823,7 @@ Start-Sleep -Seconds 3
 
 # Restart computer
 Write-Output 'Restarting computer after rollback...'
-shutdown.exe /r /t 5 /c 'Application rollback completed. Restarting...'
+shutdown.exe /r /t 1 /c 'Application rollback completed. Restarting...'
 ";
 
                 await File.WriteAllTextAsync(scriptPath, scriptContent, cancellationToken);
@@ -866,15 +910,15 @@ shutdown.exe /r /t 5 /c 'Application rollback completed. Restarting...'
         }
 
         private async Task PublishStatusAsync(
-            string UserId,
-            string PatchId,
-            PatchRequestType PatchRequestType,
-            string branchId,
-            PatchStatus status,
-            PatchStep step,
-            string message,
-            int progress,
-            CancellationToken cancellationToken)
+     string UserId,
+     string PatchId,
+     PatchRequestType PatchRequestType,
+     string branchId,
+     PatchStatus status,
+     PatchStep step,
+     string message,
+     int progress,
+     CancellationToken cancellationToken)
         {
             var payload = new PatchStatusUpdateMqttResponse
             {
@@ -888,17 +932,45 @@ shutdown.exe /r /t 5 /c 'Application rollback completed. Restarting...'
                 Timestamp = DateTime.Now
             };
 
-            try
+            // ✅Determine if this is a critical status that needs QoS 2
+            bool isCritical = status == PatchStatus.SUCCESS ||
+                              status == PatchStatus.FAILED ||
+                              status == PatchStatus.ROLLBACK;
+
+            var qosLevel = isCritical
+                ? MqttQualityOfServiceLevel.ExactlyOnce  // QoS 2 for final status
+                : MqttQualityOfServiceLevel.AtLeastOnce; // QoS 1 for progress updates
+
+            int maxRetries = isCritical ? 3 : 1;
+            int retryCount = 0;
+
+            while (retryCount < maxRetries)
             {
-                await _mqtt.PublishToServer(
-                    payload,
-                    $"server/{branchId}/PATCH/Status",
-                    MqttQualityOfServiceLevel.AtLeastOnce,
-                    cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                await _log.WriteLog("MQTT Publish Error", $"{ex}", 3);
+                try
+                {
+                    await _mqtt.PublishToServer(
+                        payload,
+                        $"server/{branchId}/PATCH/Status",
+                        qosLevel,
+                        cancellationToken);
+
+                    await _log.WriteLog("MQTT Status", $"✓ Published: {step} ({status}) - QoS {qosLevel}");
+                    return; // Success
+                }
+                catch (Exception ex)
+                {
+                    retryCount++;
+                    await _log.WriteLog("MQTT Publish Error", $"Attempt {retryCount}/{maxRetries}: {ex.Message}", 2);
+
+                    if (retryCount < maxRetries)
+                    {
+                        await Task.Delay(500 * retryCount, cancellationToken); // Exponential backoff
+                    }
+                    else
+                    {
+                        await _log.WriteLog("MQTT Publish Failed", $"Failed after {maxRetries} attempts: {step} ({status})", 3);
+                    }
+                }
             }
         }
     }

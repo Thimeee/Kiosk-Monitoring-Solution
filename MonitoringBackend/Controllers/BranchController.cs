@@ -35,7 +35,6 @@ namespace MonitoringBackend.Controllers
         }
 
 
-
         [HttpGet("getAllBranch")]
         public async Task<IActionResult> getAllBranch([FromQuery] PagedRequest request)
         {
@@ -144,7 +143,6 @@ namespace MonitoringBackend.Controllers
 
                 //  Status filter
 
-
                 var branches = await query
                     .OrderBy(x => x.Id)
                     .Select(r => new SelectBranchDtoWithSelectedPatchDto
@@ -225,6 +223,67 @@ namespace MonitoringBackend.Controllers
             }
         }
 
+
+
+
+        [HttpPost("AddBranch")]
+        public async Task<IActionResult> AddBranch([FromBody] APIRequestObject<SelectBranchDto> requestObj)
+        {
+            var responseDTO = new APIResponseSingleValue();
+
+            try
+            {
+                if (requestObj?.ReqValue == null)
+                {
+                    responseDTO.Status = false;
+                    responseDTO.StatusCode = 1;
+                    responseDTO.Message = "Branch data is missing.";
+                    return BadRequest(responseDTO);
+                }
+
+                var obj = requestObj.ReqValue;
+
+                bool exists = await _db.Branches
+                    .AnyAsync(b => b.TerminalId == obj.TerminalId);
+
+                if (exists)
+                {
+                    responseDTO.Status = false;
+                    responseDTO.StatusCode = 1;
+                    responseDTO.Message = "This terminal already exists.";
+                    return Conflict(responseDTO);
+                }
+
+                var branch = new Branch
+                {
+                    TerminalId = obj.TerminalId,
+                    BranchId = obj.BranchId,
+                    BranchName = obj.BranchName,
+                    Location = obj.Location,
+
+                };
+
+                _db.Branches.Add(branch);
+                await _db.SaveChangesAsync();
+
+                responseDTO.Status = true;
+                responseDTO.StatusCode = 2;
+                responseDTO.Message = "Branch added successfully.";
+
+                return Ok(responseDTO);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+
+                responseDTO.Status = false;
+                responseDTO.StatusCode = 0;
+                responseDTO.Message = "An error occurred while adding the branch.";
+                responseDTO.Ex = ex.Message;
+
+                return StatusCode(500, responseDTO);
+            }
+        }
 
 
         [HttpPost("LoginBranch")]

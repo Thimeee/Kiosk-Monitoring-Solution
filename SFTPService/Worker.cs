@@ -1,8 +1,11 @@
 ﻿using System.Diagnostics;
 using System.Text.Json;
+using Azure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Monitoring.Shared.DTO;
+using Monitoring.Shared.Enum;
+using Monitoring.Shared.Models;
 using MQTTnet.Protocol;
 using SFTPService.Helper;
 //using SFTPService.Services;
@@ -18,7 +21,9 @@ namespace SFTPService
         private readonly IPerformanceService _performance;
         private CancellationTokenSource _healthLoopCts;
         private readonly SemaphoreSlim _healthLoopLock = new SemaphoreSlim(1, 1);
-        private readonly IPatchService _patchService; // 
+        private readonly IPatchService _patchService;
+        private readonly CDKApplctionStatusService _CDKApplcitionStatus;
+        private Task? _cdkLoopTask;
 
         public Worker(
             SftpFileService sftpMonitor,
@@ -26,7 +31,8 @@ namespace SFTPService
             IConfiguration config,
             LoggerService log,
             IPerformanceService performance,
-            IPatchService patchService
+            IPatchService patchService,
+            CDKApplctionStatusService CDKApplcitionStatus
            )
         {
             _sftp = sftpMonitor;
@@ -35,23 +41,34 @@ namespace SFTPService
             _log = log;
             _performance = performance;
             _patchService = patchService;
+            _CDKApplcitionStatus = CDKApplcitionStatus;
         }
 
         protected override async Task<Task> ExecuteAsync(CancellationToken stoppingToken)
         {
             var mqttHost = _config["MQTT:Host"] ?? "localhost";
             var mqttPort = int.TryParse(_config["MQTT:Port"], out var port) ? port : 1883;
-            var mqttUserName = _config["MQTT:Username"] ?? "User";
-            var mqttPassword = _config["MQTT:Password"] ?? "1234";
-            var branchId = _config["BranchId"] ?? "BR001";
+            var mqttUserName = _config["MQTT:Username"] ?? "";
+            var mqttPassword = _config["MQTT:Password"] ?? "";
+            var branchId = _config["BranchId"] ?? "";
 
             _mqtt.OnReconnectedMQTT += async () =>
             {
                 await _log.WriteLog("Worker", "Reconnected → Re-subscribing...");
+
+                //Send MQTT ReOnline Status
+                await _mqtt.PublishAsync(
+        $"server/{branchId}/STATUS/MQTTStatus",
+        ((int)MQTTConnectionStatus.ONLINE).ToString(),
+        MqttQualityOfServiceLevel.ExactlyOnce,
+        stoppingToken
+    );
                 await StartMQTTEvent(branchId, stoppingToken);
             };
 
             await InitializeMqttConnection(mqttHost, mqttUserName, mqttPassword, mqttPort, branchId, stoppingToken);
+
+            _cdkLoopTask = Task.Run(() => CDKStatusMonitoringLoop(branchId, stoppingToken), stoppingToken);
 
             return Task.CompletedTask;
         }
@@ -75,6 +92,9 @@ namespace SFTPService
                 if (connected)
                 {
                     await _log.WriteLog("MQTT Init", "Connection successful");
+
+                    await ServiceFirstInilize(branchId, stoppingToken);
+
                     await StartMQTTEvent(branchId, stoppingToken);
                     break;
                 }
@@ -89,8 +109,8 @@ namespace SFTPService
             try
             {
                 await _log.WriteLog("MQTT Init", "Subscribing to branch topics");
-
                 var branchTopic = $"branch/{branchId}/#";
+                //await ServiceFirstInilize(branchId, stoppingToken);
 
                 await _mqtt.SubscribeAsync(branchTopic, async (payload, topic) =>
                 {
@@ -114,6 +134,37 @@ namespace SFTPService
             {
                 await _log.WriteLog("MQTT", "Service stopping");
             }
+        }
+
+        private async Task ServiceFirstInilize(string branchId, CancellationToken stoppingToken)
+        {
+
+            //Send MQTTService restart 
+            await _mqtt.PublishAsync(
+    $"server/{branchId}/STATUS/MQTTStatus",
+    ((int)MQTTConnectionStatus.MANUAL_ONLINE).ToString(),
+    MqttQualityOfServiceLevel.ExactlyOnce,
+    stoppingToken
+);
+            if (!await _CDKApplcitionStatus.TestConnectionAsync())
+            {
+                await _mqtt.PublishAsync(
+$"server/{branchId}/STATUS/DBStatus",
+((int)DBConnectionStatus.DISCONNCTED).ToString(),
+MqttQualityOfServiceLevel.ExactlyOnce,
+stoppingToken
+);
+            }
+            else
+            {
+                await _mqtt.PublishAsync(
+$"server/{branchId}/STATUS/DBStatus",
+((int)DBConnectionStatus.CONNECTED).ToString(),
+MqttQualityOfServiceLevel.ExactlyOnce,
+stoppingToken
+);
+            }
+
         }
 
         private async Task ProcessBranchMessage(string topic, string payload, string branchId, CancellationToken stoppingToken)
@@ -334,6 +385,59 @@ namespace SFTPService
             }
         }
 
+        private async Task CDKStatusMonitoringLoop(string branchId, CancellationToken stoppingToken)
+        {
+            const int maxMqttAttemptsPerStatus = 5;
+            const int sendCooldownMs = 5 * 60 * 1000; // 5 minutes
+
+            var attemptsPerStatus = new Dictionary<CDKErrorStatus, (int count, DateTime lastSent)>();
+
+            try
+            {
+                while (!stoppingToken.IsCancellationRequested)
+                {
+                    var list = await _CDKApplcitionStatus.GetAllBranchStatusAsync();
+
+                    foreach (var item in list)
+                    {
+                        if (!attemptsPerStatus.TryGetValue(item.IsMaintenanceMood, out var record))
+                        {
+                            record = (0, DateTime.MinValue);
+                        }
+
+                        bool cooldownPassed = (DateTime.Now - record.lastSent).TotalMilliseconds > sendCooldownMs;
+
+                        if (record.count < maxMqttAttemptsPerStatus && cooldownPassed)
+                        {
+                            string statusString = ((int)item.IsMaintenanceMood).ToString();
+
+                            await _mqtt.PublishAsync(
+                                $"server/{branchId}/STATUS/CDKErrorStatus",
+                                statusString,
+                                MqttQualityOfServiceLevel.AtLeastOnce, // safer
+                                stoppingToken);
+
+                            attemptsPerStatus[item.IsMaintenanceMood] = (record.count + 1, DateTime.Now);
+
+                            await _log.WriteLog("CDKStatus",
+                                $"Sent MQTT ({record.count + 1}/{maxMqttAttemptsPerStatus}): {statusString}", 1);
+                        }
+                    }
+
+                    await Task.Delay(1000, stoppingToken);
+                }
+            }
+            catch (TaskCanceledException)
+            {
+                await _log.WriteLog("CDKStatus", "Monitoring loop cancelled", 1);
+            }
+            catch (Exception ex)
+            {
+                await _log.WriteLog("CDKStatus Error", ex.Message, 3);
+            }
+        }
+
+
         private async Task HandleHealthRequest(string branchId, CancellationToken stoppingToken)
         {
             // Prevent race condition with lock
@@ -368,14 +472,12 @@ namespace SFTPService
                                 jobEndTime = DateTime.Now,
                                 jobRsValue = perf
                             };
-                            await _log.WriteLog("Health Loop ", "send strt");
 
                             await _mqtt.PublishToServer(
                                 response,
                                 $"server/{branchId}/HEALTH/PerformanceRespo",
                                 MqttQualityOfServiceLevel.AtMostOnce,
                                 stoppingToken);
-                            await _log.WriteLog("Health Loop ", "send Oky");
 
                             await Task.Delay(1000, token);
                         }
@@ -429,7 +531,7 @@ namespace SFTPService
 
         private async Task RetryConnectionAsync(int attempt, int maxRetries, int retryDelayMs, CancellationToken stoppingToken)
         {
-            await _log.WriteLog("Service Warning", $"Initialization failed. Attempt {attempt}/{maxRetries}", 2);
+            await _log.WriteLog("Service Warning", $"Initialization failed. Attempt {attempt}", 2);
 
             if (attempt >= maxRetries)
             {
@@ -460,6 +562,11 @@ namespace SFTPService
 
                 // Gracefully shutdown MQTT
                 await _mqtt.ShutdownAsync();
+
+                if (_cdkLoopTask != null)
+                {
+                    await Task.WhenAny(_cdkLoopTask, Task.Delay(5000, cancellationToken)); // wait max 5s
+                }
 
                 await _log.WriteLog("Worker", "Service stopped cleanly");
             }

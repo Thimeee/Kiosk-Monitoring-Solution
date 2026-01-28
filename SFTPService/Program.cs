@@ -9,6 +9,7 @@ var builder = Host.CreateDefaultBuilder(args)
         services.AddSingleton<SftpFileService>();
         services.AddSingleton<LoggerService>();
         services.AddSingleton<MQTTHelper>();
+        services.AddSingleton<CDKApplctionStatusService>();
         services.AddSingleton<IPerformanceService, PerformanceService>();
         services.AddSingleton<IPatchService, PatchService>();
         services.AddHostedService<Worker>();
