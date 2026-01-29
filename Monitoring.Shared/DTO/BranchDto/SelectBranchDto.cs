@@ -10,6 +10,13 @@ using static Monitoring.Shared.DTO.PatchsDto.SelectedPatch;
 
 namespace Monitoring.Shared.DTO.BranchDto
 {
+
+    public class SignlaResponse
+    {
+        public string statusMsg { get; set; }
+        public string terminalId { get; set; }
+
+    }
     public class SelectBranchDto
     {
 

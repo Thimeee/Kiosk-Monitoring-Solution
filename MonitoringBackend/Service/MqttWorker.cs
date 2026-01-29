@@ -5,6 +5,7 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.CodeAnalysis.Operations;
 using Microsoft.EntityFrameworkCore;
 using Monitoring.Shared.DTO;
 using Monitoring.Shared.DTO.BranchDto;
@@ -192,19 +193,82 @@ namespace MonitoringBackend.Service
         {
             try
             {
-                await _log.WriteLog(
-        "MQTT STATUS",
-        $"Branch={branchId}, {subTopic}={payload}"
-    );
-                //await _hubContext.Clients
-                //    .Group(BranchHub.BranchGroup(branchId))
-                //    .SendAsync("PerformanceUpdate", payload, stoppingToken);
+                switch (subTopic)
+                {
+                    case "MQTTStatus":
+                        await HandleServiceStatus(branchId, payload, stoppingToken);
+                        break;
+                    case "ServiceStatus":
+                        await HandleServiceStatus(branchId, payload, stoppingToken);
+                        break;
+                    case "CDKErrorStatus":
+                        await HandleServiceStatus(branchId, payload, stoppingToken);
+                        break;
+                    case "DBStatus":
+                        //await HandleServiceStatus(branchId, payload, stoppingToken);
+                        break;
+                }
+
             }
             catch (Exception ex)
             {
                 await _log.WriteLog("SignalR Send Error", $"Branch: {branchId}, Error: {ex.Message}", 3);
             }
         }
+        //private readonly SemaphoreSlim _semaphore = new SemaphoreSlim(10); // 10 messages at a time
+
+        private async Task HandleServiceStatus(string branchId, string payload, CancellationToken stoppingToken)
+        {
+            if (string.IsNullOrWhiteSpace(payload))
+                return;
+
+            if (!int.TryParse(payload, out int status))
+                return;
+
+            var terminalStatus = status == 1 ? TerminalActive.TERMINAL_ONLINE : TerminalActive.TERMINAL_OFFLINE;
+            var statusMsg = status == 1 ? "Online" : "Offline";
+
+            await _semaphore.WaitAsync();
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                var terminal = await db.Branches
+                                       .Where(b => b.TerminalId == branchId)
+                                       .Select(b => new { b.TerminalActiveStatus })
+                                       .FirstOrDefaultAsync(cancellationToken: stoppingToken);
+
+                if (terminal == null)
+                    return;
+
+                if (terminal.TerminalActiveStatus == terminalStatus)
+                    return;
+                var res = new SignlaResponse
+                {
+                    statusMsg = statusMsg,
+                    terminalId = branchId
+                };
+
+
+                _ = _hubContext.Clients.All.SendAsync("TerminalStatus", res);
+
+                await db.Branches
+                        .Where(b => b.TerminalId == branchId)
+                        .ExecuteUpdateAsync(b => b.SetProperty(p => p.TerminalActiveStatus, terminalStatus),
+                                            cancellationToken: stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                await _log.WriteLog("SignalR/DB Error", $"Branch: {branchId}, Error: {ex.Message}", 3);
+            }
+            finally
+            {
+                _semaphore.Release();
+            }
+        }
+
+
         private async Task HandleHealth(string branchId, string payload, CancellationToken stoppingToken)
         {
             // Throttle health updates per branch
@@ -236,76 +300,66 @@ namespace MonitoringBackend.Service
             var jobRes = JsonSerializer.Deserialize<PatchStatusUpdateMqttResponse>(payload);
             if (jobRes == null) return;
 
-            // Variables for SignalR (outside semaphore)
             Branch branch = null;
             PatchAssignBranch patch = null;
 
-            // STEP 1: Wait for semaphore
+            // Wait for semaphore to prevent concurrent DB updates
             await _semaphore.WaitAsync();
             try
             {
-                // STEP 2: DB operations (sequential, blocking)
                 using var scope = _scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-                int numericPatchId = int.Parse(
-                    new string(jobRes.PatchId.TakeWhile(char.IsDigit).ToArray())
-                );
+                // Convert PatchId string to numeric
+                int numericPatchId = int.Parse(new string(jobRes.PatchId.TakeWhile(char.IsDigit).ToArray()));
 
-                branch = await db.Branches.FirstOrDefaultAsync(j => j.TerminalId == TerminalId);
-                if (branch == null)
-                {
-                    // Don't return early - let finally block execute
-                    return; // This goes to finally block first!
-                }
+                // Get branch
+                branch = await db.Branches.FirstOrDefaultAsync(b => b.TerminalId == TerminalId);
+                if (branch == null) return;
 
-                patch = await db.PatchAssignBranchs.FirstOrDefaultAsync(
-                    j => j.PId == numericPatchId && j.Id == branch.Id);
+                // Get patch assigned to this branch
+                patch = await db.PatchAssignBranchs.FirstOrDefaultAsync(p => p.PId == numericPatchId && p.Id == branch.Id);
+                if (patch == null) return;
 
-                if (patch == null)
-                {
-                    return; // Goes to finally block first!
-                }
-                if (patch.Status == PatchStatus.SUCCESS || patch.Status == PatchStatus.FAILED || patch.Status == PatchStatus.ROLLBACK)
-                {
-                    return;
-                }
-                else
-                {
-                    var job = await db.Jobs.FirstOrDefaultAsync(j => j.JobUId == patch.JobUId);
-                    if (job == null)
-                    {
-                        return; // Goes to finally block first!
-                    }
+                // Skip if already finalized
+                if (patch.IsFinalized == PatchIsFinalized.IS_FINALIZED) return;
 
-                    // Update patch status
+                // Log intermediate step
+                await _log.WriteLog("Patch Scheduler", $"Branch: {jobRes.Status}, Step: {jobRes.Step}, Message: {jobRes.Message}, Progress: {jobRes.Progress}");
+
+                // Update DB for intermediate steps
+                patch.Status = jobRes.Status;
+                patch.ProcessLevel = jobRes.Step;
+                patch.Message = jobRes.Message;
+                patch.Progress = jobRes.Progress;
+
+                var job = await db.Jobs.FirstOrDefaultAsync(j => j.JobUId == patch.JobUId);
+                if (job != null)
+                {
                     if (jobRes.Step == PatchStep.COMPLETE || jobRes.Step == PatchStep.ERROR)
                     {
+                        // Finalize patch
                         patch.Endtime = jobRes.Timestamp;
                         job.JobEndTime = jobRes.Timestamp;
-                        job.JSId = 3;
+
+                        patch.IsFinalized = PatchIsFinalized.IS_FINALIZED;
+                        job.JSId = 3;  // Job finished
                     }
-
-                    patch.Status = jobRes.Status;
-                    patch.ProcessLevel = jobRes.Step;
-                    patch.Message = jobRes.Message;
-                    patch.Progress = jobRes.Progress;
-
                     job.JobActive = 2;
                     job.JSId = 2;
-
-                    await db.SaveChangesAsync();
                 }
+
+                await db.SaveChangesAsync(stoppingToken);
             }
             finally
             {
-                //  Always release semaphore (even if early return)
                 _semaphore.Release();
             }
 
-            // SignalR (sequential, AFTER DB completes and semaphore released)
+            // If branch or patch is null, stop
             if (branch == null || patch == null) return;
 
+            // Send SignalR updates for intermediate steps
             if (jobRes.PatchRequestType == PatchRequestType.SINGLE_BRANCH_PATCH)
             {
                 await _hubContext.Clients
@@ -314,7 +368,7 @@ namespace MonitoringBackend.Service
             }
             else if (jobRes.PatchRequestType == PatchRequestType.ALL_BRANCH_PATCH)
             {
-                var resobj = new SelectedBranchAssingPatchWithBranchDto
+                var resObj = new SelectedBranchAssingPatchWithBranchDto
                 {
                     PatchId = patch.PId,
                     Progress = jobRes.Progress,
@@ -326,12 +380,11 @@ namespace MonitoringBackend.Service
                         Id = branch.Id,
                         BranchId = branch.BranchId,
                         BranchName = branch.BranchName,
-                        TerminalActiveStatus = branch.TerminalActiveStatus,
+                        TerminalActiveStatus = branch.TerminalActiveStatus
                     }
-
                 };
 
-                await _hubContext.Clients.All.SendAsync("AllBranchPatchResponse", resobj, stoppingToken);
+                await _hubContext.Clients.All.SendAsync("AllBranchPatchResponse", resObj, stoppingToken);
             }
         }
 

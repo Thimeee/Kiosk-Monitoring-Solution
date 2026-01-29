@@ -398,7 +398,7 @@
                 .WithAutomaticReconnect(new[] { TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30) })
                 .Build();
 
-            // ✅ Handle incoming real-time updates
+            //  Handle incoming real-time updates
             hubConnection.On<SelectedBranchAssingPatchWithBranchDto>("AllBranchPatchResponse", (res) =>
             {
                 InvokeAsync(() =>
@@ -408,7 +408,7 @@
                 });
             });
 
-            // ✅ Handle reconnection
+            //  Handle reconnection
             hubConnection.Reconnecting += (error) =>
             {
                 InvokeAsync(() =>
@@ -725,51 +725,6 @@
 
 
 
-    // public class PatchStatusUpdateMqttResponse
-    // {
-    //     public string UserId { get; set; } = string.Empty;
-    //     public string PatchId { get; set; } = string.Empty;
-    //     public string JobId { get; set; } = string.Empty;
-    //     public int BranchId { get; set; }
-    //     public string BranchCode { get; set; } = string.Empty;
-    //     public string BranchName { get; set; } = string.Empty;
-    //     public PatchRequestType PatchRequestType { get; set; }
-    //     public PatchStatus Status { get; set; }
-    //     public PatchStep Step { get; set; }
-    //     public string Message { get; set; } = string.Empty;
-    //     public int Progress { get; set; }
-    //     public int SequenceNumber { get; set; }
-    //     public DateTime Timestamp { get; set; }
-    // }
-
-    // Real-time log entry for UI
-    // public class PatchLiveLog
-    // {
-    //     public int BranchId { get; set; }
-    //     public string BranchCode { get; set; } = string.Empty;
-    //     public string BranchName { get; set; } = string.Empty;
-    //     public PatchStatus Status { get; set; }
-    //     public PatchStep Step { get; set; }
-    //     public string Message { get; set; } = string.Empty;
-    //     public int Progress { get; set; }
-    //     public int SequenceNumber { get; set; }
-    //     public DateTime Time { get; set; }
-    //     public string TimeFormatted => Time.ToString("HH:mm:ss");
-    // }
-
-    // Branch deployment summary
-    // public class BranchPatchSummary
-    // {
-    //     public int BranchId { get; set; }
-    //     public string BranchCode { get; set; } = string.Empty;
-    //     public string BranchName { get; set; } = string.Empty;
-    //     public PatchStatus CurrentStatus { get; set; }
-    //     public int Progress { get; set; }
-    //     public string LatestMessage { get; set; } = string.Empty;
-    //     public DateTime StartTime { get; set; }
-    //     public DateTime? EndTime { get; set; }
-    //     public List<PatchLiveLog> Logs { get; set; } = new();
-    // }
 }
 
 <style>

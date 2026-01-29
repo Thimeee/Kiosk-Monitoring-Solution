@@ -1,6 +1,10 @@
 ﻿@using BranchMonitorFrontEnd.DTO
 @using Microsoft.AspNetCore.Authorization
 @using BranchMonitorFrontEnd.Pages
+@using Microsoft.AspNetCore.SignalR.Client
+@using Monitoring.Shared.DTO.BranchDto
+@inject AppSettings Settings
+@inject AlertService AlertService
 
 @inherits LayoutComponentBase
 @inject AuthCredential _auth
@@ -45,11 +49,13 @@ else
 @code {
     private LoggedInUser? User { get; set; }
     private LogInBranchDeties? Branch { get; set; }
+    private HubConnection? hubConnection;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            
             User = await _auth.getLogginUserDetiles();
             Branch = await _auth.getLogginBranchDetiles();
 
@@ -61,4 +67,7 @@ else
 
 
     }
+
+   
+
 }

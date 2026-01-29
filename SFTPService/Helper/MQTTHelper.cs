@@ -72,7 +72,7 @@ namespace SFTPService.Helper
                     .WithWillTopic($"server/{branchId}/STATUS/MQTTStatus")
 .WithWillPayload(((int)MQTTConnectionStatus.OFFLINE).ToString())
 .WithWillRetain(true)
-.WithWillQualityOfServiceLevel(MqttQualityOfServiceLevel.ExactlyOnce)
+.WithWillQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
                     .WithTimeout(TimeSpan.FromSeconds(ConnectionTimeoutSeconds))
                     .Build();
 
@@ -334,7 +334,7 @@ namespace SFTPService.Helper
             await PublishAsync(topic, payload, level, cancellationToken);
         }
 
-        public async Task PublishAsync(string topic, object payload, MqttQualityOfServiceLevel level, CancellationToken cancellationToken)
+        public async Task PublishAsync(string topic, object payload, MqttQualityOfServiceLevel level, CancellationToken cancellationToken, bool withRetainFlag = false)
         {
             //  Check if connected
             if (_client == null || !_client.IsConnected)
@@ -359,7 +359,7 @@ namespace SFTPService.Helper
                     .WithTopic(topic)
                     .WithPayload(body)
                     .WithQualityOfServiceLevel(level)
-                    .WithRetainFlag(false)
+                    .WithRetainFlag(withRetainFlag)
                     .Build();
 
                 await _client.PublishAsync(msg, cts.Token);
@@ -476,20 +476,14 @@ namespace SFTPService.Helper
 
             if (_client != null && _client.IsConnected)
             {
-                //// Publish OFFLINE manually
-                //var offlineMessage = new MqttApplicationMessageBuilder()
-                //    .WithTopic($"server/{branchId}/STATUS/MQTTStatus")
-                //    .WithPayload(MQTTConnectionStatus.MANUAL_OFFLINE)
-                //    .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.ExactlyOnce)
-                //    .Build();
 
-                //await _client.PublishAsync(offlineMessage, CancellationToken.None);
-                //Send MQTT ReOnline Status
+                //Send Worker Service Status
                 await PublishAsync(
-        $"server/{branchId}/STATUS/MQTTStatus",
-        ((int)MQTTConnectionStatus.MANUAL_OFFLINE).ToString(),
-        MqttQualityOfServiceLevel.ExactlyOnce,
-         CancellationToken.None
+        $"server/{branchId}/STATUS/ServiceStatus",
+        ServiceConnectionStatus.OFFLINE,
+        MqttQualityOfServiceLevel.AtLeastOnce,
+         CancellationToken.None,
+         true
     );
 
             }

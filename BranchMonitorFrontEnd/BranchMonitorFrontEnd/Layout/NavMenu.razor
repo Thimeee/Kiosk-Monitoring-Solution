@@ -1,9 +1,13 @@
 ﻿@using BranchMonitorFrontEnd.DTO
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.SignalR.Client
+@using Monitoring.Shared.DTO.BranchDto
 @inject NavigationManager NavigationManager
 @inject LayoutSharedService SharedService
 @implements IDisposable
 @inject AuthCredential _auth
+@inject AppSettings Settings
+@inject AlertService AlertService
 
 @if (User == null)
 {
@@ -33,7 +37,7 @@ else
 
                     <div class="navbar-brand">
                         <div class="brand-logo">
-                            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                            @* <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
                                 <defs>
                                     <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                                         <stop offset="0%" style="stop-color:#953e3f;stop-opacity:1" />
@@ -44,12 +48,29 @@ else
                                 <rect x="30" y="30" width="40" height="28" rx="2" fill="white" opacity="0.9" />
                                 <line x1="36" y1="64" x2="44" y2="64" stroke="white" stroke-width="2" opacity="0.9" />
                                 <line x1="40" y1="58" x2="40" y2="64" stroke="white" stroke-width="2" opacity="0.9" />
-                            </svg>
+                            </svg> *@
+                            <img src="Image/logo.png" alt="Report 1" style="width: 100%;" />
+
                         </div>
                         <div class="brand-text">
                             <h1>Sampath Bank</h1>
-                            <span class="brand-subtitle">CDK Monitoring</span>
+                            @* <span class="brand-subtitle">CDK Monitoring</span> *@
+                            @if (hubConnection?.State == HubConnectionState.Connected)
+                            {
+                                <div class="connection-status-main connected">
+                                    <span class="status-dot-main"></span>
+                                    <span>Live</span>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="connection-status-main disconnected">
+                                    <span class="status-dot-main"></span>
+                                    <span>Disconnected</span>
+                                </div>
+                            }
                         </div>
+                       
                     </div>
                 </div>
 
@@ -212,6 +233,7 @@ else
     private List<MenuModel> menuItems = new();
     private List<MenuModel> filteredMenuItems = new();
     private UserInfo currentUser = new("Admin User", "Administrator");
+    private HubConnection? hubConnection;
 
 
     private LoggedInUser User { get; set; }
@@ -220,12 +242,14 @@ else
     {
         try
         {
+            await InitializeSignalR();
 
             User = await _auth.getLogginUserDetiles();
 
             SharedService.OnMessage += HandleMenuChange;
             InitializeMenuData();
             filteredMenuItems = menuItems;
+
         }
         catch (Exception ex)
         {
@@ -233,6 +257,68 @@ else
         }
 
 
+    }
+    private async Task InitializeSignalR()
+    {
+        try
+        {
+
+            hubConnection = new HubConnectionBuilder()
+                .WithUrl(Settings.MainApiBaseUrl + "branchHub")
+                .WithAutomaticReconnect(new[] { TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30) })
+                .Build();
+
+            //  Handle incoming real-time updates
+            hubConnection.On<SignlaResponse>("TerminalStatus", (res) =>
+            {
+                InvokeAsync(() =>
+   {
+       string message;
+
+       if (res.statusMsg == "Online")
+       {
+           message = $"{res.terminalId} Terminal is now Online.";
+           AlertService.ShowSuccess("Terminal Status", message);
+       }
+       else
+       {
+           message = $"{res.terminalId} Terminal is Offline. Please check immediately!";
+           AlertService.ShowWarning("Terminal Status", message);
+       }
+
+       StateHasChanged();
+   });
+            });
+
+            //  Handle reconnection
+            hubConnection.Reconnecting += (error) =>
+            {
+                InvokeAsync(() =>
+                {
+                    AlertService.ShowWarning("Connection Lost", "Reconnecting...");
+                    StateHasChanged();
+                });
+                return Task.CompletedTask;
+            };
+
+            hubConnection.Reconnected += (connectionId) =>
+            {
+                InvokeAsync(() =>
+                {
+                    AlertService.ShowSuccess("Reconnected", "Live updates resumed");
+                    StateHasChanged();
+                });
+                return Task.CompletedTask;
+            };
+
+            await hubConnection.StartAsync();
+            Console.WriteLine("✓ SignalR connected successfully");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"SignalR connection error: {ex.Message}");
+            AlertService.ShowError("Connection Error", "Failed to connect to real-time updates");
+        }
     }
 
     // User logout 
@@ -489,5 +575,51 @@ else
             background: rgba(149, 62, 63, 0.2);
             color: #ffffff;
         }
+
+
+
+    .connection-status-main {
+        display: flex;
+        width:50px;
+        align-items: center;
+        gap: 8px;
+        padding: 2px 4px;
+        border-radius: 20px;
+        font-size: 8px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-top:8px;
+    }
+
+        .connection-status-main.connected {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+            border: 1px solid rgba(76, 175, 80, 0.5);
+        }
+
+        .connection-status-main.disconnected {
+            background: rgba(149, 62, 63, 0.2);
+            color: #ff9999;
+            border: 1px solid rgba(244, 67, 54, 0.5);
+        }
+
+    .status-dot-main {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: pulse 2s infinite;
+    }
+
+    @@keyframes pulse {
+        0%, 100% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: 0.5;
+        }
+    }
 
         </style>

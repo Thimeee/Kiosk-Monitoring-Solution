@@ -139,6 +139,7 @@ builder.Services.AddSingleton<LoggerService>();
 builder.Services.AddSingleton<MQTTHelper>();
 builder.Services.AddSingleton<GetFolderStructure>();
 builder.Services.AddHostedService<MqttWorker>();
+builder.Services.AddHostedService<SchedulerService>();
 //builder.Services.AddHostedService<RabbitSubscriberService>();
 
 // Add services to the container.

@@ -1091,6 +1091,7 @@ namespace MonitoringBackend.Controllers
                         // Skip if already successfully deployed
                         if (existingEnrollment != null && existingEnrollment.Status == PatchStatus.SUCCESS)
                         {
+
                             deploymentResults.Add(new BranchDeploymentResult
                             {
                                 BranchId = branch.Id,
@@ -1103,6 +1104,22 @@ namespace MonitoringBackend.Controllers
                             continue;
                         }
 
+                        // Skip if already successfully deployed
+                        if (existingEnrollment != null && existingEnrollment.Status == PatchStatus.SCHEDULE)
+                        {
+
+                            deploymentResults.Add(new BranchDeploymentResult
+                            {
+                                BranchId = branch.Id,
+                                BranchCode = branch.BranchId,
+                                BranchName = branch.BranchName,
+                                Status = "Skipped",
+                                Message = "Branch already has this patch Scheduling"
+                            });
+                            skippedCount++;
+                            continue;
+                        }
+
                         // Create or update enrollment
                         if (existingEnrollment == null)
                         {
@@ -1110,15 +1127,26 @@ namespace MonitoringBackend.Controllers
                             {
                                 Id = branch.Id,
                                 PId = patch.PId,
-                                Status = PatchStatus.INIT,
-                                ProcessLevel = PatchStep.START,
-                                StartTime = DateTime.Now,
                                 JobUId = jobId,
                                 SendChunksBranch = checksum,
                                 AttemptSteps = 0,
                                 Message = "Deployment initialized",
-                                Progress = 0
+                                Progress = 0,
+                                IsFinalized = PatchIsFinalized.NOT_FINALIZED
                             };
+                            if (obj.ReqValue.IsScheduled)
+                            {
+                                enrollment.Status = PatchStatus.SCHEDULE;
+                                enrollment.ProcessLevel = PatchStep.WATTING;
+                                enrollment.StartTime = obj.ReqValue.ScheduledDateTime;
+                            }
+                            else
+                            {
+                                enrollment.Status = PatchStatus.INIT;
+                                enrollment.ProcessLevel = PatchStep.START;
+                                enrollment.StartTime = DateTime.Now;
+                            }
+
                             _db.PatchAssignBranchs.Add(enrollment);
                         }
                         else
@@ -1164,23 +1192,28 @@ namespace MonitoringBackend.Controllers
                             Step = enrollment.ProcessLevel,
                             //JobId = jobId
                         };
-
-                        // Publish to MQTT based on patch type
-                        var topic = $"branch/{branch.TerminalId}/PATCH/Application";
-
-                        if (patch.PTId == 1) // Application patch
+                        if (!obj.ReqValue.IsScheduled)
                         {
-                            await _mqtt.PublishToServer(
-                                payload,
-                                topic,
-                                MqttQualityOfServiceLevel.ExactlyOnce
-                            );
+                            // Publish to MQTT based on patch type
+                            var topic = $"branch/{branch.TerminalId}/PATCH/Application";
+
+                            if (patch.PTId == 1) // Application patch
+                            {
+                                await _mqtt.PublishToServer(
+                                    payload,
+                                    topic,
+                                    MqttQualityOfServiceLevel.ExactlyOnce
+                                );
+                            }
+                            else
+                            {
+                                // Handle other patch types if needed
+                                Console.WriteLine($"Patch type {patch.PTId} deployment not yet implemented");
+                            }
                         }
-                        else
-                        {
-                            // Handle other patch types if needed
-                            Console.WriteLine($"Patch type {patch.PTId} deployment not yet implemented");
-                        }
+
+
+
 
                         // Add successful result
                         deploymentResults.Add(new BranchDeploymentResult
@@ -1314,6 +1347,8 @@ namespace MonitoringBackend.Controllers
             public int PatchId { get; set; }
             public List<int> BranchIds { get; set; } = new List<int>();
             public string UserId { get; set; } = string.Empty;
+            public bool IsScheduled { get; set; }  // NEW
+            public DateTime? ScheduledDateTime { get; set; }  // NEW
         }
 
     }

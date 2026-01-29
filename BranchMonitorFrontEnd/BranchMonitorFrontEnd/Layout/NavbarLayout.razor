@@ -1,6 +1,8 @@
 ﻿@using BranchMonitorFrontEnd.DTO
 @using Microsoft.AspNetCore.Authorization
 @using BranchMonitorFrontEnd.Pages
+@using Microsoft.AspNetCore.SignalR.Client
+@using Monitoring.Shared.DTO.BranchDto
 
 @inherits LayoutComponentBase
 @inject AuthCredential _auth
@@ -28,7 +30,9 @@ else
                 <main class="pt-5">
                     @Body
                 </main>
+
             </div>
+            <AlertContainer />
             break;
 
         case (true, true):
@@ -65,4 +69,6 @@ else
 
 
     }
+
+     
 }

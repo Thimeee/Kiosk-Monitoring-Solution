@@ -64,7 +64,7 @@ namespace MonitoringBackend.Helper
                     .WithTcpServer(host, port)
                     .WithCredentials(user, pass)
                     .WithKeepAlivePeriod(TimeSpan.FromSeconds(30))
-                    .WithCleanSession(false) //  Persist sessions for reliability
+                    .WithCleanSession(true) //  Persist sessions for reliability
                     .WithTimeout(TimeSpan.FromSeconds(ConnectionTimeoutSeconds))
                     .Build();
 

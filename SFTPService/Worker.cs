@@ -59,16 +59,17 @@ namespace SFTPService
                 //Send MQTT ReOnline Status
                 await _mqtt.PublishAsync(
         $"server/{branchId}/STATUS/MQTTStatus",
-        ((int)MQTTConnectionStatus.ONLINE).ToString(),
-        MqttQualityOfServiceLevel.ExactlyOnce,
-        stoppingToken
+        MQTTConnectionStatus.ONLINE,
+        MqttQualityOfServiceLevel.AtLeastOnce,
+        stoppingToken,
+        true
     );
                 await StartMQTTEvent(branchId, stoppingToken);
             };
 
             await InitializeMqttConnection(mqttHost, mqttUserName, mqttPassword, mqttPort, branchId, stoppingToken);
 
-            _cdkLoopTask = Task.Run(() => CDKStatusMonitoringLoop(branchId, stoppingToken), stoppingToken);
+
 
             return Task.CompletedTask;
         }
@@ -141,17 +142,18 @@ namespace SFTPService
 
             //Send MQTTService restart 
             await _mqtt.PublishAsync(
-    $"server/{branchId}/STATUS/MQTTStatus",
-    ((int)MQTTConnectionStatus.MANUAL_ONLINE).ToString(),
-    MqttQualityOfServiceLevel.ExactlyOnce,
-    stoppingToken
+    $"server/{branchId}/STATUS/ServiceStatus",
+   ServiceConnectionStatus.ONLINE,
+    MqttQualityOfServiceLevel.AtLeastOnce,
+    stoppingToken,
+    true
 );
             if (!await _CDKApplcitionStatus.TestConnectionAsync())
             {
                 await _mqtt.PublishAsync(
 $"server/{branchId}/STATUS/DBStatus",
-((int)DBConnectionStatus.DISCONNCTED).ToString(),
-MqttQualityOfServiceLevel.ExactlyOnce,
+DBConnectionStatus.DISCONNCTED,
+MqttQualityOfServiceLevel.AtLeastOnce,
 stoppingToken
 );
             }
@@ -159,10 +161,12 @@ stoppingToken
             {
                 await _mqtt.PublishAsync(
 $"server/{branchId}/STATUS/DBStatus",
-((int)DBConnectionStatus.CONNECTED).ToString(),
-MqttQualityOfServiceLevel.ExactlyOnce,
+DBConnectionStatus.CONNECTED,
+MqttQualityOfServiceLevel.AtLeastOnce,
 stoppingToken
 );
+
+                _cdkLoopTask = Task.Run(() => CDKStatusMonitoringLoop(branchId, stoppingToken), stoppingToken);
             }
 
         }
@@ -415,7 +419,8 @@ stoppingToken
                                 $"server/{branchId}/STATUS/CDKErrorStatus",
                                 statusString,
                                 MqttQualityOfServiceLevel.AtLeastOnce, // safer
-                                stoppingToken);
+                                stoppingToken,
+                                true);
 
                             attemptsPerStatus[item.IsMaintenanceMood] = (record.count + 1, DateTime.Now);
 

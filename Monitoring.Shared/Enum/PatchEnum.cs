@@ -14,6 +14,14 @@ namespace Monitoring.Shared.Enum
         FAILED,
         ROLLBACK,
         RESTART,
+        SCHEDULE,
+
+
+    }
+    public enum PatchSchedulStatus
+    {
+        NOT_SCHEDULE,
+        IS_SCHEDULE,
 
     }
     public enum PatchRequestType
@@ -22,7 +30,11 @@ namespace Monitoring.Shared.Enum
         ALL_BRANCH_PATCH,
     }
 
-
+    public enum PatchIsFinalized
+    {
+        NOT_FINALIZED,
+        IS_FINALIZED,
+    }
 
     public enum PatchStep
     {
@@ -40,6 +52,7 @@ namespace Monitoring.Shared.Enum
         COMPLETE,
         ERROR,
         RESTART,
+        WATTING,
 
     }
 }

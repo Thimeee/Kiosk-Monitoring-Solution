@@ -21,8 +21,15 @@ namespace Monitoring.Shared.Enum
 
     public enum MQTTConnectionStatus
     {
-        MANUAL_OFFLINE,
-        MANUAL_ONLINE,
+
+        OFFLINE,
+        ONLINE,
+
+    }
+
+    public enum ServiceConnectionStatus
+    {
+
         OFFLINE,
         ONLINE,
 

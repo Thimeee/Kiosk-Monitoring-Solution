@@ -64,5 +64,7 @@ namespace Monitoring.Shared.Models
 
         [Column("Progress")]
         public int? Progress { get; set; }
+        [Column("IsFinalized")]
+        public PatchIsFinalized? IsFinalized { get; set; }
     }
 }
