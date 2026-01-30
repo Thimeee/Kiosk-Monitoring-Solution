@@ -69,16 +69,18 @@ namespace MonitoringBackend.Controllers
     .OrderBy(x => x.Id)
     .Skip((request.PageNumber - 1) * request.PageSize)
     .Take(request.PageSize)
-    .Select(r => new SelectBranchDto
+  .Select(r => new SelectBranchDto
     {
         Id = r.Id,
         BranchId = r.BranchId,
         BranchName = r.BranchName,
         TerminalActiveStatus = r.TerminalActiveStatus,
         Location = r.Location,
-        TerminalName = r.TerminalName,
-        TerminalId = r.TerminalId,
-        TerminalVersion = r.TerminalVersion
+        TerminalName = r.TerminalName ?? null,
+        TerminalId = r.TerminalId ?? null,
+        TerminalVersion = r.TerminalVersion ?? null,
+        TerminalSeriNumber = r.TerminalSeriNumber ?? null,
+        TerminalAddDatetime = r.TerminalAddDatetime
     })
     .ToListAsync();
 
@@ -225,7 +227,6 @@ namespace MonitoringBackend.Controllers
 
 
 
-
         [HttpPost("AddBranch")]
         public async Task<IActionResult> AddBranch([FromBody] APIRequestObject<SelectBranchDto> requestObj)
         {
@@ -260,8 +261,18 @@ namespace MonitoringBackend.Controllers
                     BranchId = obj.BranchId,
                     BranchName = obj.BranchName,
                     Location = obj.Location,
-
+                    TerminalActiveStatus = TerminalActive.TERMINAL_NOT_VERIFY,
                 };
+
+                string? basePath = _config["ServerConfig:ServerTerminalsPath"];
+
+                if (string.IsNullOrWhiteSpace(basePath))
+                    throw new InvalidOperationException("Server terminals path is missing in configuration.");
+
+                string terminalFolderPath = Path.Combine(basePath, obj.TerminalId);
+
+                Directory.CreateDirectory(terminalFolderPath);
+                branch.ServerBranchFolderpath = terminalFolderPath;
 
                 _db.Branches.Add(branch);
                 await _db.SaveChangesAsync();
@@ -284,6 +295,7 @@ namespace MonitoringBackend.Controllers
                 return StatusCode(500, responseDTO);
             }
         }
+
 
 
         [HttpPost("LoginBranch")]

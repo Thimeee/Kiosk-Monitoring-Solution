@@ -35,6 +35,13 @@ namespace Monitoring.Shared.Enum
         NOT_FINALIZED,
         IS_FINALIZED,
     }
+    public enum PatchIsDownload
+    {
+        NOT_DOWNLOAD,
+        DOWNLOAD_IN_PROGRESS,
+        IS_DOWNLOAD,
+    }
+
 
     public enum PatchStep
     {

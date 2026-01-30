@@ -232,7 +232,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-
+        branch = new SelectBranchDto();
         JWTToken = await GetJwtToken();
 
         if (JWTToken != null)
@@ -411,8 +411,12 @@
             return;
         }
 
-        
-        await AddBranchAsync(Settings.MainApiBaseUrl, JWTToken);
+
+        if(await AddBranchAsync(Settings.MainApiBaseUrl, JWTToken))
+        {
+            await LoadBranchesAsync();
+			branch = new SelectBranchDto(); 
+        }
     }
 
 
@@ -505,6 +509,7 @@
                     case HttpStatusCode.BadRequest:
                     case HttpStatusCode.NotFound:
                     case HttpStatusCode.Unauthorized:
+                    case HttpStatusCode.Conflict:
                         if (result?.StatusCode == 1 && result.Status == false)
                         {
                             AlertService.ShowError("Add Branch Error", $"{result.Message}. Please try again.");

@@ -22,17 +22,31 @@ namespace SFTPService
         public async Task WriteLog(string logType, string message, int logWritenType = 1)
         {
             string logFilePath = GetDailyLogFilePath(logWritenType);
-            if (logFilePath != null)
+            if (logFilePath == null) return;
+
+            string logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{logType}] {message}{Environment.NewLine}";
+
+            try
             {
-                string logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{logType}] {message}{Environment.NewLine}";
-                await Task.Run(() => File.AppendAllTextAsync(logFilePath, logEntry));
+                // Open file with shared access so other processes can write
+                using (var stream = new FileStream(
+                    logFilePath,
+                    FileMode.Append,
+                    FileAccess.Write,
+                    FileShare.ReadWrite)) // <- allows multiple processes to write
+                using (var writer = new StreamWriter(stream))
+                {
+                    await writer.WriteAsync(logEntry);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Optionally handle exceptions (e.g., log to another fallback file)
+                Console.WriteLine($"Logging failed: {ex.Message}");
             }
         }
 
-        internal async Task WriteLog(string v, Exception ex, BranchJobResponse<PerformanceInfo> resObj)
-        {
-            throw new NotImplementedException();
-        }
+
 
         private string GetDailyLogFilePath(int LogWritenType)
         {

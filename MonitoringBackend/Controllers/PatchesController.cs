@@ -17,6 +17,7 @@ using Monitoring.Shared.Models;
 using MonitoringBackend.Data;
 using MonitoringBackend.Helper;
 using MQTTnet.Protocol;
+using Renci.SshNet.Messages;
 using SFTPService.Helper;
 using static Monitoring.Shared.DTO.PatchsDto.SelectedPatch;
 
@@ -1130,7 +1131,6 @@ namespace MonitoringBackend.Controllers
                                 JobUId = jobId,
                                 SendChunksBranch = checksum,
                                 AttemptSteps = 0,
-                                Message = "Deployment initialized",
                                 Progress = 0,
                                 IsFinalized = PatchIsFinalized.NOT_FINALIZED
                             };
@@ -1139,12 +1139,16 @@ namespace MonitoringBackend.Controllers
                                 enrollment.Status = PatchStatus.SCHEDULE;
                                 enrollment.ProcessLevel = PatchStep.WATTING;
                                 enrollment.StartTime = obj.ReqValue.ScheduledDateTime;
+                                enrollment.Message = $"Deployment Scheduled At {obj.ReqValue.ScheduledDateTime}";
+
                             }
                             else
                             {
                                 enrollment.Status = PatchStatus.INIT;
                                 enrollment.ProcessLevel = PatchStep.START;
                                 enrollment.StartTime = DateTime.Now;
+                                enrollment.Message = "Deployment initialized";
+
                             }
 
                             _db.PatchAssignBranchs.Add(enrollment);

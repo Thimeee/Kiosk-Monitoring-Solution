@@ -85,10 +85,12 @@ namespace SFTPService.Helper
                     await Task.Delay(1000, cancellationToken);
                     return false;
                 }
+                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                   PatchStatus.SUCCESS, PatchStep.DOWNLOAD, "Patch Downloading Successfully", 15, cancellationToken);
 
                 // PHASE 2: VALIDATE (15-20%)
-                await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
-                    PatchStatus.IN_PROGRESS, PatchStep.VALIDATE, "Validating checksum", 15, cancellationToken);
+                //await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
+                //    PatchStatus.IN_PROGRESS, PatchStep.VALIDATE, "Validating checksum", 15, cancellationToken);
 
                 if (!await ValidateChecksumAsync(downloadedZip, request.ExpectedChecksum))
                 {
@@ -932,14 +934,24 @@ shutdown.exe /r /t 1 /c 'Application rollback completed. Restarting...'
                 Timestamp = DateTime.Now
             };
 
-            // ✅Determine if this is a critical status that needs QoS 2
+            // Determine if this is a critical status that needs QoS 2
             bool isCritical = status == PatchStatus.SUCCESS ||
                               status == PatchStatus.FAILED ||
                               status == PatchStatus.ROLLBACK;
 
-            var qosLevel = isCritical
-                ? MqttQualityOfServiceLevel.ExactlyOnce  // QoS 2 for final status
-                : MqttQualityOfServiceLevel.AtLeastOnce; // QoS 1 for progress updates
+            MqttQualityOfServiceLevel qosLevel;
+            bool retain;
+
+            if (isCritical)
+            {
+                qosLevel = MqttQualityOfServiceLevel.ExactlyOnce;
+                retain = true;
+            }
+            else
+            {
+                qosLevel = MqttQualityOfServiceLevel.AtLeastOnce;
+                retain = false;
+            }
 
             int maxRetries = isCritical ? 3 : 1;
             int retryCount = 0;
@@ -948,11 +960,12 @@ shutdown.exe /r /t 1 /c 'Application rollback completed. Restarting...'
             {
                 try
                 {
-                    await _mqtt.PublishToServer(
-                        payload,
+                    await _mqtt.PublishAsync(
                         $"server/{branchId}/PATCH/Status",
+                        payload,
                         qosLevel,
-                        cancellationToken);
+                        cancellationToken,
+                        retain);
 
                     await _log.WriteLog("MQTT Status", $"✓ Published: {step} ({status}) - QoS {qosLevel}");
                     return; // Success

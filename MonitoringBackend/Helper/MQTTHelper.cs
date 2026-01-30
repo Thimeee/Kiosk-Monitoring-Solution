@@ -141,18 +141,18 @@ namespace MonitoringBackend.Helper
 
             var reason = e.Reason.ToString();
 
-            // ✅ Handle different disconnect scenarios
+            // Handle different disconnect scenarios
             if (e.Reason == MqttClientDisconnectReason.NormalDisconnection)
             {
                 await SafeLog("MQTT", "Normal disconnection");
                 return;
             }
 
-            // ✅ Log disconnect reason with appropriate level
+            // Log disconnect reason with appropriate level
             var logLevel = e.ClientWasConnected ? 2 : 3; // Warning if was connected, Error if never connected
             await SafeLog("MQTT", $"Disconnected: {reason}", logLevel);
 
-            // ✅ Always try to reconnect (unless shutting down)
+            // Always try to reconnect (unless shutting down)
             if (!_disposed && !_isShuttingDown)
             {
                 _ = Task.Run(async () => await TryReconnectAsync());
@@ -161,7 +161,7 @@ namespace MonitoringBackend.Helper
 
         private async Task TryReconnectAsync()
         {
-            // ✅ Non-blocking check - exit if already reconnecting
+            // Non-blocking check - exit if already reconnecting
             if (!await _reconnectLock.WaitAsync(0))
             {
                 return;
@@ -180,7 +180,7 @@ namespace MonitoringBackend.Helper
 
                 for (int i = 1; i <= MaxReconnectAttempts; i++)
                 {
-                    // ✅ Exit if disposed or shutting down
+                    // Exit if disposed or shutting down
                     if (_disposed || _isShuttingDown || token.IsCancellationRequested)
                     {
                         await SafeLog("MQTT", "Reconnect stopped - service shutting down");
@@ -200,13 +200,13 @@ namespace MonitoringBackend.Helper
                             return;
                         }
 
-                        // ✅ Log reconnect attempt (less verbose after 10 attempts)
+                        // Log reconnect attempt (less verbose after 10 attempts)
                         if (i <= 10 || i % 10 == 0)
                         {
                             await SafeLog("MQTT", $"Reconnect attempt {i}/{MaxReconnectAttempts}");
                         }
 
-                        // ✅ Recreate client if necessary
+                        // Recreate client if necessary
                         if (_client == null)
                         {
                             var factory = new MqttClientFactory();
@@ -215,13 +215,13 @@ namespace MonitoringBackend.Helper
                             _client.ApplicationMessageReceivedAsync += HandleMessageReceivedAsync;
                         }
 
-                        // ✅ Try to connect with timeout
+                        // Try to connect with timeout
                         using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(token);
                         connectCts.CancelAfter(TimeSpan.FromSeconds(ConnectionTimeoutSeconds));
 
                         await _client.ConnectAsync(_options!, connectCts.Token);
 
-                        // ✅ SUCCESS!
+                        // SUCCESS!
                         await SafeLog("MQTT", $"✓ Reconnected successfully (attempt {i})");
 
                         // Resubscribe to all topics

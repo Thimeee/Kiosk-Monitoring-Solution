@@ -133,6 +133,12 @@
                                     </svg>
                                     Initialize
                                 </DropdownItem>
+                                   <DropdownItem @onclick="() => OnStatusFilterChanged(PatchStatus.SCHEDULE)" Class="custom-dropdown-item">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
+                                    </svg>
+                                    Schedule
+                                </DropdownItem>
                                 <DropdownItem @onclick="() => OnStatusFilterChanged(PatchStatus.IN_PROGRESS)" Class="custom-dropdown-item">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
                                         <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
@@ -224,6 +230,18 @@
                     <div class="stat-content">
                         <div class="stat-value">@GetStatusCount(PatchStatus.IN_PROGRESS)</div>
                         <div class="stat-label">In Progress</div>
+                    </div>
+                </div>
+                <div class="stat-card stat-schedule">
+                    <div class="stat-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z" />
+                            <path d="M7.5 3a.5.5 0 0 1 .5.5v5.21l3.248 1.856a.5.5 0 0 1-.496.868l-3.5-2A.5.5 0 0 1 7 9V3.5a.5.5 0 0 1 .5-.5z" />
+                        </svg>
+                    </div>
+                    <div class="stat-content">
+                        <div class="stat-value">@GetStatusCount(PatchStatus.SCHEDULE)</div>
+                        <div class="stat-label">Schedule</div>
                     </div>
                 </div>
 
@@ -444,7 +462,7 @@
     {
         var summary = BranchSummaries.FirstOrDefault(b =>
         b.PatchId == res.PatchId &&
-        b.branch.Id == res.branch.Id
+        b.branch.TerminalId == res.branch.TerminalId
     );
 
         if (summary == null)
@@ -457,7 +475,7 @@
             // Update existing summary (only if newer)
             if (res.branch != null)
             {
-                if (res.branch.Id == summary.branch.Id)
+                if (res.branch.TerminalId == summary.branch.TerminalId)
                 {
                     summary.Status = res.Status;
                     summary.Progress = res.Progress;
@@ -475,21 +493,7 @@
         }
     }
 
-    // ====== PATCH SELECTION ======
-    // private async Task OnPatchSelected(SelectedAnyDropDownOrSamllData patch)
-    // {
-    //     selectedPatchId = patch.Id;
-    //     selectedPatchName = patch.Name;
-    //     BranchSummaries.Clear();
-    //     ExpandedBranches.Clear();
-    //     JWTToken ??= await GetJwtToken();
 
-    //     if (await getSelectedPatchesAsync(Settings.MainApiBaseUrl, JWTToken!, patch.Id))
-    //     {
-    //         StateHasChanged();
-    //     }
-    //     StateHasChanged();
-    // }
 
     private async Task OnPatchTypeSelected(SelectedAnyDropDownOrSamllData patchType)
     {
@@ -557,6 +561,7 @@
         PatchStatus.ROLLBACK => "status-rollback",
         PatchStatus.IN_PROGRESS => "status-progress",
         PatchStatus.INIT => "status-init",
+        PatchStatus.SCHEDULE => "status-schedule",
         _ => "status-default"
     };
 
@@ -567,6 +572,7 @@
         PatchStatus.ROLLBACK => (MarkupString)"↶",
         PatchStatus.IN_PROGRESS => (MarkupString)"⟳",
         PatchStatus.INIT => (MarkupString)"◆",
+        PatchStatus.SCHEDULE => (MarkupString)"⏰",
         _ => (MarkupString)"○"
     };
 
@@ -1128,6 +1134,9 @@
     .stat-progress::before {
         background: linear-gradient(180deg, #2196f3 0%, #64b5f6 100%);
     }
+    .stat-schedule::before {
+        background: linear-gradient(180deg, #ff9800 0%, #ffb74d 100%);
+    }
 
     .stat-failed::before {
         background: linear-gradient(180deg, #f44336 0%, #e57373 100%);
@@ -1158,6 +1167,10 @@
         color: #2196f3;
     }
 
+    .stat-schedule .stat-icon {
+        background: rgba(255, 235, 59, 0.2); /* lighter yellow */
+        color: #fbc02d; /* darker yellow for icon/text */
+    }
     .stat-failed .stat-icon {
         background: rgba(149, 62, 63, 0.2);
         color: #ff9999;
@@ -1292,6 +1305,10 @@
             background: rgba(255, 152, 0, 0.2);
             color: #ff9800;
         }
+        .branch-icon.status-schedule {
+            background: rgba(255, 235, 59, 0.2); /* lighter yellow */
+            color: #fbc02d; /* darker yellow for icon/text */
+        }
 
         .branch-icon.status-rollback {
             background: rgba(156, 39, 176, 0.2);
@@ -1356,6 +1373,12 @@
             background: rgba(255, 152, 0, 0.2);
             color: #ff9800;
             border: 1px solid rgba(255, 152, 0, 0.5);
+        }
+
+        .status-badge.status-schedule {
+        background: rgba(255, 235, 59, 0.2); /* lighter yellow */
+        color: #fbc02d; /* darker yellow for icon/text */
+            border: 1px solid rgba(255, 152, 0, 0.2);
         }
 
         .status-badge.status-rollback {
