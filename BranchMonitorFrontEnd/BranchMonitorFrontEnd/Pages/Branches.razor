@@ -3,6 +3,7 @@
 @using System.Text.Json
 @using BranchMonitorFrontEnd.DTO
 @using BranchMonitorFrontEnd.Helper
+@using Microsoft.AspNetCore.SignalR.Client
 @using Monitoring.Shared.DTO
 @using Monitoring.Shared.DTO.BranchDto
 @using Monitoring.Shared.Enum
@@ -112,10 +113,10 @@
                                     <span class="info-value">@kiosk.Location</span>
                                 </div>
                               
-                                <div class="info-row">
+                                @* <div class="info-row">
                                     <span class="info-label">Last Update:</span>
                                     <span class="info-value">@kiosk.LastUpdate</span>
-                                </div>
+                                </div> *@
                             </div>
 
                             <div class="kiosk-actions">
@@ -124,6 +125,12 @@
                                 {
                                     <button class="btn-action" disabled style="opacity: 0.5; cursor: not-allowed;">
                                         Disabled
+                                    </button>
+                                }
+                                else if (kiosk.branchDto.TerminalActiveStatus == TerminalActive.TERMINAL_OFFLINE)
+                                {
+                                    <button class="btn-action" disabled style="opacity: 0.5; cursor: not-allowed;">
+                                        Offline
                                     </button>
                                 }
                                 else
@@ -223,6 +230,8 @@
     private List<KioskData> allKiosks = new();
     private string? JWTToken;
     private bool isLoading = false;
+    private HubConnection? hubConnection;
+
 
     protected override async Task OnInitializedAsync()
     {
@@ -250,6 +259,8 @@
                     await LoadBranchesAsync();
                 }
             }
+            await InitializeSignalR();
+
         }
         catch (Exception ex)
         {
@@ -260,6 +271,75 @@
         {
             isLoading = false;
             StateHasChanged();
+        }
+    }
+
+    private async Task InitializeSignalR()
+    {
+        try
+        {
+
+            hubConnection = new HubConnectionBuilder()
+                .WithUrl(Settings.MainApiBaseUrl + "branchHub")
+                .WithAutomaticReconnect(new[] { TimeSpan.Zero, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(30) })
+                .Build();
+
+            //  Handle incoming real-time updates
+            hubConnection.On<SignlaResponse>("TerminalStatus", (res) =>
+            {
+                InvokeAsync(() =>
+   {
+       string message;
+       var terminal = allKiosks.FirstOrDefault(k => k.TerminalId == res.terminalId);
+
+
+       if (res.statusMsg == "Online")
+       {
+           terminal.Status = "online";
+           terminal.StatusText = "Online";
+           terminal.branchDto.TerminalActiveStatus = TerminalActive.TERMINAL_ONLINE;
+       }
+       else
+       {
+           terminal.Status = "offline";
+           terminal.StatusText = "Offline";
+           terminal.branchDto.TerminalActiveStatus = TerminalActive.TERMINAL_OFFLINE;
+
+          
+       }
+
+       StateHasChanged();
+   });
+            });
+
+            //  Handle reconnection
+            hubConnection.Reconnecting += (error) =>
+            {
+                InvokeAsync(() =>
+                {
+                    AlertService.ShowWarning("Connection Lost", "Reconnecting...");
+                    StateHasChanged();
+                });
+                return Task.CompletedTask;
+            };
+
+            hubConnection.Reconnected += (connectionId) =>
+            {
+                InvokeAsync(() =>
+                {
+                    AlertService.ShowSuccess("Reconnected", "Live updates resumed");
+                    StateHasChanged();
+                });
+                return Task.CompletedTask;
+            };
+
+            await hubConnection.StartAsync();
+            Console.WriteLine("✓ SignalR connected successfully");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"SignalR connection error: {ex.Message}");
+            AlertService.ShowError("Connection Error", "Failed to connect to real-time updates");
         }
     }
 
@@ -479,7 +559,7 @@
                     if (result != null && result.StatusCode == 2 && result.Status == true)
                     {
                         await JS.InvokeVoidAsync("localStorage.setItem", "branchToken", result.Value);
-                        Navigation.NavigateTo("/branchDashbord");
+                        Navigation.NavigateTo("/health");
                     }
                 }
                 else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)

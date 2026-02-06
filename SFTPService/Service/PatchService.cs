@@ -3,16 +3,19 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Net.NetworkInformation;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Options;
 using Monitoring.Shared.DTO;
+using Monitoring.Shared.DTO.WorkerServiceConfigDto;
 using Monitoring.Shared.Enum;
 using MQTTnet.Protocol;
-using SFTPService.Helper;
+using SFTPService.Service;
 //using SFTPService.Models;
 
-namespace SFTPService.Helper
+namespace SFTPService.Service
 {
     public interface IPatchService
     {
@@ -25,7 +28,7 @@ namespace SFTPService.Helper
         private readonly LoggerService _log;
         private readonly MQTTHelper _mqtt;
         private readonly SftpFileService _sftp;
-        private readonly IConfiguration _config;
+        private readonly AppConfig _config;
 
         // Configuration paths
         private readonly string _appName;
@@ -42,26 +45,33 @@ namespace SFTPService.Helper
             LoggerService log,
             MQTTHelper mqtt,
             SftpFileService sftp,
-            IConfiguration config)
+            IOptions<AppConfig> config)
         {
             _log = log;
             _mqtt = mqtt;
             _sftp = sftp;
-            _config = config;
+            _config = config.Value;
 
             // Load configuration
-            _appName = config["Patch:MainAppName"] ?? "Bank_Cheque_printer.exe";
-            _secAppName = config["Patch:SecondAppName"] ?? "Bank_Cheque_printer.exe";
-            _appFolder = config["Patch:AppFolder"] ?? @"C:\Branches\Appliction\App";
-            _backupRoot = config["Patch:BackupRoot"] ?? @"C:\Branches\Appliction\Backups";
-            _updateRoot = config["Patch:UpdateRoot"] ?? @"C:\Branches\Appliction\Updates\NewVersion";
-            _downloadsPath = config["Patch:DownloadsPath"] ?? @"C:\Branches\Appliction\Downloads";
-            _maxBackupsToKeep = int.TryParse(config["Patch:MaxBackupsToKeep"], out var max) ? max : 5;
+            _appName = config.Value.Patch.ApplicationPatch.MainAppName;
+            _secAppName = config.Value.Patch.ApplicationPatch.SecondAppName;
+            _appFolder = config.Value.Patch.ApplicationPatch.AppFolder;
+            _backupRoot = CombinePaths(config.Value.Patch.ApplicationPatch.BackupRoot);
+            _updateRoot = CombinePaths(config.Value.Patch.ApplicationPatch.UpdateRoot);
+            _downloadsPath = CombinePaths(config.Value.Patch.ApplicationPatch.DownloadsPath);
+            _maxBackupsToKeep = config.Value.Patch.ApplicationPatch.MaxBackupsToKeep;
 
             _processName = Path.GetFileNameWithoutExtension(_appName);
             _SecprocessName = Path.GetFileNameWithoutExtension(_secAppName);
         }
 
+        private string CombinePaths(string logtype)
+        {
+            var root = _config.MainPath.PathUrl;
+            var logPath = Path.Combine(root, _config.SubPath.Patch!);
+
+            return Path.Combine(logPath, logtype!);
+        }
         public async Task<bool> ApplyPatchAsync(
      PatchDeploymentMqttRequest request,
      string branchId,
@@ -71,7 +81,7 @@ namespace SFTPService.Helper
 
             try
             {
-                await _log.WriteLog("Patch", $"Starting patch deployment: JobId={request.PatchId}");
+                await _log.WriteLogAsync(LogType.Delay, "INFO:Applcition-Patch", $"Starting patch deployment: JobId={request.PatchId}");
 
                 // PHASE 1: DOWNLOAD (0-15%)
                 await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
@@ -226,23 +236,23 @@ namespace SFTPService.Helper
                 await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
                     PatchStatus.IN_PROGRESS, PatchStep.CLEANUP, "Cleanup completed", 95, cancellationToken);
 
-                // ✅ PHASE 10: COMPLETE (95-100%) - SEND SUCCESS **BEFORE** RESTARTING
+                //  PHASE 10: COMPLETE (95-100%) - SEND SUCCESS **BEFORE** RESTARTING
                 await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
                     PatchStatus.SUCCESS, PatchStep.COMPLETE, "Patch applied successfully. System will restart.", 100, cancellationToken);
 
-                await _log.WriteLog("Patch", $"✓ Patch completed successfully: JobId={request.PatchId}");
+                await _log.WriteLogAsync(LogType.Delay, "SUCCES:Patch", $"✓ Patch completed successfully: patchId={request.PatchId}");
 
-                // ✅ Critical: Wait longer to ensure QoS 2 message is delivered
+                //  Critical: Wait longer to ensure QoS 2 message is delivered
                 await Task.Delay(3000, cancellationToken);
 
-                // ✅ NOW schedule the restart (after everything is done)
+                //  NOW schedule the restart (after everything is done)
                 await ScheduleSystemRestartAsync(cancellationToken);
 
                 return true;
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Error", $"JobId={request.PatchId}, Error: {ex}", 3);
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:Patch", $"PatchId={request.PatchId}, Error: {ex}");
 
                 await PublishStatusAsync(request.UserId, request.PatchId, request.PatchRequestType, branchId,
                     PatchStatus.FAILED, PatchStep.ERROR, $"Unexpected error: {ex.Message}", 0, cancellationToken);
@@ -260,7 +270,8 @@ namespace SFTPService.Helper
                     }
                     catch (Exception rollbackEx)
                     {
-                        await _log.WriteLog("Rollback Error", $"{rollbackEx}", 3);
+                        await _log.WriteLogAsync(LogType.Exception, "ERROR:Patch-Rollback", $"{rollbackEx}");
+
                     }
                 }
 
@@ -280,7 +291,8 @@ namespace SFTPService.Helper
 
                 string localPath = Path.Combine(_downloadsPath, $"patch_{request.PatchId}.zip");
 
-                await _log.WriteLog("Patch Download", $"Downloading from: {request.PatchZipPath}");
+                await _log.WriteLogAsync(LogType.Delay, "INFO:Patch-Download", $"Downloading from: {request.PatchZipPath}");
+
 
                 await _sftp.DownloadFileAsync(
                     request.PatchZipPath,
@@ -291,13 +303,15 @@ namespace SFTPService.Helper
                     null,
                     cancellationToken);
 
-                await _log.WriteLog("Patch Download", $"Downloaded to: {localPath}");
+                await _log.WriteLogAsync(LogType.Delay, "SUCCES:Patch-Download", $"Downloaded to: {localPath}");
+
                 return localPath;
             }
             catch (Exception ex)
             {
                 // Replace this line:
-                await _log.WriteLog("Patch Download Error", $"{ex}", 3);
+                await _log.WriteLogAsync(LogType.Exception, "Patch Download Error", $"{ex}");
+
 
                 return null;
             }
@@ -309,11 +323,11 @@ namespace SFTPService.Helper
             {
                 if (string.IsNullOrWhiteSpace(expectedChecksum))
                 {
-                    await _log.WriteLog("Patch Validate", "No checksum provided - skipping validation", 2);
+                    await _log.WriteLogAsync(LogType.Delay, "WRN:Patch-Validate", "No checksum provided - skipping validation");
+
                     return true;
                 }
 
-                await _log.WriteLog("Patch Validate", "Computing SHA256 checksum");
 
                 using var sha256 = SHA256.Create();
                 using var stream = File.OpenRead(filePath);
@@ -324,19 +338,21 @@ namespace SFTPService.Helper
 
                 if (isValid)
                 {
-                    await _log.WriteLog("Patch Validate", "Checksum valid");
+                    await _log.WriteLogAsync(LogType.Delay, "SUCCES:Patch-Validate", "Checksum valid");
+
                 }
                 else
                 {
-                    await _log.WriteLog("Patch Validate Error",
-                        $"Checksum mismatch - Expected: {expectedChecksum}, Got: {actualChecksum}", 3);
+                    await _log.WriteLogAsync(LogType.Delay, "ERROR:Patch-Validate", $"Checksum mismatch - Expected: {expectedChecksum}, Got: {actualChecksum}");
+
                 }
 
                 return isValid;
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Validate Error", $"{ex}", 3);
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:Patch-Validate", $"{ex}");
+
                 return false;
             }
         }
@@ -348,26 +364,26 @@ namespace SFTPService.Helper
                 // Clean update folder
                 if (Directory.Exists(_updateRoot))
                 {
-                    await _log.WriteLog("Patch Extract", "Cleaning update folder");
+                    await _log.WriteLogAsync(LogType.Delay, "INFO:Patch-Extract", "Cleaning update folder");
                     Directory.Delete(_updateRoot, true);
                 }
 
                 Directory.CreateDirectory(_updateRoot);
 
-                await _log.WriteLog("Patch Extract", $"Extracting to: {_updateRoot}");
 
                 // Extract ZIP
                 await Task.Run(() => ZipFile.ExtractToDirectory(zipPath, _updateRoot), cancellationToken);
 
                 // Verify extraction
                 var fileCount = Directory.GetFiles(_updateRoot, "*", SearchOption.AllDirectories).Length;
-                await _log.WriteLog("Patch Extract", $"Extracted {fileCount} files");
+                await _log.WriteLogAsync(LogType.Delay, "INFO:Patch-Extract", $"Extracted {fileCount} files");
 
                 return fileCount > 0;
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Extract Error", $"{ex}", 3);
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:Patch-Extract", $"{ex}");
+
                 return false;
             }
         }
@@ -380,11 +396,11 @@ namespace SFTPService.Helper
 
                 if (processes.Length == 0)
                 {
-                    await _log.WriteLog("Patch Stop", $"Application {processName} not running");
+                    await _log.WriteLogAsync(LogType.Delay, "INFO:Patch-Stop", $"Application {processName} not running");
+
                     return true;
                 }
 
-                await _log.WriteLog("Patch Stop", $"Stopping {processes.Length} instance(s) of {processName}");
 
                 foreach (var process in processes)
                 {
@@ -392,10 +408,12 @@ namespace SFTPService.Helper
                     {
                         process.Kill();
                         await process.WaitForExitAsync();
+
                     }
                     catch (Exception ex)
                     {
-                        await _log.WriteLog("Patch Stop Warning", $"Failed to stop PID {process.Id}: {ex.Message}", 2);
+                        await _log.WriteLogAsync(LogType.Exception, "ERROR:Patch-Stop", $"{ex}");
+
                     }
                     finally
                     {
@@ -410,16 +428,19 @@ namespace SFTPService.Helper
                 var remainingProcesses = Process.GetProcessesByName(processName);
                 if (remainingProcesses.Length > 0)
                 {
-                    await _log.WriteLog("Patch Stop Error", $"{remainingProcesses.Length} process(es) of {processName} still running", 3);
+                    await _log.WriteLogAsync(LogType.Delay, "WRN:Patch-Stop", $"{remainingProcesses.Length} process(es) of {processName} still running");
+
                     return false;
                 }
 
-                await _log.WriteLog("Patch Stop", $"Application {processName} stopped successfully");
+                await _log.WriteLogAsync(LogType.Delay, "SUCCES:Patch-Stop", $"Application {processName} stopped successfully");
+
                 return true;
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Stop Error", $"{ex}", 3);
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:Patch-Stop", $"{ex}");
+
                 return false;
             }
         }
@@ -433,21 +454,21 @@ namespace SFTPService.Helper
                 string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
                 string backupFolder = Path.Combine(_backupRoot, $"Backup_{timestamp}");
 
-                await _log.WriteLog("Patch Backup", $"Creating backup: {backupFolder}");
-
                 Directory.CreateDirectory(backupFolder);
 
                 // Copy all files recursively
                 await CopyDirectoryAsync(_appFolder, backupFolder, cancellationToken);
 
                 var fileCount = Directory.GetFiles(backupFolder, "*", SearchOption.AllDirectories).Length;
-                await _log.WriteLog("Patch Backup", $"Backed up {fileCount} files");
+                await _log.WriteLogAsync(LogType.Delay, "SUCCES:Patch-Backup", $"Backed up {fileCount} files");
+
 
                 return backupFolder;
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Backup Error", $"{ex}", 3);
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:Patch-Backup", $"{ex}");
+
                 return null;
             }
         }
@@ -619,7 +640,6 @@ namespace SFTPService.Helper
         {
             try
             {
-                await _log.WriteLog("Patch Update", "Starting smart file replacement");
 
                 int filesReplaced = 0;
                 int filesAdded = 0;
@@ -634,7 +654,8 @@ namespace SFTPService.Helper
                     })
                     .ToList();
 
-                await _log.WriteLog("Patch Update", $"Found {updateFiles.Count} files in update package");
+                await _log.WriteLogAsync(LogType.Delay, "INFO:Patch-Update", $"Found {updateFiles.Count} files in update package");
+
 
                 // Copy/Replace files from update package
                 foreach (var updateFile in updateFiles)
@@ -666,14 +687,15 @@ namespace SFTPService.Helper
                     }
                 }
 
-                await _log.WriteLog("Patch Update",
-                    $"Update completed: {filesReplaced} replaced, {filesAdded} added, {filesDeleted} deleted");
+                await _log.WriteLogAsync(LogType.Delay, "SUCCES:Patch-Update", $"Update completed: {filesReplaced} replaced, {filesAdded} added, {filesDeleted} deleted");
+
 
                 return true;
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Update Error", $"{ex}", 3);
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:Patch-Update", $"{ex}");
+
                 return false;
             }
         }
@@ -685,20 +707,22 @@ namespace SFTPService.Helper
 
                 if (!File.Exists(appPath))
                 {
-                    await _log.WriteLog("Patch Start Error", $"Application not found: {appPath}", 3);
+                    await _log.WriteLogAsync(LogType.Delay, "ERROR:Patch-Start", $"Application not found: {appPath}");
+
                     return false;
                 }
 
-                await _log.WriteLog("Patch Start", $"Application updated: {appPath}");
 
-                // ✅ DON'T restart here - let the main flow complete first
-                await _log.WriteLog("Patch Start", "Application files updated successfully");
+                // DON'T restart here - let the main flow complete first
+                await _log.WriteLogAsync(LogType.Delay, "SUCCES:Patch-Start", "Application files updated successfully");
+
 
                 return true;
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Start Error", $"{ex}", 3);
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:Patch-start", $"{ex}");
+
                 return false;
             }
         }
@@ -712,18 +736,21 @@ namespace SFTPService.Helper
 
                 if (File.Exists(appPath))
                 {
-                    await _log.WriteLog("Patch Verify", $"✓ Application file verified: {_appName}");
+                    await _log.WriteLogAsync(LogType.Delay, "SUCCES:Patch-Verify", $"Application file verified: {_appName}");
+
                     return true;
                 }
                 else
                 {
-                    await _log.WriteLog("Patch Verify Error", $"Application file not found: {appPath}", 3);
+                    await _log.WriteLogAsync(LogType.Delay, "ERROR:Patch-Start", $"Application file not found: {appPath}");
+
                     return false;
                 }
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Verify Error", $"{ex}", 3);
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:Patch-Verify", $"{ex}");
+
                 return false;
             }
         }
@@ -733,10 +760,9 @@ namespace SFTPService.Helper
         {
             try
             {
-                await _log.WriteLog("Patch Restart", "Scheduling system restart...");
 
                 string scriptPath = Path.Combine(Path.GetTempPath(), "restart_after_patch.ps1");
-                string serviceName = _config["ServiceName"] ?? "MCS_BranchService";
+                string serviceName = _config.ServiceName;
 
                 string scriptContent = $@"
 # ✅ Wait longer to ensure all MQTT messages are delivered
@@ -756,7 +782,7 @@ shutdown.exe /r /t 1 /c 'Application update completed. Restarting...'
 
                 await File.WriteAllTextAsync(scriptPath, scriptContent, cancellationToken);
 
-                await _log.WriteLog("Patch Restart", "✓ Restart script created - executing in 5 seconds...");
+
 
                 // Execute PowerShell script in background (detached)
                 var psi = new ProcessStartInfo
@@ -768,12 +794,13 @@ shutdown.exe /r /t 1 /c 'Application update completed. Restarting...'
                 };
 
                 Process.Start(psi);
+                await _log.WriteLogAsync(LogType.Delay, "SUCCES:Patch-Restart", $"Restart script created - executing in 5 seconds...");
 
-                await _log.WriteLog("Patch Restart", "✓ Restart scheduled - service will stop in 5 seconds");
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Restart Error", $"{ex}", 3);
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:Patch-Restart", $"{ex}");
+
             }
         }
 
@@ -783,11 +810,11 @@ shutdown.exe /r /t 1 /c 'Application update completed. Restarting...'
             {
                 if (string.IsNullOrEmpty(backupPath) || !Directory.Exists(backupPath))
                 {
-                    await _log.WriteLog("Patch Rollback Error", "No backup available", 3);
+                    await _log.WriteLogAsync(LogType.Delay, "ERROR:Patch-Rollback", "No backup available");
+
                     return;
                 }
 
-                await _log.WriteLog("Patch Rollback", $"Rolling back from: {backupPath}");
 
                 // Stop application (if running)
                 await StopApplicationAsync(_processName);
@@ -809,11 +836,12 @@ shutdown.exe /r /t 1 /c 'Application update completed. Restarting...'
                 // Restore from backup
                 await CopyDirectoryAsync(backupPath, _appFolder, cancellationToken);
 
-                await _log.WriteLog("Patch Rollback", "Rollback completed - forcing system restart...");
+                await _log.WriteLogAsync(LogType.Delay, "SUCCES:Patch-Rollback", "Rollback completed - forcing system restart...");
+
 
                 //  CREATE POWERSHELL SCRIPT TO STOP SERVICE AND RESTART
                 string scriptPath = Path.Combine(Path.GetTempPath(), "restart_after_rollback.ps1");
-                string serviceName = _config["ServiceName"] ?? "MCS_BranchService";
+                string serviceName = _config.ServiceName;
 
                 string scriptContent = $@"
 # Stop the service gracefully
@@ -830,7 +858,7 @@ shutdown.exe /r /t 1 /c 'Application rollback completed. Restarting...'
 
                 await File.WriteAllTextAsync(scriptPath, scriptContent, cancellationToken);
 
-                await _log.WriteLog("Patch Rollback", "Executing graceful service stop + restart...");
+
 
                 // Execute PowerShell script
                 var psi = new ProcessStartInfo
@@ -843,11 +871,13 @@ shutdown.exe /r /t 1 /c 'Application rollback completed. Restarting...'
 
                 Process.Start(psi);
 
-                await _log.WriteLog("Patch Rollback", "Service stop + restart initiated");
+                await _log.WriteLogAsync(LogType.Delay, "SUCCES:Patch-Rollback", "Service stop + restart initiated");
+
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Rollback Error", $"{ex}", 3);
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:Patch-Rollback", $"{ex}");
+
             }
         }
 
@@ -861,7 +891,8 @@ shutdown.exe /r /t 1 /c 'Application rollback completed. Restarting...'
                 if (File.Exists(downloadedZip))
                 {
                     File.Delete(downloadedZip);
-                    await _log.WriteLog("Patch Cleanup", "Deleted downloaded ZIP");
+                    await _log.WriteLogAsync(LogType.Delay, "INFOR:Patch-Cleanup", "Deleted downloaded ZIP");
+
                 }
 
                 // Clean old backups (keep last N)
@@ -880,13 +911,15 @@ shutdown.exe /r /t 1 /c 'Application rollback completed. Restarting...'
 
                     if (backups.Count > 0)
                     {
-                        await _log.WriteLog("Patch Cleanup", $"Removed {backups.Count} old backup(s)");
+                        await _log.WriteLogAsync(LogType.Delay, "INFO:Patch-Cleanup", $"Removed {backups.Count} old backup(s)");
+
                     }
                 }
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Cleanup Error", $"{ex}", 2);
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:Patch-Cleanup", $"{ex}");
+
             }
         }
 
@@ -967,13 +1000,14 @@ shutdown.exe /r /t 1 /c 'Application rollback completed. Restarting...'
                         cancellationToken,
                         retain);
 
-                    await _log.WriteLog("MQTT Status", $"✓ Published: {step} ({status}) - QoS {qosLevel}");
+                    await _log.WriteLogAsync(LogType.Delay, "INFOR:Patch-MQTT-Status", $"Published: {step} ({status}) - QoS {qosLevel}");
+
                     return; // Success
                 }
                 catch (Exception ex)
                 {
                     retryCount++;
-                    await _log.WriteLog("MQTT Publish Error", $"Attempt {retryCount}/{maxRetries}: {ex.Message}", 2);
+                    await _log.WriteLogAsync(LogType.Delay, "Error:Patch-MQTT-Status", $"Attempt {retryCount}/{maxRetries}: {ex.Message}");
 
                     if (retryCount < maxRetries)
                     {
@@ -981,7 +1015,8 @@ shutdown.exe /r /t 1 /c 'Application rollback completed. Restarting...'
                     }
                     else
                     {
-                        await _log.WriteLog("MQTT Publish Failed", $"Failed after {maxRetries} attempts: {step} ({status})", 3);
+                        await _log.WriteLogAsync(LogType.Exception, "Error:Patch-MQTT-Status", $"Failed after {maxRetries} attempts: {step} ({status})");
+
                     }
                 }
             }

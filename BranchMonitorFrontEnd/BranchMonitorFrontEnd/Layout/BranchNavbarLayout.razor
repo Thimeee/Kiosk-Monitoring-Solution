@@ -20,11 +20,11 @@ else
     @switch ((User?.status, Branch?.status))
     {
         case (false, _):
-            <Unauthorized LoginUrl="/" HomeUrl="/dashboard" HomeUrlName="Sign In" LoginUrlName="Return Home" />
+            <Unauthorized LoginUrl="/" HomeUrl="/" HomeUrlName="Sign In" LoginUrlName="Return Home" />
             break;
 
         case (true, false):
-            <Unauthorized LoginUrl="/branches" HomeUrl="/dashboard" HomeUrlName="Sign In" LoginUrlName="Return Home" />
+            <Unauthorized LoginUrl="/branches" HomeUrl="/branches" HomeUrlName="Branches" LoginUrlName="Return Home" />
             break;
 
         case (true, true):

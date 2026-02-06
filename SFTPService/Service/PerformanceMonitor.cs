@@ -7,7 +7,7 @@ using System.Net.NetworkInformation;
 using Microsoft.Extensions.Logging;
 using Monitoring.Shared.DTO;
 
-namespace SFTPService.Helper
+namespace SFTPService.Service
 {
     public interface IPerformanceService
     {
@@ -137,12 +137,12 @@ namespace SFTPService.Helper
                 // OS Memory Information
                 GetOsMemoryInfo(ramInfo);
 
-              ;
+                ;
 
                 // Physical RAM Details
                 GetPhysicalRamInfo(ramInfo);
 
-              
+
 
                 return ramInfo;
             }
@@ -171,7 +171,7 @@ namespace SFTPService.Helper
             }
         }
 
-     
+
 
         private void GetPhysicalRamInfo(RamInfo ramInfo)
         {

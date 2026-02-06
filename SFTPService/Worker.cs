@@ -3,11 +3,13 @@ using System.Text.Json;
 using Azure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Monitoring.Shared.DTO;
+using Monitoring.Shared.DTO.WorkerServiceConfigDto;
 using Monitoring.Shared.Enum;
 using Monitoring.Shared.Models;
 using MQTTnet.Protocol;
-using SFTPService.Helper;
+using SFTPService.Service;
 //using SFTPService.Services;
 
 namespace SFTPService
@@ -16,7 +18,7 @@ namespace SFTPService
     {
         private readonly SftpFileService _sftp;
         private readonly MQTTHelper _mqtt;
-        private readonly IConfiguration _config;
+        private readonly AppConfig _config;
         private readonly LoggerService _log;
         private readonly IPerformanceService _performance;
         private CancellationTokenSource _healthLoopCts;
@@ -24,37 +26,40 @@ namespace SFTPService
         private readonly IPatchService _patchService;
         private readonly CDKApplctionStatusService _CDKApplcitionStatus;
         private Task? _cdkLoopTask;
+        private readonly SqliteService _sqliteService;
 
         public Worker(
             SftpFileService sftpMonitor,
             MQTTHelper mqtt,
-            IConfiguration config,
+            IOptions<AppConfig> config,
             LoggerService log,
             IPerformanceService performance,
             IPatchService patchService,
-            CDKApplctionStatusService CDKApplcitionStatus
+            CDKApplctionStatusService cDKApplcitionStatus,
+            SqliteService sqliteService
            )
         {
             _sftp = sftpMonitor;
             _mqtt = mqtt;
-            _config = config;
+            _config = config.Value;
             _log = log;
             _performance = performance;
             _patchService = patchService;
-            _CDKApplcitionStatus = CDKApplcitionStatus;
+            _CDKApplcitionStatus = cDKApplcitionStatus;
+            _sqliteService = sqliteService;
         }
 
         protected override async Task<Task> ExecuteAsync(CancellationToken stoppingToken)
         {
-            var mqttHost = _config["MQTT:Host"] ?? "localhost";
-            var mqttPort = int.TryParse(_config["MQTT:Port"], out var port) ? port : 1883;
-            var mqttUserName = _config["MQTT:Username"] ?? "";
-            var mqttPassword = _config["MQTT:Password"] ?? "";
-            var branchId = _config["BranchId"] ?? "";
+            var mqttHost = _config.MQTT.Host;
+            var mqttPort = _config.MQTT.Port;
+            var mqttUserName = _config.MQTT.Username;
+            var mqttPassword = _config.MQTT.Password;
+            var branchId = _config.BranchId;
 
             _mqtt.OnReconnectedMQTT += async () =>
             {
-                await _log.WriteLog("Worker", "Reconnected → Re-subscribing...");
+                await _log.WriteLogAsync(LogType.Delay, "INFO:MQTT-Reconnected", "Reconnected → Re-subscribing...");
 
                 //Send MQTT ReOnline Status
                 await _mqtt.PublishAsync(
@@ -92,7 +97,7 @@ namespace SFTPService
 
                 if (connected)
                 {
-                    await _log.WriteLog("MQTT Init", "Connection successful");
+                    await _log.WriteLogAsync(LogType.Delay, "INFO:MQTT-Init", "Service Initial MQTT Connection Successfully");
 
                     await ServiceFirstInilize(branchId, stoppingToken);
 
@@ -109,7 +114,8 @@ namespace SFTPService
         {
             try
             {
-                await _log.WriteLog("MQTT Init", "Subscribing to branch topics");
+                //await _log.WriteLogAsync(LogType.Delay, "INFO:MQTT-Init", "Subscribing to branch topics");s
+
                 var branchTopic = $"branch/{branchId}/#";
                 //await ServiceFirstInilize(branchId, stoppingToken);
 
@@ -124,16 +130,20 @@ namespace SFTPService
                         }
                         catch (Exception ex)
                         {
-                            await _log.WriteLog("MQTT Handler Fatal", $"Topic: {topic}, Error: {ex.Message}", 3);
+                            await _log.WriteLogAsync(LogType.Delay, "ERROR:MQTT-HandlerError", "Topic Subscribing Error Please Check Connction Or (Excepthion Log)");
+                            await _log.WriteLogAsync(LogType.Exception, "ERROR:MQTT-HandlerError", $"Topic: {topic}, Error: {ex}");
+
                         }
                     }, stoppingToken);
                 });
 
-                await _log.WriteLog("MQTT", "Branch subscription completed");
+                await _log.WriteLogAsync(LogType.Delay, "INFO:MQTT-", "Branch subscription completed");
+
             }
             catch (TaskCanceledException)
             {
-                await _log.WriteLog("MQTT", "Service stopping");
+                await _log.WriteLogAsync(LogType.Delay, "WRN:MQTT-HandlerError", "Service stopping");
+
             }
         }
 
@@ -190,7 +200,8 @@ stoppingToken
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("MQTT Handler Exception", $"Error: {ex.Message}", 3);
+                await _log.WriteLogAsync(LogType.Delay, "ERROR:Worker-MQTT-Handler", $"Error ProcessMessage Worker");
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:Worker-MQTT-Handler", $"{ex}");
             }
         }
 
@@ -243,7 +254,8 @@ stoppingToken
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("FolderStructure Error", ex.Message, 3);
+                await _log.WriteLogAsync(LogType.Delay, "ERROR:Worker-FolderStructure", $"Error FolderStructure Worker");
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:Worker-FolderStructure", $"{ex}");
             }
         }
 
@@ -277,7 +289,8 @@ stoppingToken
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Upload Error", ex.Message, 3);
+                await _log.WriteLogAsync(LogType.Delay, "ERROR:Worker-Upload", $"Error Uplode file Worker");
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:Worker-Upload", $"{ex}");
             }
         }
 
@@ -326,7 +339,8 @@ stoppingToken
                         MqttQualityOfServiceLevel.ExactlyOnce,
                         stoppingToken);
                 }
-                await _log.WriteLog("Download Error", ex.Message, 3);
+                await _log.WriteLogAsync(LogType.Delay, "ERROR:Worker-Download", $"Error Download file Worker");
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:Worker-Download", $"{ex}");
             }
         }
 
@@ -385,7 +399,8 @@ stoppingToken
                     await _mqtt.PublishToServer(response, $"server/{branchId}/SFTP/DeleteResponse",
                         MqttQualityOfServiceLevel.ExactlyOnce, stoppingToken);
                 }
-                await _log.WriteLog("Delete Error", ex.Message, 3);
+                await _log.WriteLogAsync(LogType.Delay, "ERROR:Worker-Delete", $"Error Delete file Worker");
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:Worker-Delete", $"{ex}");
             }
         }
 
@@ -424,8 +439,8 @@ stoppingToken
 
                             attemptsPerStatus[item.IsMaintenanceMood] = (record.count + 1, DateTime.Now);
 
-                            await _log.WriteLog("CDKStatus",
-                                $"Sent MQTT ({record.count + 1}/{maxMqttAttemptsPerStatus}): {statusString}", 1);
+                            //await _log.WriteLog("CDKStatus",
+                            //    $"Sent MQTT ({record.count + 1}/{maxMqttAttemptsPerStatus}): {statusString}", 1);
                         }
                     }
 
@@ -434,11 +449,12 @@ stoppingToken
             }
             catch (TaskCanceledException)
             {
-                await _log.WriteLog("CDKStatus", "Monitoring loop cancelled", 1);
+                await _log.WriteLogAsync(LogType.Delay, "ERROR:CDKStatus", $"Error CDKStatus Push");
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("CDKStatus Error", ex.Message, 3);
+                await _log.WriteLogAsync(LogType.Delay, "ERROR:Worker-CDKStatus", $"Error CDKStatus Push");
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:Worker-CDKStatus", $"{ex}");
             }
         }
 
@@ -447,7 +463,7 @@ stoppingToken
         {
             // Prevent race condition with lock
             await _healthLoopLock.WaitAsync(stoppingToken);
-            await _log.WriteLog("Health Loop ", "start helth");
+            //await _log.WriteLog("Health Loop ", "start helth");
 
             try
             {
@@ -493,7 +509,8 @@ stoppingToken
                     }
                     catch (Exception ex)
                     {
-                        await _log.WriteLog("Health Loop Error", ex.Message, 3);
+                        await _log.WriteLogAsync(LogType.Delay, "ERROR:Worker-Health-Loop", $"Error CDK Health ");
+                        await _log.WriteLogAsync(LogType.Exception, "ERROR:Worker-Health-Loop", $"{ex}");
                     }
                 }, token);
             }
@@ -510,37 +527,43 @@ stoppingToken
                 var request = JsonSerializer.Deserialize<PatchDeploymentMqttRequest>(payload);
                 if (request == null)
                 {
-                    await _log.WriteLog("Patch Handler", "Invalid payload received", 3);
+                    await _log.WriteLogAsync(LogType.Delay, "ERROR:Worker-Patch-Handler", "Invalid payload received");
+
                     return;
                 }
 
-                await _log.WriteLog("Patch", $"Received patch request -  PatchId: {request.PatchId}");
 
                 // Execute patch deployment
                 bool success = await _patchService.ApplyPatchAsync(request, branchId, stoppingToken);
 
                 if (success)
                 {
-                    await _log.WriteLog("Patch", $"Patch applied successfully - JobId: {request.PatchId}");
+                    await _log.WriteLogAsync(LogType.Delay, "SUCCES:Worker-Patch-Handler", $"Patch applied successfully - JobId: {request.PatchId}");
+
+
                 }
                 else
                 {
-                    await _log.WriteLog("Patch", $"Patch failed - JobId: {request.PatchId}", 3);
+                    await _log.WriteLogAsync(LogType.Delay, "ERROR:Worker-Patch-Handler", $"Patch failed - JobId: {request.PatchId}");
+
                 }
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Patch Handler Error", ex.Message, 3);
+                await _log.WriteLogAsync(LogType.Delay, "ERROR:Worker-Patch-Handler", $"Error Patch Update ");
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:Worker-Patch-Handler", $"{ex}");
             }
         }
 
         private async Task RetryConnectionAsync(int attempt, int maxRetries, int retryDelayMs, CancellationToken stoppingToken)
         {
-            await _log.WriteLog("Service Warning", $"Initialization failed. Attempt {attempt}", 2);
+            await _log.WriteLogAsync(LogType.Connection, "WRN:Worker-Retry-Connection", $"Initialization failed. Attempt {attempt}");
+
 
             if (attempt >= maxRetries)
             {
-                await _log.WriteLog("Service Error", "Max retries reached", 2);
+                await _log.WriteLogAsync(LogType.Delay, "WRN:Worker-Retry-Connection", "Max retries reached");
+
                 return;
             }
 
@@ -558,7 +581,6 @@ stoppingToken
         {
             try
             {
-                await _log.WriteLog("Worker", "Service stopping gracefully...");
 
                 // top health loop
                 _healthLoopCts?.Cancel();
@@ -573,11 +595,13 @@ stoppingToken
                     await Task.WhenAny(_cdkLoopTask, Task.Delay(5000, cancellationToken)); // wait max 5s
                 }
 
-                await _log.WriteLog("Worker", "Service stopped cleanly");
+                await _log.WriteLogAsync(LogType.Delay, "SUCCES:Worker-Stop", "Service stopped cleanly");
+
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("Worker Error", $"Stop error: {ex.Message}", 3);
+                await _log.WriteLogAsync(LogType.Delay, "ERROR:Worker-Stop", $"Error Service stopped ");
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:Worker-Stop", $"Stop error: {ex}");
             }
 
             await base.StopAsync(cancellationToken);

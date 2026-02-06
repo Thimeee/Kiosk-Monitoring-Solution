@@ -1,7 +1,7 @@
 ﻿
 using Monitoring.Shared.DTO;
 
-namespace SFTPService.Helper
+namespace SFTPService.Service
 {
 
 
@@ -50,6 +50,7 @@ namespace SFTPService.Helper
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Error accessing {path}: {ex.Message}");
+
                 }
 
                 return node;

@@ -7,12 +7,15 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Options;
 using Monitoring.Shared.DTO;
+using Monitoring.Shared.DTO.WorkerServiceConfigDto;
+using Monitoring.Shared.Enum;
 using Monitoring.Shared.Models;
 using MQTTnet.Protocol;
 using Renci.SshNet;
 
-namespace SFTPService.Helper
+namespace SFTPService.Service
 {
     public class SftpFileService : IDisposable
     {
@@ -72,12 +75,12 @@ namespace SFTPService.Helper
             public DateTime LastUsedAt { get; set; }
         }
 
-        public SftpFileService(IConfiguration config, LoggerService log, MQTTHelper mqtt)
+        public SftpFileService(IOptions<AppConfig> config, LoggerService log, MQTTHelper mqtt)
         {
-            _host = config["Sftp:Host"] ?? "MAIN_SERVER_IP";
-            _user = config["Sftp:Username"] ?? "sftp_user";
-            _pass = config["Sftp:Password"] ?? "password";
-            _port = int.TryParse(config["Sftp:Port"], out var p) ? p : 22;
+            _host = config.Value.Sftp.Host;
+            _user = config.Value.Sftp.Username;
+            _pass = config.Value.Sftp.Password;
+            _port = config.Value.Sftp.Port;
             _log = log;
             _mqtt = mqtt;
 
@@ -118,8 +121,10 @@ namespace SFTPService.Helper
 
             if (removedCount > 0)
             {
-                _log.WriteLog("SFTP Cleanup",
-                    $"Cleaned up {removedCount} stale connections (Pool: {_connectionPool.Count})").Wait();
+
+                _log.WriteLogAsync(LogType.Delay, "INFOR:SFTP-Cleanup", $"Cleaned up {removedCount} stale connections (Pool: {_connectionPool.Count})");
+
+
             }
         }
 
@@ -180,7 +185,7 @@ namespace SFTPService.Helper
             string fileSizeStr = fileSize > 0
                 ? $" for {fileSize / 1024.0 / 1024.0 / 1024.0:F2}GB file"
                 : "";
-            await _log.WriteLog("SFTP", $"Creating new connection to {_host}:{_port}{fileSizeStr}...");
+            await _log.WriteLogAsync(LogType.Delay, "INFO:SFTP", $"Creating new connection to {_host}:{_port}{fileSizeStr}...");
 
             var connectionInfo = new Renci.SshNet.ConnectionInfo(
                 _host,
@@ -203,8 +208,7 @@ namespace SFTPService.Helper
 
             await Task.Run(() => client.Connect());
 
-            await _log.WriteLog("SFTP",
-                $"✓ Connected (Timeout: {opTimeout}s, Buffer: {GetBufferSize(fileSize) / 1024 / 1024}MB)");
+            await _log.WriteLogAsync(LogType.Delay, "INFO:SFTP", $" Connected (Timeout: {opTimeout}s, Buffer: {GetBufferSize(fileSize) / 1024 / 1024}MB)");
 
             return client;
         }
@@ -260,7 +264,7 @@ namespace SFTPService.Helper
 
             try
             {
-                await _log.WriteLog("SFTP Verify", "Computing file checksum...");
+
 
                 using var sha256 = SHA256.Create();
                 using var stream = File.OpenRead(filePath);
@@ -271,19 +275,21 @@ namespace SFTPService.Helper
 
                 if (isValid)
                 {
-                    await _log.WriteLog("SFTP Verify", "✓ File integrity verified");
+                    await _log.WriteLogAsync(LogType.Delay, "SUCCES:SFTP-Verify", $"File integrity verified");
                 }
                 else
                 {
-                    await _log.WriteLog("SFTP Verify Error",
-                        $"Checksum mismatch! Expected: {expectedHash}, Got: {actualHash}", 3);
+
+                    await _log.WriteLogAsync(LogType.Delay, "ERROR:SFTP-Verify", $"Checksum mismatch! Expected: {expectedHash}, Got: {actualHash}");
+
                 }
 
                 return isValid;
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("SFTP Verify Error", $"Verification failed: {ex.Message}", 3);
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:SFTP-Verify", $"Verification failed: {ex.Message}");
+
                 return false;
             }
         }
@@ -318,8 +324,10 @@ namespace SFTPService.Helper
                 // Determine download strategy based on file size
                 if (remoteFileSize > MassiveFileThreshold)
                 {
-                    await _log.WriteLog("SFTP Download",
-                        $"MASSIVE file: {remoteFileSize / 1024.0 / 1024.0 / 1024.0:F2}GB - Using CHUNKED download");
+
+                    await _log.WriteLogAsync(LogType.Delay, "INFO:SFTP-Download", $" file: {remoteFileSize / 1024.0 / 1024.0 / 1024.0:F2}GB - Using CHUNKED download");
+
+
 
                     await DownloadFileInChunksAsync(
                         sftp, remotePath, localPath, remoteFileSize,
@@ -336,9 +344,9 @@ namespace SFTPService.Helper
                     sftp.OperationTimeout = TimeSpan.FromSeconds(operationTimeout);
                     sftp.BufferSize = (uint)bufferSize;
 
-                    await _log.WriteLog("SFTP Download",
-                        $"{sizeCategory}: {remoteFileSize / 1024.0 / 1024.0:F2}MB | " +
+                    await _log.WriteLogAsync(LogType.Delay, "INFO:SFTP-Download", $"{sizeCategory}: {remoteFileSize / 1024.0 / 1024.0:F2}MB | " +
                         $"Timeout: {operationTimeout}s | Buffer: {bufferSize / 1024 / 1024}MB");
+
 
                     long offset = File.Exists(localPath) ? new FileInfo(localPath).Length : 0;
                     if (offset > remoteFileSize) offset = 0;
@@ -353,20 +361,20 @@ namespace SFTPService.Helper
                         sftp, remotePath, localPath, remoteFileSize, offset, bufferSize,
                         userId, jobId, branchID, progress, cancellationToken);
                 }
+                await _log.WriteLogAsync(LogType.Delay, "SUCCES:SFTP-Download", $"Downloaded {remoteFileSize / 1024.0 / 1024.0 / 1024.0:F2}GB: '{remotePath}'");
 
-                await _log.WriteLog("SFTP Success",
-                    $"Downloaded {remoteFileSize / 1024.0 / 1024.0 / 1024.0:F2}GB: '{remotePath}'");
             }
             catch (OperationCanceledException)
             {
-                await _log.WriteLog("SFTP Download", "Download cancelled");
+                await _log.WriteLogAsync(LogType.Delay, "ERROR:SFTP-Download", "Download cancelled");
+
                 await PublishJobResponse(userId, jobId, branchID, "DownloadResponse", 0, "Cancelled");
                 throw;
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("SFTP Error", $"Download failed: {remotePathBefore}", 3);
-                await _log.WriteLog("SFTP Exception", $"{ex.Message}", 3);
+                await _log.WriteLogAsync(LogType.Delay, "ERROR:SFTP-Download", $"Download failed: {remotePathBefore}");
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:SFTP-Download", $"{ex.Message}");
                 await PublishJobResponse(userId, jobId, branchID, "DownloadResponse", 0, "Failed");
                 throw;
             }
@@ -443,8 +451,8 @@ namespace SFTPService.Helper
                             double remainingMB = (remoteFileSize - offset) / 1024.0 / 1024.0;
                             double etaSeconds = remainingMB * 8 / speedMbps;
 
-                            await _log.WriteLog("SFTP Speed",
-                                $"Speed: {speedMbps:F2} Mbps | Remaining: {remainingMB:F2}MB | ETA: {etaSeconds:F0}s");
+
+                            await _log.WriteLogAsync(LogType.Delay, "INFOR:SFTP-Download-Speed", $"Speed: {speedMbps:F2} Mbps | Remaining: {remainingMB:F2}MB | ETA: {etaSeconds:F0}s");
 
                             bytesAtLastCheck = offset;
                             lastSpeedCheck = now;
@@ -465,8 +473,9 @@ namespace SFTPService.Helper
                     var totalTime = (DateTime.Now - downloadStartTime).TotalSeconds;
                     double avgSpeedMbps = (remoteFileSize * 8 / 1024.0 / 1024.0) / totalTime;
 
-                    await _log.WriteLog("SFTP Success",
-                        $"Download completed in {totalTime:F0}s | Avg speed: {avgSpeedMbps:F2} Mbps");
+
+                    await _log.WriteLogAsync(LogType.Delay, "SUCCES:SFTP-Download-Speed", $"Download completed in {totalTime:F0}s | Avg speed: {avgSpeedMbps:F2} Mbps");
+
 
                     await PublishJobResponse(userId, jobId, branchID, "DownloadResponse", 2, "Completed");
                     return;
@@ -477,8 +486,10 @@ namespace SFTPService.Helper
                 }
                 catch (Exception ex)
                 {
-                    await _log.WriteLog("SFTP Download Attempt",
-                        $"Attempt {attempt}/{MaxRetries} failed at {offset / 1024.0 / 1024.0:F2}MB: {ex.Message}", 2);
+
+
+                    await _log.WriteLogAsync(LogType.Delay, "ERROR:SFTP-Download", $"Download failed");
+                    await _log.WriteLogAsync(LogType.Exception, "ERROR:SFTP-Download", $"Attempt {attempt}/{MaxRetries} failed at {offset / 1024.0 / 1024.0:F2}MB: {ex}");
 
                     if (attempt >= MaxRetries)
                     {
@@ -522,9 +533,11 @@ namespace SFTPService.Helper
                     if (long.TryParse(offsetStr, out long savedOffset))
                     {
                         startOffset = savedOffset;
-                        await _log.WriteLog("SFTP Resume",
-                            $"Resuming from {startOffset / 1024.0 / 1024.0 / 1024.0:F2}GB " +
+
+
+                        await _log.WriteLogAsync(LogType.Delay, "INFO:SFTP-Resume", $"Resuming from {startOffset / 1024.0 / 1024.0 / 1024.0:F2}GB " +
                             $"({startOffset * 100.0 / totalFileSize:F2}%)");
+
                     }
                 }
                 catch { }
@@ -538,8 +551,8 @@ namespace SFTPService.Helper
             int chunkNumber = (int)(startOffset / ChunkSize);
             int totalChunks = (int)((totalFileSize + ChunkSize - 1) / ChunkSize);
 
-            await _log.WriteLog("SFTP Chunked",
-                $"Starting chunked download: {totalChunks} chunks of {ChunkSize / 1024 / 1024}MB each");
+
+            await _log.WriteLogAsync(LogType.Delay, "INFO:SFTP-Chunk", $"Starting chunked download: {totalChunks} chunks of {ChunkSize / 1024 / 1024}MB each");
 
             await PublishJobResponse(userId, jobId, branchID, "DownloadResponse", 1,
                 $"Downloading in {totalChunks} chunks");
@@ -557,8 +570,9 @@ namespace SFTPService.Helper
                 long chunkEnd = Math.Min(chunkStart + ChunkSize, totalFileSize);
                 long chunkLength = chunkEnd - chunkStart;
 
-                await _log.WriteLog("SFTP Chunk",
-                    $"Downloading chunk {chunkNumber}/{totalChunks}: " +
+
+
+                await _log.WriteLogAsync(LogType.Delay, "INFO:SFTP-Chunk", $"Downloading chunk {chunkNumber}/{totalChunks}: " +
                     $"{chunkStart / 1024.0 / 1024.0:F2}MB - {chunkEnd / 1024.0 / 1024.0:F2}MB " +
                     $"({chunkLength / 1024.0 / 1024.0:F2}MB)");
 
@@ -573,7 +587,7 @@ namespace SFTPService.Helper
                     {
                         if (!sftp.IsConnected)
                         {
-                            await _log.WriteLog("SFTP Chunk", "Reconnecting...");
+                            await _log.WriteLogAsync(LogType.Delay, "INFO:SFTP-Chunk", "Reconnecting...");
                             sftp.Connect();
                         }
 
@@ -624,9 +638,11 @@ namespace SFTPService.Helper
                                 double remainingGB = (totalFileSize - currentOffset) / 1024.0 / 1024.0 / 1024.0;
                                 double etaMinutes = (remainingGB * 1024 * 8 / speedMbps) / 60;
 
-                                await _log.WriteLog("SFTP Speed",
-                                    $"Chunk {chunkNumber}/{totalChunks} | Speed: {speedMbps:F2} Mbps | " +
+
+
+                                await _log.WriteLogAsync(LogType.Delay, "INFO:SFTP-Speed", $"Chunk {chunkNumber}/{totalChunks} | Speed: {speedMbps:F2} Mbps | " +
                                     $"Remaining: {remainingGB:F2}GB | ETA: {etaMinutes:F0}m");
+
 
                                 bytesAtLastCheck = currentOffset;
                                 lastSpeedCheck = now;
@@ -637,8 +653,8 @@ namespace SFTPService.Helper
 
                         await File.WriteAllTextAsync(progressFile, currentOffset.ToString());
 
-                        await _log.WriteLog("SFTP Chunk",
-                            $"✓ Chunk {chunkNumber}/{totalChunks} completed " +
+
+                        await _log.WriteLogAsync(LogType.Delay, "SUCCES:SFTP-Chunk", $"✓ Chunk {chunkNumber}/{totalChunks} completed " +
                             $"({currentOffset * 100.0 / totalFileSize:F2}% total)");
                     }
                     catch (OperationCanceledException)
@@ -647,9 +663,10 @@ namespace SFTPService.Helper
                     }
                     catch (Exception ex)
                     {
-                        await _log.WriteLog("SFTP Chunk Error",
-                            $"Chunk {chunkNumber} attempt {chunkAttempt}/{MaxChunkRetries} failed: {ex.Message}",
-                            chunkAttempt >= MaxChunkRetries ? 3 : 2);
+
+                        await _log.WriteLogAsync(LogType.Delay, "ERROR:SFTP-Chunk-Error", $"Download failed");
+
+                        await _log.WriteLogAsync(LogType.Exception, "ERROR:SFTP-Chunk-Error", $"Chunk {chunkNumber} attempt {chunkAttempt}/{MaxChunkRetries} failed: {ex}");
 
                         if (chunkAttempt >= MaxChunkRetries)
                         {
@@ -682,8 +699,7 @@ namespace SFTPService.Helper
             var totalTime = (DateTime.Now - downloadStartTime).TotalSeconds;
             double avgSpeedGbps = (totalFileSize * 8 / 1024.0 / 1024.0 / 1024.0) / totalTime;
 
-            await _log.WriteLog("SFTP Success",
-                $"Chunked download completed: {totalFileSize / 1024.0 / 1024.0 / 1024.0:F2}GB in {totalTime / 60:F0}m " +
+            await _log.WriteLogAsync(LogType.Delay, "SUCCES:SFTP-Chunk", $"Chunked download completed: {totalFileSize / 1024.0 / 1024.0 / 1024.0:F2}GB in {totalTime / 60:F0}m " +
                 $"| Avg speed: {avgSpeedGbps:F2} Gbps");
 
             try
@@ -741,18 +757,21 @@ namespace SFTPService.Helper
                     sftp, localPath, remotePath, localFileSize, offset, bufferSize,
                     userId, jobId, branchID, progress, cancellationToken);
 
-                await _log.WriteLog("SFTP Success", $"Uploaded '{localPath}' to '{remotePath}'");
+                await _log.WriteLogAsync(LogType.Delay, "INFO:SFTP-upload", $"Uploaded '{localPath}' to '{remotePath}'");
             }
             catch (OperationCanceledException)
             {
-                await _log.WriteLog("SFTP Upload", "Upload cancelled");
+                await _log.WriteLogAsync(LogType.Delay, "ERROR:SFTP-upload", "Upload cancelled");
+
                 await PublishJobResponse(userId, jobId, branchID, "UploadResponse", 0, "Cancelled");
                 throw;
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("SFTP Error", $"Upload failed: {localPathBefore}", 3);
-                await _log.WriteLog("SFTP Exception", $"{ex.Message}", 3);
+                await _log.WriteLogAsync(LogType.Delay, "ERROR:SFTP-upload", $"Upload failed: {localPathBefore}");
+
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:SFTP-upload", $"{ex.Message}");
+
                 await PublishJobResponse(userId, jobId, branchID, "UploadResponse", 0, "Failed");
                 throw;
             }
@@ -839,8 +858,10 @@ namespace SFTPService.Helper
                 }
                 catch (Exception ex)
                 {
-                    await _log.WriteLog("SFTP Upload Attempt",
-                        $"Attempt {attempt}/{MaxRetries} failed: {ex.Message}", 2);
+                    await _log.WriteLogAsync(LogType.Delay, "ERROR:SFTP-upload", $"Upload failed");
+
+                    await _log.WriteLogAsync(LogType.Exception, "ERROR:SFTP-upload", $"Attempt {attempt}/{MaxRetries} failed: {ex}");
+
 
                     if (attempt >= MaxRetries)
                     {
@@ -892,7 +913,10 @@ namespace SFTPService.Helper
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("MQTT Publish Error", $"Failed to publish {responseType}: {ex.Message}", 3);
+                await _log.WriteLogAsync(LogType.Delay, "ERROR:SFTP-MQTT", $"publish failed");
+
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:SFTP-MQTT", $"Failed to publish {responseType}: {ex}");
+
             }
         }
 
@@ -927,7 +951,11 @@ namespace SFTPService.Helper
             }
             catch (Exception ex)
             {
-                await _log.WriteLog("MQTT Progress Error", $"Failed to publish progress: {ex.Message}", 3);
+
+                await _log.WriteLogAsync(LogType.Delay, "ERROR:SFTP-MQTT-Progress", $"publish failed");
+
+                await _log.WriteLogAsync(LogType.Exception, "ERROR:SFTP-MQTT-Progress", $"Failed to publish progress: {ex}");
+
             }
         }
 

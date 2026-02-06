@@ -70,18 +70,18 @@ namespace MonitoringBackend.Controllers
     .Skip((request.PageNumber - 1) * request.PageSize)
     .Take(request.PageSize)
   .Select(r => new SelectBranchDto
-    {
-        Id = r.Id,
-        BranchId = r.BranchId,
-        BranchName = r.BranchName,
-        TerminalActiveStatus = r.TerminalActiveStatus,
-        Location = r.Location,
-        TerminalName = r.TerminalName ?? null,
-        TerminalId = r.TerminalId ?? null,
-        TerminalVersion = r.TerminalVersion ?? null,
-        TerminalSeriNumber = r.TerminalSeriNumber ?? null,
-        TerminalAddDatetime = r.TerminalAddDatetime
-    })
+  {
+      Id = r.Id,
+      BranchId = r.BranchId,
+      BranchName = r.BranchName,
+      TerminalActiveStatus = r.TerminalActiveStatus,
+      Location = r.Location,
+      TerminalName = r.TerminalName ?? null,
+      TerminalId = r.TerminalId ?? null,
+      TerminalVersion = r.TerminalVersion ?? null,
+      TerminalSeriNumber = r.TerminalSeriNumber ?? null,
+      TerminalAddDatetime = r.TerminalAddDatetime
+  })
     .ToListAsync();
 
 
@@ -262,6 +262,9 @@ namespace MonitoringBackend.Controllers
                     BranchName = obj.BranchName,
                     Location = obj.Location,
                     TerminalActiveStatus = TerminalActive.TERMINAL_NOT_VERIFY,
+                    TerminalVersion = "V001",
+                    TerminalSeriNumber = "CDK001",
+                    TerminalName = "CDK",
                 };
 
                 string? basePath = _config["ServerConfig:ServerTerminalsPath"];
@@ -274,7 +277,25 @@ namespace MonitoringBackend.Controllers
                 Directory.CreateDirectory(terminalFolderPath);
                 branch.ServerBranchFolderpath = terminalFolderPath;
 
+                //new SFTPFolderPath
+                //{
+                //    Id = branch.Id,
+                //    ServerBranchPath = terminalFolderPath,
+                //    BranchPath = "C:\\MCS",
+                //    ServerStatus = 1
+                //};
+
+
                 _db.Branches.Add(branch);
+                await _db.SaveChangesAsync();
+
+                _db.SFTPFolders.Add(new SFTPFolderPath
+                {
+                    Id = branch.Id,
+                    ServerBranchPath = terminalFolderPath,
+                    BranchPath = "C:\\MCS",
+                    ServerStatus = 1
+                });
                 await _db.SaveChangesAsync();
 
                 responseDTO.Status = true;

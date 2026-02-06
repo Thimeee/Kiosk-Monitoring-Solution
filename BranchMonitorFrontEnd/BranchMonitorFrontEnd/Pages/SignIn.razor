@@ -162,14 +162,14 @@
                 switch ((User?.status, Branch?.status))
                 {
                     case (true, true):
-                        Navigation.NavigateTo("/branchDashbord");
+                        Navigation.NavigateTo("/health");
 
                         break;
                     case (false, true):
                         Navigation.NavigateTo("/");
                         break;
                     case (true, false):
-                        Navigation.NavigateTo("/dashboard");
+                        Navigation.NavigateTo("/branches");
 
                         break;
                     case (false, false):
@@ -224,7 +224,7 @@
                         {
                             customAuth.NotifyAuthenticationStateChanged();
                         }
-                        Navigation.NavigateTo("/dashboard");
+                        Navigation.NavigateTo("/branches");
                     }
                 }
                 else if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized || response.StatusCode == System.Net.HttpStatusCode.BadRequest)
